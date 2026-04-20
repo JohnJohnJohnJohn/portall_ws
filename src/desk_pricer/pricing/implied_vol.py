@@ -30,8 +30,9 @@ def compute_implied_vol(
     max_iterations: int = 1000,
 ) -> ImpliedVolOutput:
     """Solve for implied volatility given an observed market price."""
+    effective_t = max(t, 1.0 / 365.0)
     ql_date = ql_date_from_iso(valuation_date)
-    expiry_date = expiry_from_t(ql_date, t)
+    expiry_date = expiry_from_t(ql_date, effective_t)
     calendar = default_calendar()
     day_count = default_day_count()
 

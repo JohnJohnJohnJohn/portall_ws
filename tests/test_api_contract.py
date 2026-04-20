@@ -82,6 +82,19 @@ class TestGreeks:
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
 
+    def test_greeks_t_zero_floored_to_one_day(self, client: TestClient):
+        """t=0 should be floored to 1 day, returning sensible Greeks rather than collapsing to zero."""
+        resp = client.get(
+            "/v1/greeks?s=100&k=100&t=0&r=0.05&q=0&v=0.20&type=call&style=european",
+            headers={"Accept": "application/json"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["greeks"]["outputs"]
+        assert data["price"] > 0
+        assert 0 < data["delta"] < 1
+        assert data["gamma"] > 0
+        assert data["theta"] < 0
+
     def test_greeks_put_call_parity(self, client: TestClient):
         """European call/put with same params should satisfy parity."""
         base = {"s": 100, "k": 100, "t": 0.5, "r": 0.05, "q": 0.02, "v": 0.20, "style": "european"}
@@ -147,6 +160,23 @@ class TestImpliedVol:
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
+
+    def test_impliedvol_t_zero_floored(self, client: TestClient):
+        # Price at 20% vol with t floored to 1 day, then back out IV
+        resp_price = client.get(
+            "/v1/greeks?s=100&k=100&t=0&r=0.05&q=0&v=0.20&type=call&style=european",
+            headers={"Accept": "application/json"},
+        )
+        assert resp_price.status_code == 200
+        price = resp_price.json()["greeks"]["outputs"]["price"]
+
+        resp_iv = client.get(
+            f"/v1/impliedvol?s=100&k=100&t=0&r=0.05&q=0&price={price}&type=call&style=european",
+            headers={"Accept": "application/json"},
+        )
+        assert resp_iv.status_code == 200
+        iv = resp_iv.json()["impliedvol"]["outputs"]["implied_vol"]
+        assert abs(iv - 0.20) < 1e-3
 
     def test_impliedvol_missing_param(self, client: TestClient):
         resp = client.get("/v1/impliedvol?s=100&k=100")

@@ -22,5 +22,5 @@ def default_day_count() -> ql.DayCounter:
 
 
 def expiry_from_t(valuation_date: ql.Date, t: float) -> ql.Date:
-    days = round(t * 365)
+    days = max(1, round(t * 365))
     return valuation_date + int(days)

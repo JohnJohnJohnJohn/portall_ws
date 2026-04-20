@@ -52,7 +52,7 @@ Price a single vanilla option and return Greeks.
 |------|------|----------|-------------|
 | `s` | float > 0 | Yes | Spot price |
 | `k` | float > 0 | Yes | Strike |
-| `t` | float > 0 | Yes | Time to expiry in years (ACT/365F) |
+| `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 calendar day |
 | `r` | float | Yes | Continuously compounded risk-free rate |
 | `q` | float | Yes | Continuously compounded dividend yield |
 | `v` | float > 0 | Yes | Black volatility (decimal) |
@@ -184,7 +184,7 @@ Solve for implied volatility given an observed market price.
 |------|------|----------|-------------|
 | `s` | float > 0 | Yes | Spot price |
 | `k` | float > 0 | Yes | Strike |
-| `t` | float > 0 | Yes | Time to expiry in years (ACT/365F) |
+| `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 calendar day |
 | `r` | float | Yes | Continuously compounded risk-free rate |
 | `q` | float | Yes | Continuously compounded dividend yield |
 | `price` | float > 0 | Yes | Observed market price of the option |

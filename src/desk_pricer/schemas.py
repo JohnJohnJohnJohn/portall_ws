@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 class GreeksRequest(BaseModel):
     s: float = Field(gt=0, description="Spot price of underlying")
     k: float = Field(gt=0, description="Strike")
-    t: float = Field(gt=0, description="Time to expiry in years (ACT/365F)")
+    t: float = Field(ge=0, description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day")
     r: float = Field(description="Continuously compounded risk-free rate")
     q: float = Field(description="Continuously compounded dividend yield")
     v: float = Field(gt=0, description="Black volatility (decimal, not %)")
@@ -46,7 +46,7 @@ class LegInput(BaseModel):
     qty: float = Field(description="Quantity (negative for short)")
     s: float = Field(gt=0)
     k: float = Field(gt=0)
-    t: float = Field(gt=0)
+    t: float = Field(ge=0, description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day")
     r: float = Field()
     q: float = Field()
     v: float = Field(gt=0)
@@ -90,7 +90,7 @@ class GreeksOutput(BaseModel):
 class ImpliedVolRequest(BaseModel):
     s: float = Field(gt=0, description="Spot price of underlying")
     k: float = Field(gt=0, description="Strike")
-    t: float = Field(gt=0, description="Time to expiry in years (ACT/365F)")
+    t: float = Field(ge=0, description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day")
     r: float = Field(description="Continuously compounded risk-free rate")
     q: float = Field(description="Continuously compounded dividend yield")
     price: float = Field(gt=0, description="Observed market price of the option")
