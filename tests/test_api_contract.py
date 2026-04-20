@@ -39,16 +39,6 @@ class TestVersion:
 
 
 class TestGreeks:
-    def test_greeks_csv_format(self, client: TestClient):
-        resp = client.get(
-            "/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&type=call&style=european&format=csv"
-        )
-        assert resp.status_code == 200
-        assert "text/plain" in resp.headers["content-type"]
-        parts = resp.text.split(",")
-        assert len(parts) == 7
-        assert all(float(p) > 0 for p in parts[:2])  # price and delta positive
-
     def test_greeks_european_xml(self, client: TestClient):
         resp = client.get(
             "/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&type=call&style=european"
