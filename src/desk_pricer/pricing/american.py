@@ -103,16 +103,27 @@ def price_american(
     rho = (price_up_r - price_down_r) / (2.0 * h_r) / 100.0
 
     # Theta via one-day-forward revalue
-    price_tomorrow = _npv(
-        s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type
-    )
+    # When the option has <= 1 day left, forward revalue hits expiry;
+    # fallback to intrinsic value for the overnight price
+    if expiry_date > ql_date + 1:
+        price_tomorrow = _npv(
+            s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type
+        )
+    else:
+        if option_type == "call":
+            price_tomorrow = max(s - k, 0.0)
+        else:
+            price_tomorrow = max(k - s, 0.0)
     theta = price - price_tomorrow
 
     # Charm: ∂delta/∂t per calendar day (forward difference)
-    price_up_s_t1 = _npv(s + h_s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type)
-    price_down_s_t1 = _npv(s - h_s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type)
-    delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
-    charm = delta - delta_t1
+    if expiry_date > ql_date + 1:
+        price_up_s_t1 = _npv(s + h_s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type)
+        price_down_s_t1 = _npv(s - h_s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type)
+        delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
+        charm = delta - delta_t1
+    else:
+        charm = 0.0
 
     return GreeksOutput(
         price=price,
