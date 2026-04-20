@@ -100,6 +100,61 @@ class TestGreeks:
         assert abs(lhs - rhs) < 1e-6
 
 
+class TestImpliedVol:
+    def test_impliedvol_european_roundtrip(self, client: TestClient):
+        """Price at known vol → IV should recover vol within tolerance."""
+        base = {"s": 100, "k": 100, "t": 0.5, "r": 0.05, "q": 0.02, "v": 0.20, "type": "call", "style": "european"}
+        resp_price = client.get("/v1/greeks", params=base, headers={"Accept": "application/json"})
+        assert resp_price.status_code == 200
+        price = resp_price.json()["greeks"]["outputs"]["price"]
+
+        iv_params = {k: v for k, v in base.items() if k != "v"}
+        iv_params["price"] = price
+        resp_iv = client.get("/v1/impliedvol", params=iv_params, headers={"Accept": "application/json"})
+        assert resp_iv.status_code == 200
+        data = resp_iv.json()["impliedvol"]
+        assert data["meta"]["engine"] == "analytic"
+        iv = data["outputs"]["implied_vol"]
+        assert abs(iv - 0.20) < 1e-4
+        npv_check = data["outputs"]["npv_at_iv"]
+        assert abs(npv_check - price) < 1e-3
+
+    def test_impliedvol_american_roundtrip(self, client: TestClient):
+        base = {"s": 100, "k": 100, "t": 0.5, "r": 0.05, "q": 0.02, "v": 0.25, "type": "put", "style": "american", "engine": "binomial_crr"}
+        resp_price = client.get("/v1/greeks", params=base, headers={"Accept": "application/json"})
+        assert resp_price.status_code == 200
+        price = resp_price.json()["greeks"]["outputs"]["price"]
+
+        iv_params = {k: v for k, v in base.items() if k != "v"}
+        iv_params["price"] = price
+        resp_iv = client.get("/v1/impliedvol", params=iv_params, headers={"Accept": "application/json"})
+        assert resp_iv.status_code == 200
+        iv = resp_iv.json()["impliedvol"]["outputs"]["implied_vol"]
+        assert abs(iv - 0.25) < 1e-3  # Binomial has wider tolerance
+
+    def test_impliedvol_xml_default(self, client: TestClient):
+        resp = client.get("/v1/impliedvol?s=100&k=100&t=0.25&r=0.05&q=0&price=6.5&type=call&style=european")
+        assert resp.status_code == 200
+        assert "xml" in resp.headers["content-type"]
+        root = ET.fromstring(resp.text)
+        assert root.find("meta/service_version").text == "1.0.0"
+        assert float(root.find("outputs/implied_vol").text) > 0
+
+    def test_impliedvol_price_out_of_bounds(self, client: TestClient):
+        resp = client.get(
+            "/v1/impliedvol?s=100&k=100&t=0.25&r=0.05&q=0&price=0.01&type=call&style=european",
+            headers={"Accept": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_INPUT"
+
+    def test_impliedvol_missing_param(self, client: TestClient):
+        resp = client.get("/v1/impliedvol?s=100&k=100")
+        assert resp.status_code == 400
+        root = ET.fromstring(resp.text)
+        assert root.find("code").text == "INVALID_INPUT"
+
+
 class TestPortfolio:
     def test_portfolio_json_default(self, client: TestClient):
         payload = {

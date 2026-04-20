@@ -174,6 +174,64 @@ Aggregate = Σ qty × per-leg Greek.
 
 ---
 
+### `GET /v1/impliedvol`
+
+Solve for implied volatility given an observed market price.
+
+#### Query Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `s` | float > 0 | Yes | Spot price |
+| `k` | float > 0 | Yes | Strike |
+| `t` | float > 0 | Yes | Time to expiry in years (ACT/365F) |
+| `r` | float | Yes | Continuously compounded risk-free rate |
+| `q` | float | Yes | Continuously compounded dividend yield |
+| `price` | float > 0 | Yes | Observed market price of the option |
+| `type` | `call` / `put` | Yes | Option type |
+| `style` | `european` / `american` | Yes | Option style |
+| `engine` | enum | No | `analytic`, `binomial_crr`, `binomial_jr`. Default: `analytic` for European, `binomial_crr` for American |
+| `steps` | int (10–5000) | No | Tree steps. Default: 400 |
+| `valuation_date` | ISO date | No | Defaults to today |
+| `accuracy` | float | No | Brent solver accuracy. Default: `1e-4` |
+| `max_iterations` | int | No | Max solver iterations. Default: `1000` |
+
+#### Response (XML)
+
+```xml
+<impliedvol>
+  <meta>
+    <service_version>1.0.0</service_version>
+    <quantlib_version>1.42</quantlib_version>
+    <engine>analytic</engine>
+    <valuation_date>2026-04-20</valuation_date>
+  </meta>
+  <inputs>
+    <s>100.0</s>
+    <k>100.0</k>
+    <t>0.5</t>
+    <r>0.05</r>
+    <q>0.02</q>
+    <price>6.877605</price>
+    <type>call</type>
+    <style>european</style>
+  </inputs>
+  <outputs>
+    <implied_vol>0.199984</implied_vol>
+    <npv_at_iv>6.877177</npv_at_iv>
+  </outputs>
+</impliedvol>
+```
+
+**`npv_at_iv`** is the re-priced NPV at the solved vol, provided as a sanity check.
+
+#### Error Cases
+
+- If `price` is outside arbitrage bounds (e.g., below intrinsic value or above max possible), the endpoint returns `400 INVALID_INPUT` with field=`price`.
+- If the Brent solver fails to converge, returns `400 INVALID_INPUT`.
+
+---
+
 ## Error Model
 
 All errors return a consistent body:

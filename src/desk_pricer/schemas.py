@@ -85,3 +85,42 @@ class GreeksOutput(BaseModel):
     theta: float
     rho: float
     charm: float
+
+
+class ImpliedVolRequest(BaseModel):
+    s: float = Field(gt=0, description="Spot price of underlying")
+    k: float = Field(gt=0, description="Strike")
+    t: float = Field(gt=0, description="Time to expiry in years (ACT/365F)")
+    r: float = Field(description="Continuously compounded risk-free rate")
+    q: float = Field(description="Continuously compounded dividend yield")
+    price: float = Field(gt=0, description="Observed market price of the option")
+    type: Literal["call", "put"] = Field(description="Option type")
+    style: Literal["european", "american"] = Field(description="Option style")
+    engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(
+        default=None, description="Pricing engine"
+    )
+    steps: int = Field(default=400, ge=10, le=5000, description="Tree/FD steps")
+    valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
+    accuracy: float = Field(default=1e-4, gt=0, le=1e-2, description="Brent solver accuracy")
+    max_iterations: int = Field(default=1000, ge=100, le=10000, description="Max solver iterations")
+
+    @field_validator("engine", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == "":
+            return None
+        return v
+
+    @model_validator(mode="after")
+    def set_default_engine(self):
+        if self.engine is None:
+            if self.style == "european":
+                self.engine = "analytic"
+            else:
+                self.engine = "binomial_crr"
+        return self
+
+
+class ImpliedVolOutput(BaseModel):
+    implied_vol: float
+    npv_at_iv: float

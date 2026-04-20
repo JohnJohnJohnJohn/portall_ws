@@ -24,14 +24,16 @@ from desk_pricer.errors import (
     validation_exception_handler,
 )
 from desk_pricer.pricing.engine import price_vanilla
+from desk_pricer.pricing.implied_vol import compute_implied_vol
 from desk_pricer.responses import (
     serialize_error,
     serialize_greeks,
     serialize_health,
+    serialize_impliedvol,
     serialize_portfolio,
     serialize_version,
 )
-from desk_pricer.schemas import GreeksRequest, PortfolioRequest
+from desk_pricer.schemas import GreeksRequest, ImpliedVolRequest, PortfolioRequest
 
 # Protect QuantLib global state
 _QL_LOCK = asyncio.Lock()
@@ -203,6 +205,75 @@ def create_app() -> FastAPI:
         outputs = result.model_dump()
 
         body = serialize_greeks(meta, inputs, outputs, json_format=use_json)
+        media = "application/json" if use_json else "application/xml; charset=utf-8"
+        return Response(content=body, media_type=media)
+
+    @app.get("/v1/impliedvol")
+    async def impliedvol(request: Request):
+        use_json = _use_json(request)
+        try:
+            params = ImpliedVolRequest.model_validate(request.query_params)
+        except Exception as exc:
+            body = serialize_error(
+                "INVALID_INPUT",
+                str(exc),
+                None,
+                json_format=use_json,
+            )
+            media = "application/json" if use_json else "application/xml; charset=utf-8"
+            return Response(content=body, status_code=400, media_type=media)
+
+        valuation_date = params.valuation_date or date.today()
+
+        async with _QL_LOCK:
+            old_eval = ql.Settings.instance().evaluationDate
+            try:
+                ql.Settings.instance().evaluationDate = ql.Date(
+                    valuation_date.day, valuation_date.month, valuation_date.year
+                )
+                result = compute_implied_vol(
+                    s=params.s,
+                    k=params.k,
+                    t=params.t,
+                    r=params.r,
+                    q=params.q,
+                    target_price=params.price,
+                    option_type=params.type,
+                    style=params.style,
+                    engine=params.engine,
+                    valuation_date=valuation_date,
+                    steps=params.steps,
+                    accuracy=params.accuracy,
+                    max_iterations=params.max_iterations,
+                )
+            except DeskPricerError:
+                raise
+            except Exception as exc:
+                raise InvalidInputError(f"Implied vol calculation failed: {exc}") from exc
+            finally:
+                ql.Settings.instance().evaluationDate = old_eval
+
+        meta = {
+            "service_version": service_version,
+            "quantlib_version": _QUANTLIB_VERSION,
+            "engine": params.engine,
+            "valuation_date": valuation_date.isoformat(),
+        }
+        inputs = {
+            "s": params.s,
+            "k": params.k,
+            "t": params.t,
+            "r": params.r,
+            "q": params.q,
+            "price": params.price,
+            "type": params.type,
+            "style": params.style,
+        }
+        if params.steps != 400:
+            inputs["steps"] = params.steps
+        outputs = result.model_dump()
+
+        body = serialize_impliedvol(meta, inputs, outputs, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
 

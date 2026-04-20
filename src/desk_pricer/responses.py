@@ -52,6 +52,26 @@ def serialize_greeks(
     return xmltodict.unparse(payload, pretty=True, full_document=False)
 
 
+def serialize_impliedvol(
+    meta: dict[str, Any],
+    inputs: dict[str, Any],
+    outputs: dict[str, Any],
+    json_format: bool = False,
+) -> str:
+    payload: dict[str, Any] = {
+        "impliedvol": {
+            "meta": meta,
+            "inputs": inputs,
+            "outputs": _clean_value(outputs),
+        }
+    }
+
+    if json_format:
+        return json.dumps(payload, indent=2)
+
+    return xmltodict.unparse(payload, pretty=True, full_document=False)
+
+
 def serialize_health(status: str, uptime_seconds: float, json_format: bool = False) -> str:
     payload = {"health": {"status": status, "uptime_seconds": uptime_seconds}}
     if json_format:

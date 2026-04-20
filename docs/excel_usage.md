@@ -61,6 +61,20 @@ Or a simpler liveness check:
 =FILTERXML(WEBSERVICE("http://127.0.0.1:8765/v1/version"),"//service")
 ```
 
+## Implied Volatility Cell
+
+If you know the market price and want to back out IV:
+
+```excel
+="http://127.0.0.1:8765/v1/impliedvol?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&price="&P2&"&type="&TYPE2&"&style="&STYLE2
+```
+
+Then extract the solved vol:
+
+```excel
+=VALUE(FILTERXML(J2,"//outputs/implied_vol"))
+```
+
 ## Tips
 
 1. **Throttle refreshes** — `WEBSERVICE` recalculates on every sheet change. For large sheets, consider VBA to batch-fetch into a cache table.
