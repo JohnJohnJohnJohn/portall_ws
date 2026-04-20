@@ -65,7 +65,7 @@ def price_european(
     option_t1 = ql.VanillaOption(payoff, exercise)
     option_t1.setPricingEngine(ql.AnalyticEuropeanEngine(process_t1))
     delta_t1 = float(option_t1.delta())
-    charm = delta - delta_t1
+    charm = delta_t1 - delta
 
     # Restore evaluation date
     ql.Settings.instance().evaluationDate = ql_date

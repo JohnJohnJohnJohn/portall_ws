@@ -79,7 +79,7 @@ Price a single vanilla option and return Greeks.
 | `vega` | ∂V/∂σ | per **1% vol point** (standard market convention) |
 | `theta` | ∂V/∂t | per **calendar day** (annual theta / 365) |
 | `rho` | ∂V/∂r | per **1% rate point** (standard market convention) |
-| `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **calendar day** (delta today − delta tomorrow)
+| `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **calendar day** (delta tomorrow − delta today)
 
 #### Response (XML)
 
@@ -108,7 +108,7 @@ Price a single vanilla option and return Greeks.
     <vega>0.187806</vega>
     <theta>-0.026009</theta>
     <rho>0.085719</rho>
-    <charm>0.000158</charm>
+    <charm>-0.001205</charm>
   </outputs>
 </greeks>
 ```
@@ -156,7 +156,7 @@ Bulk endpoint for book-level aggregation.
       "vega": 0.196,
       "theta": -0.029,
       "rho": 0.130,
-      "charm": 0.0002
+      "charm": -0.000378
     }
   ],
   "aggregate": {
@@ -165,7 +165,7 @@ Bulk endpoint for book-level aggregation.
     "vega": 1.96,
     "theta": -0.29,
     "rho": 1.30,
-    "charm": 0.0004
+    "charm": -0.000757
   }
 }
 ```

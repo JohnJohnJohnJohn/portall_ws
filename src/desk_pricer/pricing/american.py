@@ -114,14 +114,14 @@ def price_american(
             price_tomorrow = max(s - k, 0.0)
         else:
             price_tomorrow = max(k - s, 0.0)
-    theta = price - price_tomorrow
+    theta = price_tomorrow - price
 
     # Charm: ∂delta/∂t per calendar day (forward difference)
     if expiry_date > ql_date + 1:
         price_up_s_t1 = _npv(s + h_s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type)
         price_down_s_t1 = _npv(s - h_s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type)
         delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
-        charm = delta - delta_t1
+        charm = delta_t1 - delta
     else:
         charm = 0.0
 
