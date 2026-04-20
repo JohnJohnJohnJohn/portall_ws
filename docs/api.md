@@ -102,9 +102,9 @@ Price a single vanilla option and return Greeks.
     <style>european</style>
   </inputs>
   <outputs>
-    <price>3.141592</price>
-    <delta>0.423100</delta>
-    <gamma>0.031400</gamma>
+    <price>2.667973</price>
+    <delta>0.374319</delta>
+    <gamma>0.034621</gamma>
     <vega>0.187806</vega>
     <theta>-0.026009</theta>
     <rho>0.085719</rho>
@@ -150,22 +150,22 @@ Bulk endpoint for book-level aggregation.
   "legs": [
     {
       "id": "L1",
-      "price": 3.14,
-      "delta": 0.42,
-      "gamma": 0.031,
-      "vega": 0.196,
-      "theta": -0.029,
-      "rho": 0.130,
-      "charm": -0.000378
+      "price": 2.69,
+      "delta": 0.38,
+      "gamma": 0.034,
+      "vega": 0.189,
+      "theta": -0.026,
+      "rho": 0.087,
+      "charm": -0.001189
     }
   ],
   "aggregate": {
-    "delta": 4.2,
-    "gamma": 0.31,
-    "vega": 1.96,
-    "theta": -0.29,
-    "rho": 1.30,
-    "charm": -0.000757
+    "delta": 3.8,
+    "gamma": 0.34,
+    "vega": 1.89,
+    "theta": -0.26,
+    "rho": 0.87,
+    "charm": -0.01189
   }
 }
 ```

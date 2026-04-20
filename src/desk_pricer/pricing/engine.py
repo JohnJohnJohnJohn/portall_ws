@@ -5,7 +5,7 @@ from datetime import date
 from desk_pricer.errors import InvalidInputError, UnsupportedCombinationError
 from desk_pricer.pricing.american import price_american
 from desk_pricer.pricing.european import price_european
-from desk_pricer.schemas import GreeksOutput, ImpliedVolOutput
+from desk_pricer.schemas import GreeksOutput
 
 
 ENGINE_MAP = {

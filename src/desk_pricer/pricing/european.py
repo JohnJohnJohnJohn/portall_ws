@@ -56,19 +56,19 @@ def price_european(
 
     # Charm: ∂delta/∂t per calendar day (forward difference, 1 day)
     ql.Settings.instance().evaluationDate = ql_date + 1
-    div_ts_t1 = ql.YieldTermStructureHandle(ql.FlatForward(ql_date + 1, q, day_count))
-    rf_ts_t1 = ql.YieldTermStructureHandle(ql.FlatForward(ql_date + 1, r, day_count))
-    vol_ts_t1 = ql.BlackVolTermStructureHandle(
-        ql.BlackConstantVol(ql_date + 1, calendar, v, day_count)
-    )
-    process_t1 = ql.BlackScholesMertonProcess(spot_handle, div_ts_t1, rf_ts_t1, vol_ts_t1)
-    option_t1 = ql.VanillaOption(payoff, exercise)
-    option_t1.setPricingEngine(ql.AnalyticEuropeanEngine(process_t1))
-    delta_t1 = float(option_t1.delta())
-    charm = delta_t1 - delta
-
-    # Restore evaluation date
-    ql.Settings.instance().evaluationDate = ql_date
+    try:
+        div_ts_t1 = ql.YieldTermStructureHandle(ql.FlatForward(ql_date + 1, q, day_count))
+        rf_ts_t1 = ql.YieldTermStructureHandle(ql.FlatForward(ql_date + 1, r, day_count))
+        vol_ts_t1 = ql.BlackVolTermStructureHandle(
+            ql.BlackConstantVol(ql_date + 1, calendar, v, day_count)
+        )
+        process_t1 = ql.BlackScholesMertonProcess(spot_handle, div_ts_t1, rf_ts_t1, vol_ts_t1)
+        option_t1 = ql.VanillaOption(payoff, exercise)
+        option_t1.setPricingEngine(ql.AnalyticEuropeanEngine(process_t1))
+        delta_t1 = float(option_t1.delta())
+        charm = delta_t1 - delta
+    finally:
+        ql.Settings.instance().evaluationDate = ql_date
 
     return GreeksOutput(
         price=price,
