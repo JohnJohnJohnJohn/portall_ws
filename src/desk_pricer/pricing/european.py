@@ -44,14 +44,15 @@ def price_european(
     option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
 
     # QuantLib Greeks conventions:
-    # vega() and rho() are mathematical derivatives (per 1.00 unit)
     # theta() is per year; we convert to per calendar day
+    # vega() and rho() are mathematical derivatives (per 1.00 unit);
+    # we divide by 100 to report standard market convention (per 1%)
     price = float(option.NPV())
     delta = float(option.delta())
     gamma = float(option.gamma())
-    vega = float(option.vega())
+    vega = float(option.vega()) / 100.0
     theta = float(option.theta()) / 365.0
-    rho = float(option.rho())
+    rho = float(option.rho()) / 100.0
 
     # Charm: ∂delta/∂t per calendar day (forward difference, 1 day)
     ql.Settings.instance().evaluationDate = ql_date + 1

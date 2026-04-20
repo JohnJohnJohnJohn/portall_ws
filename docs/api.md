@@ -24,7 +24,7 @@ Liveness probe.
 **Response (XML):**
 ```xml
 <health>
-  <status>ok</status>
+  <status>UP</status>
   <uptime_seconds>12345</uptime_seconds>
 </health>
 ```
@@ -76,9 +76,9 @@ Price a single vanilla option and return Greeks.
 |-------|-----------|------|
 | `delta` | ∂V/∂S | absolute |
 | `gamma` | ∂²V/∂S² | absolute |
-| `vega` | ∂V/∂σ | per **1.00 vol unit** (divide by 100 for "per vol point") |
+| `vega` | ∂V/∂σ | per **1% vol point** (standard market convention) |
 | `theta` | ∂V/∂t | per **calendar day** (annual theta / 365) |
-| `rho` | ∂V/∂r | per **1.00 rate unit** (divide by 100 for "per 1%") |
+| `rho` | ∂V/∂r | per **1% rate point** (standard market convention) |
 | `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **calendar day** (delta today − delta tomorrow)
 
 #### Response (XML)
@@ -105,9 +105,9 @@ Price a single vanilla option and return Greeks.
     <price>3.141592</price>
     <delta>0.423100</delta>
     <gamma>0.031400</gamma>
-    <vega>0.194400</vega>
-    <theta>-0.041200</theta>
-    <rho>0.088700</rho>
+    <vega>0.187806</vega>
+    <theta>-0.026009</theta>
+    <rho>0.085719</rho>
     <charm>0.000158</charm>
   </outputs>
 </greeks>
@@ -153,18 +153,18 @@ Bulk endpoint for book-level aggregation.
       "price": 3.14,
       "delta": 0.42,
       "gamma": 0.031,
-      "vega": 0.19,
-      "theta": -0.041,
-      "rho": 0.089,
+      "vega": 0.196,
+      "theta": -0.029,
+      "rho": 0.130,
       "charm": 0.0002
     }
   ],
   "aggregate": {
     "delta": 4.2,
     "gamma": 0.31,
-    "vega": 1.9,
-    "theta": -0.41,
-    "rho": 0.89,
+    "vega": 1.96,
+    "theta": -0.29,
+    "rho": 1.30,
     "charm": 0.0004
   }
 }

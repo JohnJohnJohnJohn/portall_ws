@@ -89,16 +89,18 @@ def price_american(
     gamma = (price_up_s - 2.0 * price + price_down_s) / (h_s * h_s)
 
     # Vega via central difference on vol
+    # Divide by 100 to report standard market convention (per 1%)
     h_v = bump_vol_abs
     price_up_v = _npv(s, k, r, q, v + h_v, option_type, ql_date, expiry_date, steps, engine_type)
     price_down_v = _npv(s, k, r, q, v - h_v, option_type, ql_date, expiry_date, steps, engine_type)
-    vega = (price_up_v - price_down_v) / (2.0 * h_v)
+    vega = (price_up_v - price_down_v) / (2.0 * h_v) / 100.0
 
     # Rho via central difference on rate
+    # Divide by 100 to report standard market convention (per 1%)
     h_r = bump_rate_abs
     price_up_r = _npv(s, k, r + h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
     price_down_r = _npv(s, k, r - h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
-    rho = (price_up_r - price_down_r) / (2.0 * h_r)
+    rho = (price_up_r - price_down_r) / (2.0 * h_r) / 100.0
 
     # Theta via one-day-forward revalue
     price_tomorrow = _npv(
