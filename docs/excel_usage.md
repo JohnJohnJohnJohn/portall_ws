@@ -61,6 +61,16 @@ Or a simpler liveness check:
 =FILTERXML(WEBSERVICE("http://127.0.0.1:8765/v1/version"),"//service")
 ```
 
+## Compact CSV (Excel 365)
+
+If you have **Excel 365** with `TEXTSPLIT`, skip XML entirely. Add `&format=csv` to get a comma-separated list of `price,delta,gamma,vega,theta,rho,charm`:
+
+```excel
+=TEXTSPLIT(WEBSERVICE("http://127.0.0.1:8765/v1/greeks?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&v="&V2&"&type="&TYPE2&"&style="&STYLE2&"&format=csv"),",")
+```
+
+This **spills** all 7 Greeks into adjacent cells automatically.
+
 ## Implied Volatility Cell
 
 If you know the market price and want to back out IV:

@@ -204,6 +204,10 @@ def create_app() -> FastAPI:
             inputs["steps"] = params.steps
         outputs = result.model_dump()
 
+        if request.query_params.get("format") == "csv":
+            csv_line = ",".join(str(outputs[k]) for k in ["price", "delta", "gamma", "vega", "theta", "rho", "charm"])
+            return Response(content=csv_line, media_type="text/plain; charset=utf-8")
+
         body = serialize_greeks(meta, inputs, outputs, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
