@@ -72,6 +72,7 @@ class TestGreeks:
         assert resp.status_code == 400
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
+        assert root.find("field") is not None
 
     def test_greeks_validation_error_formatting(self, client: TestClient):
         """Validation errors should be concise, not full Pydantic tracebacks."""
@@ -124,6 +125,7 @@ class TestGreeks:
         assert resp.status_code == 400
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
+        assert root.find("field").text == "v"
 
     def test_greeks_t_zero_floored_to_one_day(self, client: TestClient):
         """t=0 should be floored to 1 day, returning sensible Greeks rather than collapsing to zero."""
@@ -201,7 +203,9 @@ class TestImpliedVol:
             headers={"Accept": "application/json"},
         )
         assert resp.status_code == 400
-        assert resp.json()["error"]["code"] == "INVALID_INPUT"
+        data = resp.json()["error"]
+        assert data["code"] == "INVALID_INPUT"
+        assert data["field"] == "price"
 
     def test_impliedvol_t_zero_floored(self, client: TestClient):
         # Price at 20% vol with t floored to 1 day, then back out IV
@@ -225,6 +229,7 @@ class TestImpliedVol:
         assert resp.status_code == 400
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
+        assert root.find("field") is not None
 
 
 class TestPortfolio:
@@ -263,6 +268,8 @@ class TestPortfolio:
         data = resp.json()
         assert len(data["portfolio"]["legs"]) == 2
         assert data["portfolio"]["meta"]["valuation_date"] == "2026-04-20"
+        for leg in data["portfolio"]["legs"]:
+            assert "engine" in leg
         agg = data["portfolio"]["aggregate"]
         assert "delta" in agg
 
