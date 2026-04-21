@@ -337,6 +337,21 @@ def create_app() -> FastAPI:
         valuation_date_t = params.valuation_date_t
         method = params.method
 
+        if valuation_date_t_minus_1 is None and valuation_date_t is None:
+            # User omitted both dates — use same date for both pricings
+            # and derive calendar days from the t difference.
+            valuation_date = date.today()
+            valuation_date_t_minus_1 = valuation_date
+            valuation_date_t = valuation_date
+            calendar_days = max(0, int((params.t_t_minus_1 - params.t_t) * 365 + 0.5))
+        elif valuation_date_t_minus_1 is not None and valuation_date_t is not None:
+            calendar_days = (valuation_date_t - valuation_date_t_minus_1).days
+        else:
+            raise InvalidInputError(
+                "Provide both valuation_date_t_minus_1 and valuation_date_t, or omit both",
+                field="valuation_date_t",
+            )
+
         async with _QL_LOCK:
             old_eval = ql.Settings.instance().evaluationDate
             try:
@@ -387,7 +402,6 @@ def create_app() -> FastAPI:
         delta_s = params.s_t - params.s_t_minus_1
         delta_v_points = (params.v_t - params.v_t_minus_1) * 100.0
         delta_r_points = (params.r_t - params.r_t_minus_1) * 100.0
-        calendar_days = (valuation_date_t - valuation_date_t_minus_1).days
 
         delta_pnl = greeks_t_minus_1.delta * delta_s
         gamma_pnl = 0.5 * greeks_t_minus_1.gamma * (delta_s ** 2)

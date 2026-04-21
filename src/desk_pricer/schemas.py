@@ -220,16 +220,12 @@ class PnLAttributionGETRequest(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def set_default_dates(self):
-        if self.valuation_date_t is None:
-            self.valuation_date_t = date.today()
-        if self.valuation_date_t_minus_1 is None:
-            self.valuation_date_t_minus_1 = self.valuation_date_t - timedelta(days=1)
-        return self
-
-    @model_validator(mode="after")
     def check_date_order(self):
-        if self.valuation_date_t_minus_1 > self.valuation_date_t:
+        if (
+            self.valuation_date_t_minus_1 is not None
+            and self.valuation_date_t is not None
+            and self.valuation_date_t_minus_1 > self.valuation_date_t
+        ):
             raise ValueError("valuation_date_t_minus_1 must not be after valuation_date_t")
         return self
 

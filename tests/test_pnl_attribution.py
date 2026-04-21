@@ -150,16 +150,36 @@ class TestPnLAttribution:
         assert root.find("delta_pnl") is not None
         assert root.find("price_t_minus_1") is not None
 
-    def test_default_dates(self, client: TestClient):
-        """Omitting valuation dates should default to today and today-1."""
+    def test_omit_both_dates_same_t(self, client: TestClient):
+        """Omitting both dates with same t: same eval date, theta_pnl = 0."""
         params = self._base_params()
         del params["valuation_date_t_minus_1"]
         del params["valuation_date_t"]
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
         meta = resp.json()["pnl_attribution"]["meta"]
-        assert "valuation_date_t_minus_1" in meta
-        assert "valuation_date_t" in meta
+        assert meta["valuation_date_t_minus_1"] == meta["valuation_date_t"]
+        data = resp.json()["pnl_attribution"]
+        assert data["theta_pnl"] == pytest.approx(0, abs=1e-10)
+
+    def test_omit_both_dates_diff_t(self, client: TestClient):
+        """Omitting both dates with 1-day t decay: theta_pnl ≈ theta * 1 day."""
+        params = self._base_params(t_t=0.25 - 1 / 365)
+        del params["valuation_date_t_minus_1"]
+        del params["valuation_date_t"]
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        data = resp.json()["pnl_attribution"]
+        assert data["theta_pnl"] < 0
+        assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-3)
+
+    def test_only_one_date(self, client: TestClient):
+        """Providing only one date should fail."""
+        params = self._base_params()
+        del params["valuation_date_t_minus_1"]
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_INPUT"
 
     def test_invalid_date_order(self, client: TestClient):
         """t_minus_1 after t should fail validation."""
