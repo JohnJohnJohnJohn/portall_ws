@@ -77,6 +77,18 @@ class LegInput(BaseModel):
     style: Literal["european", "american"]
     engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(default=None)
     steps: int = Field(default=400, ge=10, le=5000)
+    bump_spot_rel: float = Field(
+        default=0.01, gt=0, le=0.1, allow_inf_nan=False,
+        description="Relative spot bump for Greeks"
+    )
+    bump_vol_abs: float = Field(
+        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
+        description="Absolute vol bump for Greeks"
+    )
+    bump_rate_abs: float = Field(
+        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
+        description="Absolute rate bump for Greeks"
+    )
 
     @model_validator(mode="before")
     @classmethod

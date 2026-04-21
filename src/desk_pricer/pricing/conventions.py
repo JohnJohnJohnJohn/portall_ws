@@ -1,5 +1,6 @@
 """Day counts, calendars and convention helpers."""
 
+import math
 from datetime import date
 
 import QuantLib as ql
@@ -19,6 +20,5 @@ def default_day_count() -> ql.DayCounter:
 
 def expiry_from_t(valuation_date: ql.Date, t: float) -> ql.Date:
     # Round-half-up to avoid Python's banker's rounding bias
-    import math
-    days = max(1, int(math.floor(t * 365 + 0.5)))
-    return valuation_date + int(days)
+    days = max(1, math.floor(t * 365 + 0.5))
+    return valuation_date + days

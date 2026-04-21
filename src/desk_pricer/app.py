@@ -22,6 +22,7 @@ from desk_pricer.errors import (
     http_exception_handler,
     validation_exception_handler,
 )
+from desk_pricer.pricing.conventions import ql_date_from_iso
 from desk_pricer.pricing.engine import price_vanilla
 from desk_pricer.pricing.implied_vol import compute_implied_vol
 from desk_pricer.responses import (
@@ -69,7 +70,6 @@ def _log_request(method: str, path: str, query: str, duration_ms: float, status:
         with open(_LOG_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
     except Exception as exc:
-        import sys
         print(f"[desk-pricer] logging failed: {exc}", file=sys.stderr)
 
 
@@ -155,9 +155,7 @@ def create_app() -> FastAPI:
         async with _QL_LOCK:
             old_eval = ql.Settings.instance().evaluationDate
             try:
-                ql.Settings.instance().evaluationDate = ql.Date(
-                    valuation_date.day, valuation_date.month, valuation_date.year
-                )
+                ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date)
                 result = price_vanilla(
                     s=params.s,
                     k=params.k,
@@ -225,9 +223,7 @@ def create_app() -> FastAPI:
         async with _QL_LOCK:
             old_eval = ql.Settings.instance().evaluationDate
             try:
-                ql.Settings.instance().evaluationDate = ql.Date(
-                    valuation_date.day, valuation_date.month, valuation_date.year
-                )
+                ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date)
                 result = compute_implied_vol(
                     s=params.s,
                     k=params.k,
@@ -288,9 +284,7 @@ def create_app() -> FastAPI:
         async with _QL_LOCK:
             old_eval = ql.Settings.instance().evaluationDate
             try:
-                ql.Settings.instance().evaluationDate = ql.Date(
-                    valuation_date.day, valuation_date.month, valuation_date.year
-                )
+                ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date)
                 for leg in payload.legs:
                     result = price_vanilla(
                         s=leg.s,
@@ -304,6 +298,9 @@ def create_app() -> FastAPI:
                         engine=leg.engine,
                         valuation_date=valuation_date,
                         steps=leg.steps,
+                        bump_spot_rel=leg.bump_spot_rel,
+                        bump_vol_abs=leg.bump_vol_abs,
+                        bump_rate_abs=leg.bump_rate_abs,
                     )
                     row = {
                         "id": leg.id,

@@ -1,5 +1,6 @@
 """API contract tests: XML/JSON toggling, error codes, schema validation."""
 
+import math
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -26,6 +27,12 @@ class TestHealth:
         resp = client.get("/v1/health?format=json")
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/json"
+
+    def test_health_xml_with_misleading_accept(self, client: TestClient):
+        """Accept: application/something-json should NOT trigger JSON."""
+        resp = client.get("/v1/health", headers={"Accept": "application/something-json"})
+        assert resp.status_code == 200
+        assert "xml" in resp.headers["content-type"]
 
 
 class TestVersion:
@@ -63,6 +70,17 @@ class TestGreeks:
     def test_greeks_missing_param(self, client: TestClient):
         resp = client.get("/v1/greeks?s=100&k=105")
         assert resp.status_code == 400
+        root = ET.fromstring(resp.text)
+        assert root.find("code").text == "INVALID_INPUT"
+
+    def test_greeks_xml_with_control_chars(self, client: TestClient):
+        """Error messages with control chars should still produce valid XML."""
+        # Pass an invalid value that will end up in the error message
+        resp = client.get(
+            "/v1/greeks?s=100&k=100&t=0.5&r=0.05&q=0&v=0.20&type=call&style=european&bump_vol_abs=999",
+        )
+        assert resp.status_code == 400
+        # ET.fromstring will raise ParseError if XML contains illegal chars
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
 
@@ -105,7 +123,6 @@ class TestGreeks:
         c = resp_call.json()["greeks"]["outputs"]["price"]
         p = resp_put.json()["greeks"]["outputs"]["price"]
         # C - P = S*exp(-qT) - K*exp(-rT) using actual T from rounded days
-        import math
         lhs = c - p
         days = math.floor(0.5 * 365 + 0.5)  # match expiry_from_t round-half-up
         t_actual = days / 365.0
@@ -226,8 +243,8 @@ class TestPortfolio:
     def test_portfolio_aggregate_math(self, client: TestClient):
         payload = {
             "legs": [
-                {"id": "L1", "qty": 2, "s": 100, "k": 100, "t": 0.25, "r": 0.05, "q": 0, "v": 0.20, "type": "call", "style": "european"},
-                {"id": "L2", "qty": -1, "s": 100, "k": 100, "t": 0.25, "r": 0.05, "q": 0, "v": 0.20, "type": "call", "style": "european"},
+                {"id": "L1", "qty": 2, "s": 100, "k": 105, "t": 0.25, "r": 0.05, "q": 0, "v": 0.20, "type": "call", "style": "european"},
+                {"id": "L2", "qty": -1, "s": 100, "k": 95, "t": 0.25, "r": 0.05, "q": 0, "v": 0.20, "type": "put", "style": "european"},
             ]
         }
         resp = client.post("/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"})

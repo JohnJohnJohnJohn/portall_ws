@@ -28,8 +28,8 @@ def price_vanilla(
     valuation_date: date,
     steps: int = 400,
     bump_spot_rel: float = 0.01,
-    bump_vol_abs: float = 0.0001,
-    bump_rate_abs: float = 0.0001,
+    bump_vol_abs: float = 0.001,
+    bump_rate_abs: float = 0.001,
 ) -> GreeksOutput:
     # Floor t to 1 day to avoid QuantLib zero-day collapse
     effective_t = max(t, 1.0 / 365.0)
