@@ -94,13 +94,13 @@ def compute_implied_vol(
 
     try:
         implied_vol = option.impliedVolatility(
-            target_price, process, accuracy, max_iterations, 0.001, 2.0
+            target_price, process, accuracy, max_iterations, 1e-6, 5.0
         )
     except RuntimeError as exc:
         msg = str(exc)
         if "root not bracketed" in msg.lower():
             raise InvalidInputError(
-                "Target price is outside arbitrage bounds for the given inputs",
+                "Target price implies volatility outside solver bounds [1e-6, 5.0] or is outside arbitrage bounds",
                 field="price",
             ) from exc
         raise InvalidInputError(f"Implied vol convergence failed: {msg}") from exc

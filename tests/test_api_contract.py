@@ -107,7 +107,7 @@ class TestGreeks:
         # C - P = S*exp(-qT) - K*exp(-rT) using actual T from rounded days
         import math
         lhs = c - p
-        days = round(0.5 * 365)
+        days = math.floor(0.5 * 365 + 0.5)  # match expiry_from_t round-half-up
         t_actual = days / 365.0
         rhs = 100 * math.exp(-0.02 * t_actual) - 100 * math.exp(-0.05 * t_actual)
         assert abs(lhs - rhs) < 1e-6

@@ -4,7 +4,7 @@ import asyncio
 import json
 import sys
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import QuantLib as ql
@@ -31,8 +31,10 @@ from desk_pricer.responses import (
     serialize_impliedvol,
     serialize_portfolio,
     serialize_version,
+    use_json_from_request,
 )
 from desk_pricer.schemas import GreeksRequest, ImpliedVolRequest, PortfolioRequest
+from pydantic import ValidationError
 
 # Protect QuantLib global state
 _QL_LOCK = asyncio.Lock()
@@ -56,7 +58,7 @@ def _ensure_log_dir() -> None:
 def _log_request(method: str, path: str, query: str, duration_ms: float, status: int) -> None:
     _ensure_log_dir()
     entry = {
-        "timestamp": datetime.now().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "method": method,
         "path": path,
         "query": query[:200],
@@ -66,17 +68,13 @@ def _log_request(method: str, path: str, query: str, duration_ms: float, status:
     try:
         with open(_LOG_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
-    except Exception:
-        pass
+    except Exception as exc:
+        import sys
+        print(f"[desk-pricer] logging failed: {exc}", file=sys.stderr)
 
 
 def _use_json(request: Request) -> bool:
-    accept = request.headers.get("accept", "")
-    if "json" in accept.lower():
-        return True
-    if request.query_params.get("format") == "json":
-        return True
-    return False
+    return use_json_from_request(request)
 
 
 def create_app() -> FastAPI:
@@ -142,7 +140,7 @@ def create_app() -> FastAPI:
         use_json = _use_json(request)
         try:
             params = GreeksRequest.model_validate(request.query_params)
-        except Exception as exc:
+        except ValidationError as exc:
             body = serialize_error(
                 "INVALID_INPUT",
                 str(exc),
@@ -178,7 +176,7 @@ def create_app() -> FastAPI:
                 )
             except DeskPricerError:
                 raise
-            except Exception as exc:
+            except RuntimeError as exc:
                 raise InvalidInputError(f"Pricing failed: {exc}") from exc
             finally:
                 ql.Settings.instance().evaluationDate = old_eval
@@ -212,7 +210,7 @@ def create_app() -> FastAPI:
         use_json = _use_json(request)
         try:
             params = ImpliedVolRequest.model_validate(request.query_params)
-        except Exception as exc:
+        except ValidationError as exc:
             body = serialize_error(
                 "INVALID_INPUT",
                 str(exc),
@@ -247,7 +245,7 @@ def create_app() -> FastAPI:
                 )
             except DeskPricerError:
                 raise
-            except Exception as exc:
+            except RuntimeError as exc:
                 raise InvalidInputError(f"Implied vol calculation failed: {exc}") from exc
             finally:
                 ql.Settings.instance().evaluationDate = old_eval
@@ -284,6 +282,9 @@ def create_app() -> FastAPI:
         legs_out = []
         aggregate = {"delta": 0.0, "gamma": 0.0, "vega": 0.0, "theta": 0.0, "rho": 0.0, "charm": 0.0}
 
+        # NOTE: Holding the lock for the entire loop serializes portfolio requests.
+        # A future refactor could use per-leg locking with cloned evaluation dates
+        # or a process pool to avoid blocking single-leg requests.
         async with _QL_LOCK:
             old_eval = ql.Settings.instance().evaluationDate
             try:
@@ -319,7 +320,7 @@ def create_app() -> FastAPI:
                         aggregate[greek] += leg.qty * getattr(result, greek)
             except DeskPricerError:
                 raise
-            except Exception as exc:
+            except RuntimeError as exc:
                 raise InvalidInputError(f"Pricing failed: {exc}") from exc
             finally:
                 ql.Settings.instance().evaluationDate = old_eval

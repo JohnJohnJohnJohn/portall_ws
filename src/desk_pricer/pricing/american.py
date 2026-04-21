@@ -90,7 +90,7 @@ def price_american(
 
     # Vega via central difference on vol
     # Divide by 100 to report standard market convention (per 1%)
-    h_v = bump_vol_abs
+    h_v = min(bump_vol_abs, v * 0.5)
     price_up_v = _npv(s, k, r, q, v + h_v, option_type, ql_date, expiry_date, steps, engine_type)
     price_down_v = _npv(s, k, r, q, v - h_v, option_type, ql_date, expiry_date, steps, engine_type)
     vega = (price_up_v - price_down_v) / (2.0 * h_v) / 100.0

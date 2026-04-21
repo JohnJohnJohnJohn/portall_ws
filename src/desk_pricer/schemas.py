@@ -3,16 +3,19 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class GreeksRequest(BaseModel):
-    s: float = Field(gt=0, description="Spot price of underlying")
-    k: float = Field(gt=0, description="Strike")
-    t: float = Field(ge=0, description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day")
-    r: float = Field(description="Continuously compounded risk-free rate")
-    q: float = Field(description="Continuously compounded dividend yield")
-    v: float = Field(gt=0, description="Black volatility (decimal, not %)")
+    s: float = Field(gt=0, allow_inf_nan=False, description="Spot price of underlying")
+    k: float = Field(gt=0, allow_inf_nan=False, description="Strike")
+    t: float = Field(
+        ge=0, le=100, allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+    )
+    r: float = Field(allow_inf_nan=False, description="Continuously compounded risk-free rate")
+    q: float = Field(allow_inf_nan=False, description="Continuously compounded dividend yield")
+    v: float = Field(gt=0, allow_inf_nan=False, description="Black volatility (decimal, not %)")
     type: Literal["call", "put"] = Field(description="Option type")
     style: Literal["european", "american"] = Field(description="Option style")
     engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(
@@ -20,16 +23,25 @@ class GreeksRequest(BaseModel):
     )
     steps: int = Field(default=400, ge=10, le=5000, description="Tree/FD steps")
     valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
-    bump_spot_rel: float = Field(default=0.01, gt=0, le=0.1, description="Relative spot bump for Greeks")
-    bump_vol_abs: float = Field(default=0.0001, gt=0, le=0.01, description="Absolute vol bump for Greeks")
-    bump_rate_abs: float = Field(default=0.0001, gt=0, le=0.01, description="Absolute rate bump for Greeks")
+    bump_spot_rel: float = Field(
+        default=0.01, gt=0, le=0.1, allow_inf_nan=False,
+        description="Relative spot bump for Greeks"
+    )
+    bump_vol_abs: float = Field(
+        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
+        description="Absolute vol bump for Greeks"
+    )
+    bump_rate_abs: float = Field(
+        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
+        description="Absolute rate bump for Greeks"
+    )
 
-    @field_validator("engine", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def empty_str_to_none(cls, v):
-        if v == "":
-            return None
-        return v
+    def empty_str_to_none(cls, data):
+        if isinstance(data, dict) and data.get("engine") == "":
+            data["engine"] = None
+        return data
 
     @model_validator(mode="after")
     def set_default_engine(self):
@@ -40,27 +52,38 @@ class GreeksRequest(BaseModel):
                 self.engine = "binomial_crr"
         return self
 
+    @model_validator(mode="after")
+    def check_bump_size_vs_vol(self):
+        if self.style == "american" and self.v <= self.bump_vol_abs:
+            raise ValueError(
+                "volatility must be greater than bump_vol_abs for American bump-and-revalue Greeks"
+            )
+        return self
+
 
 class LegInput(BaseModel):
     id: str = Field(min_length=1, max_length=32)
-    qty: float = Field(description="Quantity (negative for short)")
-    s: float = Field(gt=0)
-    k: float = Field(gt=0)
-    t: float = Field(ge=0, description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day")
-    r: float = Field()
-    q: float = Field()
-    v: float = Field(gt=0)
+    qty: float = Field(allow_inf_nan=False, description="Quantity (negative for short)")
+    s: float = Field(gt=0, allow_inf_nan=False)
+    k: float = Field(gt=0, allow_inf_nan=False)
+    t: float = Field(
+        ge=0, le=100, allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+    )
+    r: float = Field(allow_inf_nan=False)
+    q: float = Field(allow_inf_nan=False)
+    v: float = Field(gt=0, allow_inf_nan=False)
     type: Literal["call", "put"]
     style: Literal["european", "american"]
     engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(default=None)
     steps: int = Field(default=400, ge=10, le=5000)
 
-    @field_validator("engine", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def empty_str_to_none(cls, v):
-        if v == "":
-            return None
-        return v
+    def empty_str_to_none(cls, data):
+        if isinstance(data, dict) and data.get("engine") == "":
+            data["engine"] = None
+        return data
 
     @model_validator(mode="after")
     def set_default_engine(self):
@@ -88,12 +111,15 @@ class GreeksOutput(BaseModel):
 
 
 class ImpliedVolRequest(BaseModel):
-    s: float = Field(gt=0, description="Spot price of underlying")
-    k: float = Field(gt=0, description="Strike")
-    t: float = Field(ge=0, description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day")
-    r: float = Field(description="Continuously compounded risk-free rate")
-    q: float = Field(description="Continuously compounded dividend yield")
-    price: float = Field(gt=0, description="Observed market price of the option")
+    s: float = Field(gt=0, allow_inf_nan=False, description="Spot price of underlying")
+    k: float = Field(gt=0, allow_inf_nan=False, description="Strike")
+    t: float = Field(
+        ge=0, le=100, allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+    )
+    r: float = Field(allow_inf_nan=False, description="Continuously compounded risk-free rate")
+    q: float = Field(allow_inf_nan=False, description="Continuously compounded dividend yield")
+    price: float = Field(gt=0, allow_inf_nan=False, description="Observed market price of the option")
     type: Literal["call", "put"] = Field(description="Option type")
     style: Literal["european", "american"] = Field(description="Option style")
     engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(
@@ -101,15 +127,18 @@ class ImpliedVolRequest(BaseModel):
     )
     steps: int = Field(default=400, ge=10, le=5000, description="Tree/FD steps")
     valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
-    accuracy: float = Field(default=1e-4, gt=0, le=1e-2, description="Brent solver accuracy")
+    accuracy: float = Field(
+        default=1e-4, gt=0, le=1e-2, allow_inf_nan=False,
+        description="Brent solver accuracy"
+    )
     max_iterations: int = Field(default=1000, ge=100, le=10000, description="Max solver iterations")
 
-    @field_validator("engine", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def empty_str_to_none(cls, v):
-        if v == "":
-            return None
-        return v
+    def empty_str_to_none(cls, data):
+        if isinstance(data, dict) and data.get("engine") == "":
+            data["engine"] = None
+        return data
 
     @model_validator(mode="after")
     def set_default_engine(self):

@@ -26,8 +26,8 @@ class TestHullReference:
         """
         s, k, r, q, v = 42.0, 40.0, 0.10, 0.0, 0.20
         t_input = 0.5
-        # Our conventions round(0.5*365) = 182 (banker's rounding)
-        days = round(t_input * 365)
+        # Our conventions use round-half-up, not banker's rounding
+        days = math.floor(t_input * 365 + 0.5)
         t_actual = days / 365.0
         expected = bsm_price(s, k, t_actual, r, q, v, "call")
 

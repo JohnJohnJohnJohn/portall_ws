@@ -9,10 +9,6 @@ def ql_date_from_iso(d: date) -> ql.Date:
     return ql.Date(d.day, d.month, d.year)
 
 
-def iso_from_ql_date(qd: ql.Date) -> date:
-    return date(qd.year(), qd.month(), qd.dayOfMonth())
-
-
 def default_calendar() -> ql.Calendar:
     return ql.UnitedStates(ql.UnitedStates.NYSE)
 
@@ -22,5 +18,7 @@ def default_day_count() -> ql.DayCounter:
 
 
 def expiry_from_t(valuation_date: ql.Date, t: float) -> ql.Date:
-    days = max(1, round(t * 365))
+    # Round-half-up to avoid Python's banker's rounding bias
+    import math
+    days = max(1, int(math.floor(t * 365 + 0.5)))
     return valuation_date + int(days)
