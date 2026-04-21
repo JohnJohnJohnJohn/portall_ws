@@ -130,15 +130,21 @@ def serialize_portfolio(
     aggregate: dict[str, Any],
     json_format: bool = False,
 ) -> str:
-    payload: dict[str, Any] = {
+    if json_format:
+        payload: dict[str, Any] = {
+            "portfolio": {
+                "meta": meta,
+                "legs": legs,
+                "aggregate": _clean_value(aggregate),
+            }
+        }
+        return json.dumps(payload, indent=2)
+
+    payload = {
         "portfolio": {
             "meta": meta,
             "legs": {"leg": legs},
             "aggregate": _clean_value(aggregate),
         }
     }
-
-    if json_format:
-        return json.dumps(payload, indent=2)
-
     return _to_xml(payload)

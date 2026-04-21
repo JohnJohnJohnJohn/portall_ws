@@ -48,3 +48,5 @@ class TestPerformance:
         elapsed = time.perf_counter() - start
         assert resp.status_code == 200
         assert elapsed < 0.5, f"100-leg portfolio took {elapsed:.3f}s"
+        data = resp.json()
+        assert len(data["portfolio"]["legs"]) == 100

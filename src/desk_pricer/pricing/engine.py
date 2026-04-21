@@ -11,7 +11,6 @@ from desk_pricer.schemas import GreeksOutput
 ENGINE_MAP = {
     "binomial_crr": "crr",
     "binomial_jr": "jr",
-    "fd": "fd",
 }
 
 

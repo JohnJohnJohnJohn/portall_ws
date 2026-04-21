@@ -26,7 +26,6 @@ from desk_pricer.pricing.conventions import ql_date_from_iso
 from desk_pricer.pricing.engine import price_vanilla
 from desk_pricer.pricing.implied_vol import compute_implied_vol
 from desk_pricer.responses import (
-    serialize_error,
     serialize_greeks,
     serialize_health,
     serialize_impliedvol,
@@ -137,14 +136,7 @@ def create_app() -> FastAPI:
         try:
             params = GreeksRequest.model_validate(request.query_params)
         except ValidationError as exc:
-            body = serialize_error(
-                "INVALID_INPUT",
-                str(exc),
-                None,
-                json_format=use_json,
-            )
-            media = "application/json" if use_json else "application/xml; charset=utf-8"
-            return Response(content=body, status_code=400, media_type=media)
+            raise RequestValidationError(exc.errors(), body=None) from exc
 
         valuation_date = params.valuation_date or date.today()
 
@@ -193,6 +185,12 @@ def create_app() -> FastAPI:
         }
         if params.steps != 400:
             inputs["steps"] = params.steps
+        if params.bump_spot_rel != 0.01:
+            inputs["bump_spot_rel"] = params.bump_spot_rel
+        if params.bump_vol_abs != 0.001:
+            inputs["bump_vol_abs"] = params.bump_vol_abs
+        if params.bump_rate_abs != 0.001:
+            inputs["bump_rate_abs"] = params.bump_rate_abs
         outputs = result.model_dump()
 
         body = serialize_greeks(meta, inputs, outputs, json_format=use_json)
@@ -205,14 +203,7 @@ def create_app() -> FastAPI:
         try:
             params = ImpliedVolRequest.model_validate(request.query_params)
         except ValidationError as exc:
-            body = serialize_error(
-                "INVALID_INPUT",
-                str(exc),
-                None,
-                json_format=use_json,
-            )
-            media = "application/json" if use_json else "application/xml; charset=utf-8"
-            return Response(content=body, status_code=400, media_type=media)
+            raise RequestValidationError(exc.errors(), body=None) from exc
 
         valuation_date = params.valuation_date or date.today()
 
@@ -260,6 +251,10 @@ def create_app() -> FastAPI:
         }
         if params.steps != 400:
             inputs["steps"] = params.steps
+        if params.accuracy != 1e-4:
+            inputs["accuracy"] = params.accuracy
+        if params.max_iterations != 1000:
+            inputs["max_iterations"] = params.max_iterations
         outputs = result.model_dump()
 
         body = serialize_impliedvol(meta, inputs, outputs, json_format=use_json)
@@ -300,6 +295,7 @@ def create_app() -> FastAPI:
                     )
                     row = {
                         "id": leg.id,
+                        "engine": leg.engine,
                         "price": result.price,
                         "delta": result.delta,
                         "gamma": result.gamma,

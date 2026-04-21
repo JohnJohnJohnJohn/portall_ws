@@ -73,6 +73,18 @@ class TestGreeks:
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
 
+    def test_greeks_validation_error_formatting(self, client: TestClient):
+        """Validation errors should be concise, not full Pydantic tracebacks."""
+        resp = client.get(
+            "/v1/greeks?s=bad&k=100&t=0.5&r=0.05&q=0&v=0.20&type=call&style=european",
+            headers={"Accept": "application/json"},
+        )
+        assert resp.status_code == 400
+        msg = resp.json()["error"]["message"]
+        # Should be a short message like "Input should be a valid number..."
+        assert "pydantic.dev" not in msg.lower()
+        assert len(msg) < 200
+
     def test_greeks_xml_with_control_chars(self, client: TestClient):
         """Error messages with control chars should still produce valid XML."""
         # Pass an invalid value that will end up in the error message
@@ -236,7 +248,7 @@ class TestPortfolio:
         resp = client.post("/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"})
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["portfolio"]["legs"]["leg"]) == 2
+        assert len(data["portfolio"]["legs"]) == 2
         assert data["portfolio"]["meta"]["valuation_date"] == "2026-04-20"
         agg = data["portfolio"]["aggregate"]
         assert "delta" in agg
@@ -251,7 +263,7 @@ class TestPortfolio:
         resp = client.post("/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"})
         assert resp.status_code == 200
         data = resp.json()
-        legs = data["portfolio"]["legs"]["leg"]
+        legs = data["portfolio"]["legs"]
         agg = data["portfolio"]["aggregate"]
         # Aggregate should equal 2*L1 - 1*L2
         for greek in ["delta", "gamma", "vega", "theta", "rho", "charm"]:
