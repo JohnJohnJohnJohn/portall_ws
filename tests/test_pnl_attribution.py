@@ -125,7 +125,10 @@ class TestPnLAttribution:
         data_1 = resp_1.json()["pnl_attribution"]["outputs"]
         data_10 = resp_10.json()["pnl_attribution"]["outputs"]
 
-        for bucket in ["actual_pnl", "delta_pnl", "gamma_pnl", "vega_pnl", "theta_pnl", "rho_pnl"]:
+        for bucket in [
+            "actual_pnl", "delta_pnl", "gamma_pnl", "vega_pnl",
+            "theta_pnl", "rho_pnl", "vanna_pnl", "volga_pnl",
+        ]:
             assert data_10[bucket] == pytest.approx(10 * data_1[bucket], abs=1e-7)
 
     def test_short_position_negative_qty(self, client: TestClient):
@@ -244,6 +247,32 @@ class TestPnLAttribution:
         # With cross-greeks, residual should be < 50% of actual
         # (without it, residual was ~190% for this trade)
         assert residual < 0.5 * actual
+
+    def test_qty_scaling_with_cross_greeks(self, client: TestClient):
+        """Qty=10 should scale all PnL buckets by 10x including cross-greeks."""
+        params_single = self._base_params(s_t=102, v_t=0.22, qty=1, cross_greeks=True)
+        params_ten = self._base_params(s_t=102, v_t=0.22, qty=10, cross_greeks=True)
+
+        resp_1 = self._get(client, params_single, json_format=True)
+        resp_10 = self._get(client, params_ten, json_format=True)
+        assert resp_1.status_code == 200
+        assert resp_10.status_code == 200
+
+        data_1 = resp_1.json()["pnl_attribution"]["outputs"]
+        data_10 = resp_10.json()["pnl_attribution"]["outputs"]
+
+        for bucket in [
+            "actual_pnl", "delta_pnl", "gamma_pnl", "vega_pnl",
+            "theta_pnl", "rho_pnl", "vanna_pnl", "volga_pnl",
+        ]:
+            assert data_10[bucket] == pytest.approx(10 * data_1[bucket], abs=1e-7)
+
+    def test_small_vol_t_rejected(self, client: TestClient):
+        """v_t <= bump_vol_abs should be rejected for american options."""
+        params = self._base_params(style="american", v_t=0.0005)
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_INPUT"
 
     def test_missing_param(self, client: TestClient):
         """Missing required param should fail validation."""

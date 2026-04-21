@@ -46,7 +46,11 @@ def _clean_value(v: Any) -> Any:
     if isinstance(v, float):
         # 9 decimals preserves small Greeks (e.g. charm ~1e-7)
         # while cleaning up float noise from QuantLib
-        return round(v, 9)
+        cleaned = round(v, 9)
+        # Normalize -0.0 to 0.0 so it doesn't leak into JSON/XML as -0
+        if cleaned == 0.0:
+            cleaned = 0.0
+        return cleaned
     if isinstance(v, dict):
         return {k: _clean_value(val) for k, val in v.items()}
     if isinstance(v, list):

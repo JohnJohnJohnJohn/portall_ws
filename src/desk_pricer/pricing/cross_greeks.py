@@ -4,11 +4,10 @@ from datetime import date
 
 from desk_pricer.errors import InvalidInputError
 from desk_pricer.pricing.engine import price_vanilla
-from desk_pricer.schemas import GreeksOutput
 
 
 def compute_cross_greeks(
-    base_result: GreeksOutput,
+    base_price: float,
     s: float,
     k: float,
     t: float,
@@ -57,7 +56,7 @@ def compute_cross_greeks(
         bump_spot_rel=bump_spot_rel, bump_vol_abs=bump_vol_abs,
         bump_rate_abs=bump_rate_abs,
     )
-    volga = (result_v_up.price - 2.0 * base_result.price + result_v_down.price) / (dV_points ** 2)
+    volga = (result_v_up.price - 2.0 * base_price + result_v_down.price) / (dV_points ** 2)
 
     # --- Vanna: 4-point cross difference ---
     # 4 extra pricing calls

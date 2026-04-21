@@ -224,6 +224,15 @@ class TestImpliedVol:
         iv = resp_iv.json()["impliedvol"]["outputs"]["implied_vol"]
         assert abs(iv - 0.20) < 1e-3
 
+    def test_impliedvol_unsupported_american_analytic(self, client: TestClient):
+        resp = client.get(
+            "/v1/impliedvol?s=100&k=100&t=0.25&r=0.05&q=0&price=6.5&type=call&style=american&engine=analytic",
+            headers={"Accept": "application/json"},
+        )
+        assert resp.status_code == 422
+        data = resp.json()["error"]
+        assert data["code"] == "UNSUPPORTED_COMBINATION"
+
     def test_impliedvol_missing_param(self, client: TestClient):
         resp = client.get("/v1/impliedvol?s=100&k=100")
         assert resp.status_code == 400
@@ -289,3 +298,13 @@ class TestPortfolio:
         for greek in ["delta", "gamma", "vega", "theta", "rho", "charm"]:
             expected = 2 * legs[0][greek] - 1 * legs[1][greek]
             assert abs(agg[greek] - expected) < 1e-6
+
+    def test_portfolio_small_vol_rejected(self, client: TestClient):
+        payload = {
+            "legs": [
+                {"id": "L1", "qty": 1, "s": 100, "k": 100, "t": 0.25, "r": 0.05, "q": 0, "v": 0.0005, "type": "call", "style": "american"},
+            ]
+        }
+        resp = client.post("/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"})
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_INPUT"

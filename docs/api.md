@@ -62,8 +62,8 @@ Price a single vanilla option and return Greeks.
 | `steps` | int (10–5000) | No | Tree steps. Default: 400 |
 | `valuation_date` | ISO date | No | Defaults to today |
 | `bump_spot_rel` | float | No | Relative spot bump for bump-and-revalue Greeks. Default: 0.01 |
-| `bump_vol_abs` | float | No | Absolute vol bump. Default: 0.0001 |
-| `bump_rate_abs` | float | No | Absolute rate bump. Default: 0.0001 |
+| `bump_vol_abs` | float | No | Absolute vol bump. Default: 0.001 |
+| `bump_rate_abs` | float | No | Absolute rate bump. Default: 0.001 |
 
 #### Default Engine Selection
 

@@ -44,7 +44,7 @@ _QL_LOCK = asyncio.Lock()
 _QUANTLIB_VERSION = getattr(ql, "__version__", "unknown")
 _PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 
-_START_TIME = time.time()
+_START_TIME = time.monotonic()
 
 _DEFAULT_LOG_DIR = Path(r"C:\ProgramData\DeskPricer\logs")
 _LOG_FILE = _DEFAULT_LOG_DIR / "pricer.log"
@@ -114,7 +114,7 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/health")
     async def health(request: Request):
-        uptime = time.time() - _START_TIME
+        uptime = time.monotonic() - _START_TIME
         use_json = use_json_from_request(request)
         body = serialize_health("UP", uptime, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"
@@ -378,7 +378,7 @@ def create_app() -> FastAPI:
                 )
                 if params.cross_greeks:
                     vanna_t_m1, volga_t_m1 = compute_cross_greeks(
-                        greeks_t_minus_1,
+                        greeks_t_minus_1.price,
                         s=params.s_t_minus_1,
                         k=params.k,
                         t=params.t_t_minus_1,
@@ -415,7 +415,7 @@ def create_app() -> FastAPI:
                 )
                 if params.cross_greeks and method == "average":
                     vanna_t, volga_t = compute_cross_greeks(
-                        greeks_t,
+                        greeks_t.price,
                         s=params.s_t,
                         k=params.k,
                         t=params.t_t,
@@ -512,7 +512,8 @@ def create_app() -> FastAPI:
             inputs["qty"] = params.qty
         if params.steps != 400:
             inputs["steps"] = params.steps
-        if params.engine != "analytic" and params.engine != "binomial_crr":
+        default_engine = "analytic" if params.style == "european" else "binomial_crr"
+        if params.engine != default_engine:
             inputs["engine"] = params.engine
         if params.bump_spot_rel != 0.01:
             inputs["bump_spot_rel"] = params.bump_spot_rel

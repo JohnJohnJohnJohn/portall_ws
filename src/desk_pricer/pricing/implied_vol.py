@@ -4,13 +4,14 @@ from datetime import date
 
 import QuantLib as ql
 
-from desk_pricer.errors import InvalidInputError
+from desk_pricer.errors import InvalidInputError, UnsupportedCombinationError
 from desk_pricer.pricing.conventions import (
     default_calendar,
     default_day_count,
     expiry_from_t,
     ql_date_from_iso,
 )
+from desk_pricer.pricing.engine import ENGINE_MAP
 from desk_pricer.schemas import ImpliedVolOutput
 
 
@@ -46,7 +47,7 @@ def compute_implied_vol(
 
     if style == "european":
         if engine != "analytic":
-            raise InvalidInputError(
+            raise UnsupportedCombinationError(
                 f"European implied vol only supports analytic engine; got {engine}",
                 field="engine",
             )
@@ -63,19 +64,18 @@ def compute_implied_vol(
 
     elif style == "american":
         if engine == "analytic":
-            raise InvalidInputError(
+            raise UnsupportedCombinationError(
                 "American style does not support analytic engine",
                 field="engine",
             )
         if engine == "fd":
-            raise InvalidInputError(
+            raise UnsupportedCombinationError(
                 "FD engine not yet implemented in v1.0",
                 field="engine",
             )
-        ql_engine_map = {"binomial_crr": "crr", "binomial_jr": "jr"}
-        ql_engine = ql_engine_map.get(engine)
+        ql_engine = ENGINE_MAP.get(engine)
         if ql_engine is None:
-            raise InvalidInputError(
+            raise UnsupportedCombinationError(
                 f"Unknown engine {engine} for american style",
                 field="engine",
             )
@@ -90,7 +90,7 @@ def compute_implied_vol(
         option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, steps))
 
     else:
-        raise InvalidInputError(f"Unknown style: {style}", field="style")
+        raise UnsupportedCombinationError(f"Unknown style: {style}", field="style")
 
     try:
         implied_vol = option.impliedVolatility(

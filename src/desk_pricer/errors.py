@@ -43,7 +43,8 @@ async def validation_exception_handler(request: Request, exc: Exception) -> Resp
         errors = exc.errors()
         if errors:
             first = errors[0]
-            field = ".".join(str(x) for x in first.get("loc", []))
+            loc = first.get("loc", [])
+            field = ".".join(str(x) for x in loc) if loc else None
             message = first.get("msg", "Validation error")
         else:
             field = None
