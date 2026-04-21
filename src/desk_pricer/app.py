@@ -325,7 +325,7 @@ def create_app() -> FastAPI:
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
 
-    @app.get("/v1/pnl/attribution")
+    @app.get("/v1/pnl_attribution")
     async def pnl_attribution(request: Request):
         use_json = use_json_from_request(request)
         try:

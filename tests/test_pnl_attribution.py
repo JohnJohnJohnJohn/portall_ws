@@ -1,4 +1,4 @@
-"""Tests for GET /v1/pnl/attribution."""
+"""Tests for GET /v1/pnl_attribution."""
 
 import xml.etree.ElementTree as ET
 
@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 class TestPnLAttribution:
     def _get(self, client: TestClient, params, json_format=False):
         headers = {"Accept": "application/json"} if json_format else {}
-        return client.get("/v1/pnl/attribution", params=params, headers=headers)
+        return client.get("/v1/pnl_attribution", params=params, headers=headers)
 
     def _base_params(self, **overrides):
         defaults = {
