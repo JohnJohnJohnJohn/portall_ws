@@ -25,7 +25,6 @@ from desk_pricer.errors import (
 from desk_pricer.pricing.conventions import ql_date_from_iso
 from desk_pricer.pricing.engine import price_vanilla
 from desk_pricer.pricing.implied_vol import compute_implied_vol
-from desk_pricer.pricing.pnl_attribution import compute_pnl_attribution_leg_from_results
 from desk_pricer.responses import (
     serialize_greeks,
     serialize_health,
@@ -35,7 +34,7 @@ from desk_pricer.responses import (
     serialize_version,
     use_json_from_request,
 )
-from desk_pricer.schemas import GreeksRequest, ImpliedVolRequest, PortfolioRequest, PnLAttributionRequest
+from desk_pricer.schemas import GreeksRequest, ImpliedVolRequest, PortfolioRequest, PnLAttributionGETRequest
 from pydantic import ValidationError
 
 # Protect QuantLib global state
@@ -326,71 +325,58 @@ def create_app() -> FastAPI:
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
 
-    @app.post("/v1/pnl/attribution")
-    async def pnl_attribution(request: Request, payload: PnLAttributionRequest):
+    @app.get("/v1/pnl/attribution")
+    async def pnl_attribution(request: Request):
         use_json = use_json_from_request(request)
-        valuation_date_t_minus_1 = payload.valuation_date_t_minus_1
-        valuation_date_t = payload.valuation_date_t
-        method = payload.method
+        try:
+            params = PnLAttributionGETRequest.model_validate(request.query_params)
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors(), body=None) from exc
 
-        legs_out = []
-        aggregate = {
-            "actual_pnl": 0.0,
-            "delta_pnl": 0.0,
-            "gamma_pnl": 0.0,
-            "vega_pnl": 0.0,
-            "theta_pnl": 0.0,
-            "rho_pnl": 0.0,
-            "explained_pnl": 0.0,
-            "residual_pnl": 0.0,
-        }
+        valuation_date_t_minus_1 = params.valuation_date_t_minus_1
+        valuation_date_t = params.valuation_date_t
+        method = params.method
 
         async with _QL_LOCK:
             old_eval = ql.Settings.instance().evaluationDate
             try:
-                # Phase 1: price all legs at t-1
+                # Price at t-1
                 ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date_t_minus_1)
-                results_t_minus_1 = []
-                for leg in payload.legs:
-                    result = price_vanilla(
-                        s=leg.t_minus_1.s,
-                        k=leg.k,
-                        t=leg.t_minus_1.t,
-                        r=leg.t_minus_1.r,
-                        q=leg.t_minus_1.q,
-                        v=leg.t_minus_1.v,
-                        option_type=leg.type,
-                        style=leg.style,
-                        engine=leg.engine,
-                        valuation_date=valuation_date_t_minus_1,
-                        steps=leg.steps,
-                        bump_spot_rel=leg.bump_spot_rel,
-                        bump_vol_abs=leg.bump_vol_abs,
-                        bump_rate_abs=leg.bump_rate_abs,
-                    )
-                    results_t_minus_1.append(result)
+                greeks_t_minus_1 = price_vanilla(
+                    s=params.s_t_minus_1,
+                    k=params.k,
+                    t=params.t_t_minus_1,
+                    r=params.r_t_minus_1,
+                    q=params.q_t_minus_1,
+                    v=params.v_t_minus_1,
+                    option_type=params.type,
+                    style=params.style,
+                    engine=params.engine,
+                    valuation_date=valuation_date_t_minus_1,
+                    steps=params.steps,
+                    bump_spot_rel=params.bump_spot_rel,
+                    bump_vol_abs=params.bump_vol_abs,
+                    bump_rate_abs=params.bump_rate_abs,
+                )
 
-                # Phase 2: price all legs at t
+                # Price at t
                 ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date_t)
-                results_t = []
-                for leg in payload.legs:
-                    result = price_vanilla(
-                        s=leg.t.s,
-                        k=leg.k,
-                        t=leg.t.t,
-                        r=leg.t.r,
-                        q=leg.t.q,
-                        v=leg.t.v,
-                        option_type=leg.type,
-                        style=leg.style,
-                        engine=leg.engine,
-                        valuation_date=valuation_date_t,
-                        steps=leg.steps,
-                        bump_spot_rel=leg.bump_spot_rel,
-                        bump_vol_abs=leg.bump_vol_abs,
-                        bump_rate_abs=leg.bump_rate_abs,
-                    )
-                    results_t.append(result)
+                greeks_t = price_vanilla(
+                    s=params.s_t,
+                    k=params.k,
+                    t=params.t_t,
+                    r=params.r_t,
+                    q=params.q_t,
+                    v=params.v_t,
+                    option_type=params.type,
+                    style=params.style,
+                    engine=params.engine,
+                    valuation_date=valuation_date_t,
+                    steps=params.steps,
+                    bump_spot_rel=params.bump_spot_rel,
+                    bump_vol_abs=params.bump_vol_abs,
+                    bump_rate_abs=params.bump_rate_abs,
+                )
             except DeskPricerError:
                 raise
             except RuntimeError as exc:
@@ -398,24 +384,40 @@ def create_app() -> FastAPI:
             finally:
                 ql.Settings.instance().evaluationDate = old_eval
 
-        # Compute attribution outside the lock
-        qty_buckets = [
-            "actual_pnl", "delta_pnl", "gamma_pnl", "vega_pnl",
-            "theta_pnl", "rho_pnl", "explained_pnl", "residual_pnl",
-        ]
-        for idx, leg in enumerate(payload.legs):
-            greeks_t_minus_1 = results_t_minus_1[idx]
-            greeks_t = results_t[idx]
+        delta_s = params.s_t - params.s_t_minus_1
+        delta_v_points = (params.v_t - params.v_t_minus_1) * 100.0
+        delta_r_points = (params.r_t - params.r_t_minus_1) * 100.0
+        calendar_days = (valuation_date_t - valuation_date_t_minus_1).days
 
-            row = compute_pnl_attribution_leg_from_results(
-                leg, greeks_t_minus_1, greeks_t, valuation_date_t_minus_1, valuation_date_t, method
-            )
-            for bucket in qty_buckets:
-                row[bucket] *= leg.qty
-            legs_out.append(row)
+        delta_pnl = greeks_t_minus_1.delta * delta_s
+        gamma_pnl = 0.5 * greeks_t_minus_1.gamma * (delta_s ** 2)
 
-            for bucket in aggregate:
-                aggregate[bucket] += row[bucket]
+        if method == "average":
+            vega_pnl = ((greeks_t_minus_1.vega + greeks_t.vega) / 2.0) * delta_v_points
+            rho_pnl = ((greeks_t_minus_1.rho + greeks_t.rho) / 2.0) * delta_r_points
+        else:
+            vega_pnl = greeks_t_minus_1.vega * delta_v_points
+            rho_pnl = greeks_t_minus_1.rho * delta_r_points
+
+        theta_pnl = greeks_t_minus_1.theta * calendar_days
+
+        actual_pnl = greeks_t.price - greeks_t_minus_1.price
+        explained_pnl = delta_pnl + gamma_pnl + vega_pnl + theta_pnl + rho_pnl
+        residual_pnl = actual_pnl - explained_pnl
+
+        qty = params.qty
+        outputs = {
+            "price_t_minus_1": greeks_t_minus_1.price,
+            "price_t": greeks_t.price,
+            "actual_pnl": qty * actual_pnl,
+            "delta_pnl": qty * delta_pnl,
+            "gamma_pnl": qty * gamma_pnl,
+            "vega_pnl": qty * vega_pnl,
+            "theta_pnl": qty * theta_pnl,
+            "rho_pnl": qty * rho_pnl,
+            "explained_pnl": qty * explained_pnl,
+            "residual_pnl": qty * residual_pnl,
+        }
 
         meta = {
             "service_version": service_version,
@@ -425,7 +427,7 @@ def create_app() -> FastAPI:
             "method": method,
         }
 
-        body = serialize_pnl_attribution(meta, legs_out, aggregate, json_format=use_json)
+        body = serialize_pnl_attribution(meta, outputs, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
 

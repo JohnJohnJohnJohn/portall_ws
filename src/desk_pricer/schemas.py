@@ -167,25 +167,32 @@ class ImpliedVolOutput(BaseModel):
     npv_at_iv: float
 
 
-class PnLMarketSnapshot(BaseModel):
-    s: float = Field(gt=0, allow_inf_nan=False)
-    t: float = Field(
+class PnLAttributionGETRequest(BaseModel):
+    s_t_minus_1: float = Field(gt=0, allow_inf_nan=False)
+    s_t: float = Field(gt=0, allow_inf_nan=False)
+    k: float = Field(gt=0, allow_inf_nan=False)
+    t_t_minus_1: float = Field(
         ge=0, le=100, allow_inf_nan=False,
         description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
     )
-    r: float = Field(allow_inf_nan=False)
-    q: float = Field(allow_inf_nan=False)
-    v: float = Field(gt=0, allow_inf_nan=False)
-
-
-class PnLLegInput(BaseModel):
-    id: str = Field(min_length=1, max_length=32)
-    qty: float = Field(allow_inf_nan=False, description="Quantity (negative for short)")
-    k: float = Field(gt=0, allow_inf_nan=False)
+    t_t: float = Field(
+        ge=0, le=100, allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+    )
+    r_t_minus_1: float = Field(allow_inf_nan=False)
+    r_t: float = Field(allow_inf_nan=False)
+    q_t_minus_1: float = Field(allow_inf_nan=False)
+    q_t: float = Field(allow_inf_nan=False)
+    v_t_minus_1: float = Field(gt=0, allow_inf_nan=False)
+    v_t: float = Field(gt=0, allow_inf_nan=False)
     type: Literal["call", "put"]
     style: Literal["european", "american"]
     engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(default=None)
     steps: int = Field(default=400, ge=10, le=5000)
+    qty: float = Field(default=1.0, allow_inf_nan=False)
+    valuation_date_t_minus_1: date | None = Field(default=None)
+    valuation_date_t: date | None = Field(default=None)
+    method: Literal["backward", "average"] = Field(default="backward")
     bump_spot_rel: float = Field(
         default=0.01, gt=0, le=0.1, allow_inf_nan=False,
         description="Relative spot bump for Greeks"
@@ -198,8 +205,6 @@ class PnLLegInput(BaseModel):
         default=0.001, gt=0, le=0.01, allow_inf_nan=False,
         description="Absolute rate bump for Greeks"
     )
-    t_minus_1: PnLMarketSnapshot
-    t: PnLMarketSnapshot
 
     @model_validator(mode="before")
     @classmethod
@@ -214,13 +219,6 @@ class PnLLegInput(BaseModel):
             self.engine = "analytic" if self.style == "european" else "binomial_crr"
         return self
 
-
-class PnLAttributionRequest(BaseModel):
-    valuation_date_t_minus_1: date | None = Field(default=None)
-    valuation_date_t: date | None = Field(default=None)
-    method: Literal["backward", "average"] = Field(default="backward")
-    legs: list[PnLLegInput] = Field(min_length=1, max_length=500)
-
     @model_validator(mode="after")
     def set_default_dates(self):
         if self.valuation_date_t is None:
@@ -233,4 +231,12 @@ class PnLAttributionRequest(BaseModel):
     def check_date_order(self):
         if self.valuation_date_t_minus_1 > self.valuation_date_t:
             raise ValueError("valuation_date_t_minus_1 must not be after valuation_date_t")
+        return self
+
+    @model_validator(mode="after")
+    def check_bump_size_vs_vol(self):
+        if self.style == "american" and self.v_t_minus_1 <= self.bump_vol_abs:
+            raise ValueError(
+                "volatility must be greater than bump_vol_abs for American bump-and-revalue Greeks"
+            )
         return self
