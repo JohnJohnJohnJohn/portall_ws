@@ -1,6 +1,6 @@
 """Pydantic request/response models."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -165,3 +165,72 @@ class ImpliedVolRequest(BaseModel):
 class ImpliedVolOutput(BaseModel):
     implied_vol: float
     npv_at_iv: float
+
+
+class PnLMarketSnapshot(BaseModel):
+    s: float = Field(gt=0, allow_inf_nan=False)
+    t: float = Field(
+        ge=0, le=100, allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+    )
+    r: float = Field(allow_inf_nan=False)
+    q: float = Field(allow_inf_nan=False)
+    v: float = Field(gt=0, allow_inf_nan=False)
+
+
+class PnLLegInput(BaseModel):
+    id: str = Field(min_length=1, max_length=32)
+    qty: float = Field(allow_inf_nan=False, description="Quantity (negative for short)")
+    k: float = Field(gt=0, allow_inf_nan=False)
+    type: Literal["call", "put"]
+    style: Literal["european", "american"]
+    engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(default=None)
+    steps: int = Field(default=400, ge=10, le=5000)
+    bump_spot_rel: float = Field(
+        default=0.01, gt=0, le=0.1, allow_inf_nan=False,
+        description="Relative spot bump for Greeks"
+    )
+    bump_vol_abs: float = Field(
+        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
+        description="Absolute vol bump for Greeks"
+    )
+    bump_rate_abs: float = Field(
+        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
+        description="Absolute rate bump for Greeks"
+    )
+    t_minus_1: PnLMarketSnapshot
+    t: PnLMarketSnapshot
+
+    @model_validator(mode="before")
+    @classmethod
+    def empty_str_to_none(cls, data):
+        if isinstance(data, dict) and data.get("engine") == "":
+            data["engine"] = None
+        return data
+
+    @model_validator(mode="after")
+    def set_default_engine(self):
+        if self.engine is None:
+            self.engine = "analytic" if self.style == "european" else "binomial_crr"
+        return self
+
+
+class PnLAttributionRequest(BaseModel):
+    valuation_date_t_minus_1: date | None = Field(default=None)
+    valuation_date_t: date | None = Field(default=None)
+    method: Literal["backward", "average"] = Field(default="backward")
+    legs: list[PnLLegInput] = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def set_default_dates(self):
+        if self.valuation_date_t is None:
+            self.valuation_date_t = date.today()
+        if self.valuation_date_t_minus_1 is None:
+            self.valuation_date_t_minus_1 = self.valuation_date_t - timedelta(days=1)
+        return self
+
+    @model_validator(mode="after")
+    def check_date_order(self):
+        if self.valuation_date_t_minus_1 > self.valuation_date_t:
+            raise ValueError("valuation_date_t_minus_1 must not be after valuation_date_t")
+        return self

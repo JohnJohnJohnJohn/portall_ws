@@ -25,15 +25,17 @@ from desk_pricer.errors import (
 from desk_pricer.pricing.conventions import ql_date_from_iso
 from desk_pricer.pricing.engine import price_vanilla
 from desk_pricer.pricing.implied_vol import compute_implied_vol
+from desk_pricer.pricing.pnl_attribution import compute_pnl_attribution_leg_from_results
 from desk_pricer.responses import (
     serialize_greeks,
     serialize_health,
     serialize_impliedvol,
+    serialize_pnl_attribution,
     serialize_portfolio,
     serialize_version,
     use_json_from_request,
 )
-from desk_pricer.schemas import GreeksRequest, ImpliedVolRequest, PortfolioRequest
+from desk_pricer.schemas import GreeksRequest, ImpliedVolRequest, PortfolioRequest, PnLAttributionRequest
 from pydantic import ValidationError
 
 # Protect QuantLib global state
@@ -321,6 +323,109 @@ def create_app() -> FastAPI:
         }
 
         body = serialize_portfolio(meta, legs_out, aggregate, json_format=use_json)
+        media = "application/json" if use_json else "application/xml; charset=utf-8"
+        return Response(content=body, media_type=media)
+
+    @app.post("/v1/pnl/attribution")
+    async def pnl_attribution(request: Request, payload: PnLAttributionRequest):
+        use_json = use_json_from_request(request)
+        valuation_date_t_minus_1 = payload.valuation_date_t_minus_1
+        valuation_date_t = payload.valuation_date_t
+        method = payload.method
+
+        legs_out = []
+        aggregate = {
+            "actual_pnl": 0.0,
+            "delta_pnl": 0.0,
+            "gamma_pnl": 0.0,
+            "vega_pnl": 0.0,
+            "theta_pnl": 0.0,
+            "rho_pnl": 0.0,
+            "explained_pnl": 0.0,
+            "residual_pnl": 0.0,
+        }
+
+        async with _QL_LOCK:
+            old_eval = ql.Settings.instance().evaluationDate
+            try:
+                # Phase 1: price all legs at t-1
+                ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date_t_minus_1)
+                results_t_minus_1 = []
+                for leg in payload.legs:
+                    result = price_vanilla(
+                        s=leg.t_minus_1.s,
+                        k=leg.k,
+                        t=leg.t_minus_1.t,
+                        r=leg.t_minus_1.r,
+                        q=leg.t_minus_1.q,
+                        v=leg.t_minus_1.v,
+                        option_type=leg.type,
+                        style=leg.style,
+                        engine=leg.engine,
+                        valuation_date=valuation_date_t_minus_1,
+                        steps=leg.steps,
+                        bump_spot_rel=leg.bump_spot_rel,
+                        bump_vol_abs=leg.bump_vol_abs,
+                        bump_rate_abs=leg.bump_rate_abs,
+                    )
+                    results_t_minus_1.append(result)
+
+                # Phase 2: price all legs at t
+                ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date_t)
+                results_t = []
+                for leg in payload.legs:
+                    result = price_vanilla(
+                        s=leg.t.s,
+                        k=leg.k,
+                        t=leg.t.t,
+                        r=leg.t.r,
+                        q=leg.t.q,
+                        v=leg.t.v,
+                        option_type=leg.type,
+                        style=leg.style,
+                        engine=leg.engine,
+                        valuation_date=valuation_date_t,
+                        steps=leg.steps,
+                        bump_spot_rel=leg.bump_spot_rel,
+                        bump_vol_abs=leg.bump_vol_abs,
+                        bump_rate_abs=leg.bump_rate_abs,
+                    )
+                    results_t.append(result)
+            except DeskPricerError:
+                raise
+            except RuntimeError as exc:
+                raise InvalidInputError(f"Pricing failed: {exc}") from exc
+            finally:
+                ql.Settings.instance().evaluationDate = old_eval
+
+        # Compute attribution outside the lock
+        qty_buckets = [
+            "actual_pnl", "delta_pnl", "gamma_pnl", "vega_pnl",
+            "theta_pnl", "rho_pnl", "explained_pnl", "residual_pnl",
+        ]
+        for idx, leg in enumerate(payload.legs):
+            greeks_t_minus_1 = results_t_minus_1[idx]
+            greeks_t = results_t[idx]
+
+            row = compute_pnl_attribution_leg_from_results(
+                leg, greeks_t_minus_1, greeks_t, valuation_date_t_minus_1, valuation_date_t, method
+            )
+            for bucket in qty_buckets:
+                row[bucket] *= leg.qty
+            legs_out.append(row)
+
+            for bucket in aggregate:
+                aggregate[bucket] += row[bucket]
+
+        meta = {
+            "service_version": service_version,
+            "quantlib_version": _QUANTLIB_VERSION,
+            "valuation_date_t_minus_1": valuation_date_t_minus_1.isoformat(),
+            "valuation_date_t": valuation_date_t.isoformat(),
+            "method": method,
+        }
+
+        body = serialize_pnl_attribution(meta, legs_out, aggregate, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
 

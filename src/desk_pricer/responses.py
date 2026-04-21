@@ -149,3 +149,30 @@ def serialize_portfolio(
         }
     }
     return _to_xml(payload)
+
+
+def serialize_pnl_attribution(
+    meta: dict[str, Any],
+    legs: list[dict[str, Any]],
+    aggregate: dict[str, Any],
+    json_format: bool = False,
+) -> str:
+    cleaned_legs = [_clean_value(leg) for leg in legs]
+    if json_format:
+        payload: dict[str, Any] = {
+            "pnl_attribution": {
+                "meta": meta,
+                "legs": cleaned_legs,
+                "aggregate": _clean_value(aggregate),
+            }
+        }
+        return json.dumps(payload, indent=2)
+
+    payload = {
+        "pnl_attribution": {
+            "meta": meta,
+            "legs": {"leg": cleaned_legs},
+            "aggregate": _clean_value(aggregate),
+        }
+    }
+    return _to_xml(payload)
