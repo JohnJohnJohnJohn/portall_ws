@@ -24,6 +24,7 @@ from desk_pricer.errors import (
 )
 from desk_pricer.pricing.conventions import ql_date_from_iso
 from desk_pricer.pricing.engine import price_vanilla
+from desk_pricer.pricing.cross_greeks import compute_cross_greeks
 from desk_pricer.pricing.implied_vol import compute_implied_vol
 from desk_pricer.responses import (
     serialize_greeks,
@@ -352,10 +353,12 @@ def create_app() -> FastAPI:
                 field="valuation_date_t",
             )
 
+        vanna_t_m1 = volga_t_m1 = vanna_t = volga_t = 0.0
+
         async with _QL_LOCK:
             old_eval = ql.Settings.instance().evaluationDate
             try:
-                # Price at t-1
+                # Phase 1: price and optional cross-greeks at t-1
                 ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date_t_minus_1)
                 greeks_t_minus_1 = price_vanilla(
                     s=params.s_t_minus_1,
@@ -373,8 +376,26 @@ def create_app() -> FastAPI:
                     bump_vol_abs=params.bump_vol_abs,
                     bump_rate_abs=params.bump_rate_abs,
                 )
+                if params.cross_greeks:
+                    vanna_t_m1, volga_t_m1 = compute_cross_greeks(
+                        greeks_t_minus_1,
+                        s=params.s_t_minus_1,
+                        k=params.k,
+                        t=params.t_t_minus_1,
+                        r=params.r_t_minus_1,
+                        q=params.q_t_minus_1,
+                        v=params.v_t_minus_1,
+                        option_type=params.type,
+                        style=params.style,
+                        engine=params.engine,
+                        valuation_date=valuation_date_t_minus_1,
+                        steps=params.steps,
+                        bump_spot_rel=params.bump_spot_rel,
+                        bump_vol_abs=params.bump_vol_abs,
+                        bump_rate_abs=params.bump_rate_abs,
+                    )
 
-                # Price at t
+                # Phase 2: price and optional cross-greeks at t
                 ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date_t)
                 greeks_t = price_vanilla(
                     s=params.s_t,
@@ -392,6 +413,24 @@ def create_app() -> FastAPI:
                     bump_vol_abs=params.bump_vol_abs,
                     bump_rate_abs=params.bump_rate_abs,
                 )
+                if params.cross_greeks and method == "average":
+                    vanna_t, volga_t = compute_cross_greeks(
+                        greeks_t,
+                        s=params.s_t,
+                        k=params.k,
+                        t=params.t_t,
+                        r=params.r_t,
+                        q=params.q_t,
+                        v=params.v_t,
+                        option_type=params.type,
+                        style=params.style,
+                        engine=params.engine,
+                        valuation_date=valuation_date_t,
+                        steps=params.steps,
+                        bump_spot_rel=params.bump_spot_rel,
+                        bump_vol_abs=params.bump_vol_abs,
+                        bump_rate_abs=params.bump_rate_abs,
+                    )
             except DeskPricerError:
                 raise
             except RuntimeError as exc:
@@ -415,8 +454,20 @@ def create_app() -> FastAPI:
 
         theta_pnl = greeks_t_minus_1.theta * calendar_days
 
+        # Cross-greeks PnL
+        vanna_pnl_per_unit = 0.0
+        volga_pnl_per_unit = 0.0
+        if params.cross_greeks:
+            if method == "average":
+                vanna = (vanna_t_m1 + vanna_t) / 2.0
+                volga = (volga_t_m1 + volga_t) / 2.0
+            else:
+                vanna, volga = vanna_t_m1, volga_t_m1
+            vanna_pnl_per_unit = vanna * delta_s * delta_v_points
+            volga_pnl_per_unit = 0.5 * volga * (delta_v_points ** 2)
+
         actual_pnl = greeks_t.price - greeks_t_minus_1.price
-        explained_pnl = delta_pnl + gamma_pnl + vega_pnl + theta_pnl + rho_pnl
+        explained_pnl = delta_pnl + gamma_pnl + vega_pnl + theta_pnl + rho_pnl + vanna_pnl_per_unit + volga_pnl_per_unit
         residual_pnl = actual_pnl - explained_pnl
 
         qty = params.qty
@@ -429,6 +480,8 @@ def create_app() -> FastAPI:
             "vega_pnl": qty * vega_pnl,
             "theta_pnl": qty * theta_pnl,
             "rho_pnl": qty * rho_pnl,
+            "vanna_pnl": qty * vanna_pnl_per_unit,
+            "volga_pnl": qty * volga_pnl_per_unit,
             "explained_pnl": qty * explained_pnl,
             "residual_pnl": qty * residual_pnl,
         }
@@ -467,6 +520,8 @@ def create_app() -> FastAPI:
             inputs["bump_vol_abs"] = params.bump_vol_abs
         if params.bump_rate_abs != 0.001:
             inputs["bump_rate_abs"] = params.bump_rate_abs
+        if params.cross_greeks:
+            inputs["cross_greeks"] = True
 
         body = serialize_pnl_attribution(meta, inputs, outputs, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"

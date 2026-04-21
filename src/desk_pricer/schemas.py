@@ -193,6 +193,7 @@ class PnLAttributionGETRequest(BaseModel):
     valuation_date_t_minus_1: date | None = Field(default=None)
     valuation_date_t: date | None = Field(default=None)
     method: Literal["backward", "average"] = Field(default="backward")
+    cross_greeks: bool = Field(default=False)
     bump_spot_rel: float = Field(
         default=0.01, gt=0, le=0.1, allow_inf_nan=False,
         description="Relative spot bump for Greeks"

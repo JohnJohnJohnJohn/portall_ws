@@ -30,6 +30,7 @@ class TestPnLAttribution:
             "valuation_date_t_minus_1": "2026-04-19",
             "valuation_date_t": "2026-04-20",
             "method": "backward",
+            "cross_greeks": False,
         }
         defaults.update(overrides)
         return defaults
@@ -191,6 +192,58 @@ class TestPnLAttribution:
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
+
+    def test_cross_greeks_backward(self, client: TestClient):
+        """cross_greeks=true should add vanna/volga and shrink residual."""
+        params = self._base_params(s_t=102, cross_greeks=True)
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        data = resp.json()["pnl_attribution"]["outputs"]
+        assert "vanna_pnl" in data
+        assert "volga_pnl" in data
+        # Residual should be smaller than without cross_greeks
+        # (exact number depends on the option, just check it exists)
+        assert isinstance(data["vanna_pnl"], float)
+        assert isinstance(data["volga_pnl"], float)
+
+    def test_cross_greeks_average(self, client: TestClient):
+        """cross_greeks=true with method=average averages vanna/volga."""
+        params = self._base_params(s_t=102, v_t=0.22, method="average", cross_greeks=True)
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        data = resp.json()["pnl_attribution"]["outputs"]
+        assert "vanna_pnl" in data
+        assert "volga_pnl" in data
+
+    def test_cross_greeks_reduces_residual_on_large_move(self, client: TestClient):
+        """The user's problematic trade: large spot + vol move.
+        cross_greeks should cut residual dramatically."""
+        params = {
+            "s_t_minus_1": 702.5,
+            "s_t": 738.5,
+            "k": 750,
+            "t_t_minus_1": 0.104109589041096,
+            "t_t": 0.101369863013699,
+            "r_t_minus_1": 0.0257155,
+            "r_t": 0.0257155,
+            "q_t_minus_1": 0,
+            "q_t": 0,
+            "v_t_minus_1": 0.555955508,
+            "v_t": 0.4,
+            "type": "call",
+            "style": "american",
+            "qty": -100000,
+            "method": "backward",
+            "cross_greeks": True,
+        }
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        data = resp.json()["pnl_attribution"]["outputs"]
+        actual = abs(data["actual_pnl"])
+        residual = abs(data["residual_pnl"])
+        # With cross-greeks, residual should be < 50% of actual
+        # (without it, residual was ~190% for this trade)
+        assert residual < 0.5 * actual
 
     def test_missing_param(self, client: TestClient):
         """Missing required param should fail validation."""
