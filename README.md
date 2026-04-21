@@ -16,16 +16,16 @@ Local HTTP pricing microservice for vanilla European and American equity options
 
 ### Option A: Standalone Executable (Recommended)
 
-Download `desk-pricer.exe` from the [Releases](https://github.com/JohnJohnJohnJohn/portall_ws/releases) page and run:
+Download `DeskPricer_v1.exe` from the [Releases](https://github.com/JohnJohnJohnJohn/portall_ws/releases) page and run:
 
 ```powershell
-.\desk-pricer.exe
+.\DeskPricer_v1.exe
 ```
 
 The service starts on port `8765`. To use a different port:
 
 ```powershell
-.\desk-pricer.exe --port 9000
+.\DeskPricer_v1.exe --port 9000
 ```
 
 ### Option B: From Source
@@ -216,11 +216,8 @@ Build a single `.exe` that bundles Python, all dependencies, and QuantLib — no
 # Install PyInstaller in your dev venv first
 pip install pyinstaller
 
-# Build desk-pricer.exe (~38 MB)
+# Build DeskPricer_v1.exe (~38 MB)
 python scripts/build_executable.py
-
-# Or build a directory (faster startup, no self-extraction)
-python scripts/build_executable.py --onedir
 ```
 
 The executable picks the port in this priority order:
@@ -230,11 +227,11 @@ The executable picks the port in this priority order:
 
 ```powershell
 # CLI argument
-.\dist\desk-pricer.exe --port 9000
+.\dist\DeskPricer_v1.exe --port 9000
 
 # Or environment variable
 $env:DESK_PRICER_PORT = "9000"
-.\dist\desk-pricer.exe
+.\dist\DeskPricer_v1.exe
 ```
 
 ### Register as a Windows Service
@@ -242,7 +239,7 @@ $env:DESK_PRICER_PORT = "9000"
 Use [NSSM](https://nssm.cc/) to run the `.exe` as a service:
 
 ```powershell
-nssm install DeskPricer "C:\full\path\to\desk-pricer.exe"
+nssm install DeskPricer "C:\full\path\to\DeskPricer_v1.exe"
 nssm set DeskPricer AppDirectory "C:\full\path\to"
 nssm start DeskPricer
 ```

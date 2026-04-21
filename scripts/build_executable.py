@@ -1,18 +1,30 @@
 #!/usr/bin/env python3
-"""Build a standalone Windows executable for desk-pricer."""
+"""Build a standalone Windows executable for DeskPricer."""
 
 import argparse
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 SRC_DIR = PROJECT_ROOT / "src"
 DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
-SPEC_FILE = PROJECT_ROOT / "desk-pricer.spec"
+SPEC_FILE = PROJECT_ROOT / "DeskPricer.spec"
 ENTRY_SCRIPT = PROJECT_ROOT / "scripts" / "run_desk_pricer.py"
+PYPROJECT = PROJECT_ROOT / "pyproject.toml"
+
+
+def _get_version() -> str:
+    with PYPROJECT.open("rb") as f:
+        data = tomllib.load(f)
+    return data["project"]["version"]
+
+
+def _major_version() -> str:
+    return _get_version().split(".")[0]
 
 
 def clean():
@@ -26,14 +38,13 @@ def clean():
                 path.unlink()
 
     # Remove old dist contents so we don't ship stale files
-    old_dist = DIST_DIR / "desk-pricer"
-    old_exe = DIST_DIR / "desk-pricer.exe"
-    if old_dist.exists():
-        print(f"Removing {old_dist} ...")
-        shutil.rmtree(old_dist)
-    if old_exe.exists():
-        print(f"Removing {old_exe} ...")
-        old_exe.unlink()
+    for pattern in ("DeskPricer*", "desk-pricer*"):
+        for old in DIST_DIR.glob(pattern):
+            print(f"Removing {old} ...")
+            if old.is_dir():
+                shutil.rmtree(old)
+            else:
+                old.unlink()
 
 
 def build(onefile: bool = True, windowed: bool = False):
@@ -47,7 +58,7 @@ def build(onefile: bool = True, windowed: bool = False):
         env_python,
         "-m",
         "PyInstaller",
-        "--name", "desk-pricer",
+        "--name", "DeskPricer",
         mode,
         console_flag,
         "--noconfirm",
@@ -67,26 +78,28 @@ def build(onefile: bool = True, windowed: bool = False):
         "--hidden-import", "desk_pricer.schemas",
         "--hidden-import", "desk_pricer.main",
         # Data files
-        "--add-data", f"{PROJECT_ROOT / 'pyproject.toml'};.",
+        "--add-data", f"{PYPROJECT};.",
         str(ENTRY_SCRIPT),
     ]
 
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
+    raw_exe = DIST_DIR / "DeskPricer.exe"
+    versioned_exe = DIST_DIR / f"DeskPricer_v{_major_version()}.exe"
+
     if onefile:
-        artifact = DIST_DIR / "desk-pricer.exe"
-        size_mb = artifact.stat().st_size / (1024 * 1024)
-        print(f"\nBuild complete: {artifact}")
+        shutil.move(str(raw_exe), str(versioned_exe))
+        size_mb = versioned_exe.stat().st_size / (1024 * 1024)
+        print(f"\nBuild complete: {versioned_exe}")
         print(f"Size: {size_mb:.1f} MB")
     else:
-        artifact = DIST_DIR / "desk-pricer"
-        print(f"\nBuild complete: {artifact}")
-        print(f"Run with: {artifact / 'desk-pricer.exe'}")
+        print(f"\nBuild complete: {raw_exe}")
+        print(f"Run with: {raw_exe}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build desk-pricer standalone executable")
+    parser = argparse.ArgumentParser(description="Build DeskPricer standalone executable")
     parser.add_argument(
         "--onedir", action="store_true",
         help="Build a directory instead of a single file (faster startup)"

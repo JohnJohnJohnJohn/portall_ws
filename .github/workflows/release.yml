@@ -30,22 +30,13 @@ jobs:
       - name: Run tests
         run: pytest tests -q
 
-      - name: Build standalone executable (onefile)
+      - name: Build standalone executable
         run: python scripts/build_executable.py
-
-      - name: Build standalone executable (onedir)
-        run: python scripts/build_executable.py --onedir
-
-      - name: Package onedir as zip
-        run: |
-          Compress-Archive -Path dist/desk-pricer -DestinationPath dist/desk-pricer-onedir.zip -Force
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/desk-pricer.exe
-            dist/desk-pricer-onedir.zip
+          files: dist/DeskPricer_v*.exe
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
