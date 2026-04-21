@@ -33,10 +33,20 @@ jobs:
       - name: Build standalone executable
         run: python scripts/build_executable.py
 
+      - name: Verify build output
+        run: |
+          Get-ChildItem -Path dist -Recurse
+          if (-not (Test-Path "dist/DeskPricer_v*.exe")) {
+            Write-Error "Executable not found in dist/"
+            exit 1
+          }
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/DeskPricer_v*.exe
+          files: |
+            dist/DeskPricer_v*.exe
           generate_release_notes: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
