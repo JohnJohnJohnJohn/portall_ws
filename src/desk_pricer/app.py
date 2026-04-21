@@ -440,8 +440,35 @@ def create_app() -> FastAPI:
             "valuation_date_t": valuation_date_t.isoformat(),
             "method": method,
         }
+        inputs = {
+            "s_t_minus_1": params.s_t_minus_1,
+            "s_t": params.s_t,
+            "k": params.k,
+            "t_t_minus_1": params.t_t_minus_1,
+            "t_t": params.t_t,
+            "r_t_minus_1": params.r_t_minus_1,
+            "r_t": params.r_t,
+            "q_t_minus_1": params.q_t_minus_1,
+            "q_t": params.q_t,
+            "v_t_minus_1": params.v_t_minus_1,
+            "v_t": params.v_t,
+            "type": params.type,
+            "style": params.style,
+        }
+        if params.qty != 1.0:
+            inputs["qty"] = params.qty
+        if params.steps != 400:
+            inputs["steps"] = params.steps
+        if params.engine != "analytic" and params.engine != "binomial_crr":
+            inputs["engine"] = params.engine
+        if params.bump_spot_rel != 0.01:
+            inputs["bump_spot_rel"] = params.bump_spot_rel
+        if params.bump_vol_abs != 0.001:
+            inputs["bump_vol_abs"] = params.bump_vol_abs
+        if params.bump_rate_abs != 0.001:
+            inputs["bump_rate_abs"] = params.bump_rate_abs
 
-        body = serialize_pnl_attribution(meta, outputs, json_format=use_json)
+        body = serialize_pnl_attribution(meta, inputs, outputs, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
 

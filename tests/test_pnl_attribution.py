@@ -39,7 +39,7 @@ class TestPnLAttribution:
         params = self._base_params(s_t=102)
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
-        data = resp.json()["pnl_attribution"]
+        data = resp.json()["pnl_attribution"]["outputs"]
 
         assert data["delta_pnl"] > 0
         assert data["gamma_pnl"] >= 0
@@ -52,7 +52,7 @@ class TestPnLAttribution:
         params = self._base_params(s_t=110)
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
-        data = resp.json()["pnl_attribution"]
+        data = resp.json()["pnl_attribution"]["outputs"]
 
         delta_only = data["delta_pnl"]
         actual = data["actual_pnl"]
@@ -66,7 +66,7 @@ class TestPnLAttribution:
         params = self._base_params(v_t=0.22)
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
-        data = resp.json()["pnl_attribution"]
+        data = resp.json()["pnl_attribution"]["outputs"]
 
         assert data["vega_pnl"] > 0
         assert data["delta_pnl"] == pytest.approx(0, abs=1e-10)
@@ -81,7 +81,7 @@ class TestPnLAttribution:
         )
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
-        data = resp.json()["pnl_attribution"]
+        data = resp.json()["pnl_attribution"]["outputs"]
 
         assert data["delta_pnl"] == pytest.approx(0, abs=1e-10)
         assert data["gamma_pnl"] == pytest.approx(0, abs=1e-10)
@@ -103,8 +103,8 @@ class TestPnLAttribution:
         assert resp_b.status_code == 200
         assert resp_a.status_code == 200
 
-        data_b = resp_b.json()["pnl_attribution"]
-        data_a = resp_a.json()["pnl_attribution"]
+        data_b = resp_b.json()["pnl_attribution"]["outputs"]
+        data_a = resp_a.json()["pnl_attribution"]["outputs"]
 
         assert data_a["delta_pnl"] == data_b["delta_pnl"]
         assert data_a["gamma_pnl"] == data_b["gamma_pnl"]
@@ -121,8 +121,8 @@ class TestPnLAttribution:
         assert resp_1.status_code == 200
         assert resp_10.status_code == 200
 
-        data_1 = resp_1.json()["pnl_attribution"]
-        data_10 = resp_10.json()["pnl_attribution"]
+        data_1 = resp_1.json()["pnl_attribution"]["outputs"]
+        data_10 = resp_10.json()["pnl_attribution"]["outputs"]
 
         for bucket in ["actual_pnl", "delta_pnl", "gamma_pnl", "vega_pnl", "theta_pnl", "rho_pnl"]:
             assert data_10[bucket] == pytest.approx(10 * data_1[bucket], abs=1e-7)
@@ -132,7 +132,7 @@ class TestPnLAttribution:
         params = self._base_params(s_t=102, qty=-1)
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
-        data = resp.json()["pnl_attribution"]
+        data = resp.json()["pnl_attribution"]["outputs"]
 
         assert data["actual_pnl"] < 0
         assert data["delta_pnl"] < 0
@@ -147,8 +147,9 @@ class TestPnLAttribution:
         root = ET.fromstring(resp.text)
         assert root.tag == "pnl_attribution"
         assert root.find("meta/method").text == "backward"
-        assert root.find("delta_pnl") is not None
-        assert root.find("price_t_minus_1") is not None
+        assert root.find("inputs/type").text == "call"
+        assert root.find("outputs/delta_pnl") is not None
+        assert root.find("outputs/price_t_minus_1") is not None
 
     def test_omit_both_dates_same_t(self, client: TestClient):
         """Omitting both dates with same t: same eval date, theta_pnl = 0."""
@@ -159,7 +160,7 @@ class TestPnLAttribution:
         assert resp.status_code == 200
         meta = resp.json()["pnl_attribution"]["meta"]
         assert meta["valuation_date_t_minus_1"] == meta["valuation_date_t"]
-        data = resp.json()["pnl_attribution"]
+        data = resp.json()["pnl_attribution"]["outputs"]
         assert data["theta_pnl"] == pytest.approx(0, abs=1e-10)
 
     def test_omit_both_dates_diff_t(self, client: TestClient):
@@ -169,7 +170,7 @@ class TestPnLAttribution:
         del params["valuation_date_t"]
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
-        data = resp.json()["pnl_attribution"]
+        data = resp.json()["pnl_attribution"]["outputs"]
         assert data["theta_pnl"] < 0
         assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-3)
 

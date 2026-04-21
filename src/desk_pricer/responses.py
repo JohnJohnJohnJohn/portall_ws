@@ -153,12 +153,18 @@ def serialize_portfolio(
 
 def serialize_pnl_attribution(
     meta: dict[str, Any],
+    inputs: dict[str, Any],
     outputs: dict[str, Any],
     json_format: bool = False,
 ) -> str:
-    """Single-leg PnL attribution serializer (flat response for Excel FILTERXML)."""
-    cleaned = _clean_value(outputs)
-    payload: dict[str, Any] = {"pnl_attribution": {"meta": meta, **cleaned}}
+    """Single-leg PnL attribution serializer matching greeks/impliedvol shape."""
+    payload: dict[str, Any] = {
+        "pnl_attribution": {
+            "meta": meta,
+            "inputs": inputs,
+            "outputs": _clean_value(outputs),
+        }
+    }
     if json_format:
         return json.dumps(payload, indent=2)
     return _to_xml(payload)
