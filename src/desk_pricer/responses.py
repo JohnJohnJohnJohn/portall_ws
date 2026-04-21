@@ -130,11 +130,12 @@ def serialize_portfolio(
     aggregate: dict[str, Any],
     json_format: bool = False,
 ) -> str:
+    cleaned_legs = [_clean_value(leg) for leg in legs]
     if json_format:
         payload: dict[str, Any] = {
             "portfolio": {
                 "meta": meta,
-                "legs": legs,
+                "legs": cleaned_legs,
                 "aggregate": _clean_value(aggregate),
             }
         }
@@ -143,7 +144,7 @@ def serialize_portfolio(
     payload = {
         "portfolio": {
             "meta": meta,
-            "legs": {"leg": legs},
+            "legs": {"leg": cleaned_legs},
             "aggregate": _clean_value(aggregate),
         }
     }

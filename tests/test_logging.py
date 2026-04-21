@@ -1,6 +1,7 @@
 """Logging tests."""
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,6 @@ class TestLogging:
         resp = client.get("/v1/health")
         assert resp.status_code == 200
         # Log is written asynchronously by middleware; give it a moment
-        import time
         time.sleep(0.1)
         assert _LOG_FILE.exists()
         with open(_LOG_FILE, "r", encoding="utf-8") as f:

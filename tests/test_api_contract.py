@@ -96,6 +96,19 @@ class TestGreeks:
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
 
+    def test_xml_sanitizer_strips_control_chars(self):
+        """Unit test for _sanitize_for_xml with actual control characters."""
+        from desk_pricer.responses import _sanitize_for_xml
+
+        dirty = "Error: \x00\x01\x02\x03\x0b\x0c\x1f\x7f\x84\x86\x9f"
+        clean = _sanitize_for_xml(dirty)
+        assert clean == "Error: "
+        # Verify the result is safe for xmltodict
+        import xmltodict
+        payload = {"error": {"message": clean}}
+        xml = xmltodict.unparse(payload, pretty=True, full_document=False)
+        assert "Error: " in xml
+
     def test_greeks_unsupported_american_analytic(self, client: TestClient):
         resp = client.get(
             "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=0.20&type=put&style=american&engine=analytic"

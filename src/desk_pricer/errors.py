@@ -60,7 +60,13 @@ async def validation_exception_handler(request: Request, exc: Exception) -> Resp
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> Response:
     use_json = use_json_from_request(request)
-    body = serialize_error("INVALID_INPUT", exc.detail, None, json_format=use_json)
+    if exc.status_code == 404:
+        code = "NOT_FOUND"
+    elif exc.status_code == 405:
+        code = "METHOD_NOT_ALLOWED"
+    else:
+        code = "INVALID_INPUT"
+    body = serialize_error(code, exc.detail, None, json_format=use_json)
     media_type = "application/json" if use_json else "application/xml; charset=utf-8"
     return Response(content=body, status_code=exc.status_code, media_type=media_type)
 
