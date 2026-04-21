@@ -25,6 +25,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="127.0.0.1",
         help="Host interface to bind to (default: 127.0.0.1)",
     )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress request logs (useful when running as a background service)",
+    )
     return parser.parse_args(argv)
 
 
@@ -40,7 +45,8 @@ def main(argv: list[str] | None = None) -> None:
         "desk_pricer.main:app",
         host=args.host,
         port=port,
-        access_log=False,
+        access_log=not args.quiet,
+        log_level="info",
     )
 
 
