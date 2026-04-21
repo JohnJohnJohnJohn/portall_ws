@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+"""Entry point for the frozen desk-pricer executable."""
+
+import sys
+
+from desk_pricer.main import main
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

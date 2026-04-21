@@ -1,6 +1,8 @@
 """Uvicorn entrypoint."""
 
+import argparse
 import os
+import sys
 
 import uvicorn
 
@@ -9,15 +11,38 @@ from desk_pricer.app import create_app
 app = create_app()
 
 
-def main() -> None:
-    port = int(os.environ.get("DESK_PRICER_PORT", "8765"))
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="DeskPricer HTTP pricing service")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="TCP port to listen on (default: DESK_PRICER_PORT env var or 8765)",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Host interface to bind to (default: 127.0.0.1)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(argv)
+
+    if args.port is not None:
+        port = args.port
+    else:
+        port = int(os.environ.get("DESK_PRICER_PORT", "8765"))
+
     uvicorn.run(
         "desk_pricer.main:app",
-        host="127.0.0.1",
+        host=args.host,
         port=port,
         access_log=False,
     )
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
