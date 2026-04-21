@@ -237,6 +237,7 @@ class TestPortfolio:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["portfolio"]["legs"]["leg"]) == 2
+        assert data["portfolio"]["meta"]["valuation_date"] == "2026-04-20"
         agg = data["portfolio"]["aggregate"]
         assert "delta" in agg
 

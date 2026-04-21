@@ -28,16 +28,6 @@ class UnsupportedCombinationError(DeskPricerError):
         super().__init__("UNSUPPORTED_COMBINATION", message, field, status=422)
 
 
-class PricingFailureError(DeskPricerError):
-    def __init__(self, message: str, field: str | None = None):
-        super().__init__("PRICING_FAILURE", message, field, status=500)
-
-
-class ServiceDegradedError(DeskPricerError):
-    def __init__(self, message: str):
-        super().__init__("SERVICE_DEGRADED", message, status=503)
-
-
 async def desk_pricer_exception_handler(request: Request, exc: DeskPricerError) -> Response:
     use_json = use_json_from_request(request)
     body = serialize_error(exc.code, exc.message, exc.field, json_format=use_json)

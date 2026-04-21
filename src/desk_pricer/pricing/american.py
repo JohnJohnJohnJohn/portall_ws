@@ -73,8 +73,8 @@ def price_american(
     steps: int,
     engine_type: str,
     bump_spot_rel: float = 0.01,
-    bump_vol_abs: float = 0.0001,
-    bump_rate_abs: float = 0.0001,
+    bump_vol_abs: float = 0.001,
+    bump_rate_abs: float = 0.001,
 ) -> GreeksOutput:
     ql_date = ql_date_from_iso(valuation_date)
     expiry_date = expiry_from_t(ql_date, t)

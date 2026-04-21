@@ -73,10 +73,6 @@ def _log_request(method: str, path: str, query: str, duration_ms: float, status:
         print(f"[desk-pricer] logging failed: {exc}", file=sys.stderr)
 
 
-def _use_json(request: Request) -> bool:
-    return use_json_from_request(request)
-
-
 def create_app() -> FastAPI:
     app = FastAPI(
         title="DeskPricer",
@@ -118,7 +114,7 @@ def create_app() -> FastAPI:
     @app.get("/v1/health")
     async def health(request: Request):
         uptime = time.time() - _START_TIME
-        use_json = _use_json(request)
+        use_json = use_json_from_request(request)
         body = serialize_health("UP", uptime, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
@@ -130,14 +126,14 @@ def create_app() -> FastAPI:
             "quantlib": _QUANTLIB_VERSION,
             "python": _PYTHON_VERSION,
         }
-        use_json = _use_json(request)
+        use_json = use_json_from_request(request)
         body = serialize_version(info, json_format=use_json)
         media = "application/json" if use_json else "application/xml; charset=utf-8"
         return Response(content=body, media_type=media)
 
     @app.get("/v1/greeks")
     async def greeks(request: Request):
-        use_json = _use_json(request)
+        use_json = use_json_from_request(request)
         try:
             params = GreeksRequest.model_validate(request.query_params)
         except ValidationError as exc:
@@ -205,7 +201,7 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/impliedvol")
     async def impliedvol(request: Request):
-        use_json = _use_json(request)
+        use_json = use_json_from_request(request)
         try:
             params = ImpliedVolRequest.model_validate(request.query_params)
         except ValidationError as exc:
@@ -272,7 +268,7 @@ def create_app() -> FastAPI:
 
     @app.post("/v1/portfolio/greeks")
     async def portfolio_greeks(request: Request, payload: PortfolioRequest):
-        use_json = _use_json(request)
+        use_json = use_json_from_request(request)
         valuation_date = payload.valuation_date or date.today()
 
         legs_out = []
@@ -325,6 +321,7 @@ def create_app() -> FastAPI:
         meta = {
             "service_version": service_version,
             "quantlib_version": _QUANTLIB_VERSION,
+            "valuation_date": valuation_date.isoformat(),
         }
 
         body = serialize_portfolio(meta, legs_out, aggregate, json_format=use_json)
