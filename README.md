@@ -1,6 +1,6 @@
 # DeskPricer
 
-Local HTTP pricing microservice for vanilla European and American equity options. Replaces legacy VBA Greeks UDFs in Excel trading workbooks.
+Local HTTP pricing microservice for vanilla European and American equity options. Designed for Excel `WEBSERVICE` + `FILTERXML` integration.
 
 ## Design Principles
 
