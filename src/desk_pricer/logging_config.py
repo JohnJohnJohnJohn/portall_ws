@@ -52,7 +52,7 @@ def setup_logging() -> logging.Logger:
         log_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         # If we can't create the directory, fall back to stderr-only
-        sys.stderr.write(f"[desk-pricer] failed to create log dir {log_dir}: {exc}\n")
+        sys.stderr.write(f"[DeskPricer] failed to create log dir {log_dir}: {exc}\n")
         handler = logging.StreamHandler(sys.stderr)
         handler.setFormatter(JSONFormatter())
         logger.addHandler(handler)

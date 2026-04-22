@@ -289,7 +289,7 @@ Excel's `WEBSERVICE` function only supports HTTP GET. Since the primary user of 
 
 ### Log directory and structured logging
 
-- **Log path**: `DESK_PRICER_LOG_DIR` env var overrides the default (`C:\ProgramData\DeskPricer\logs` on Windows, `~/.local/share/desk-pricer/logs` elsewhere).
+- **Log path**: `DESK_PRICER_LOG_DIR` env var overrides the default (`C:\ProgramData\DeskPricer\logs` on Windows, `~/.local/share/deskpricer/logs` elsewhere).
 - **Format**: Uses Python's stdlib `logging` module with a custom JSON formatter and `RotatingFileHandler` (10 MB rotation, 5 backups). This replaces the earlier hand-rolled `open()` approach.
 
 ---
@@ -297,7 +297,7 @@ Excel's `WEBSERVICE` function only supports HTTP GET. Since the primary user of 
 ## Project Structure
 
 ```
-desk-pricer/
+DeskPricer/
 ├── pyproject.toml
 ├── README.md
 ├── requirements.txt

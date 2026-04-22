@@ -38,7 +38,7 @@ def clean():
                 path.unlink()
 
     # Remove old dist contents so we don't ship stale files
-    for pattern in ("DeskPricer*", "desk-pricer*"):
+    for pattern in ("DeskPricer*", "deskpricer*"):
         for old in DIST_DIR.glob(pattern):
             print(f"Removing {old} ...")
             if old.is_dir():

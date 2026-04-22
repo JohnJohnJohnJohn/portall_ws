@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point for the frozen desk-pricer executable."""
+"""Entry point for the frozen DeskPricer executable."""
 
 import sys
 

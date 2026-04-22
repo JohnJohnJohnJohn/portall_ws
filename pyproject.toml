@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "desk-pricer"
+name = "deskpricer"
 version = "1.0.1"
 description = "Local HTTP pricing microservice for vanilla equity options"
 readme = "README.md"
@@ -37,7 +37,7 @@ dev = [
 ]
 
 [project.scripts]
-desk-pricer = "desk_pricer.main:main"
+deskpricer = "desk_pricer.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
