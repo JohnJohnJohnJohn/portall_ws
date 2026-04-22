@@ -1,10 +1,11 @@
 """Pricing orchestration service."""
 
-import math
-from datetime import date
-from typing import Any
+from __future__ import annotations
 
-import QuantLib as ql
+import math
+from dataclasses import dataclass
+from datetime import date
+from typing import Any, Callable
 
 from deskpricer import __version__ as service_version
 from deskpricer.errors import InvalidInputError
@@ -13,30 +14,24 @@ from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
     DEFAULT_STEPS,
-    ql_date_from_iso,
 )
+from deskpricer.pricing.cross_greeks import compute_cross_greeks as _compute_cross_greeks
+from deskpricer.pricing.engine import price_vanilla as _price_vanilla
+from deskpricer.pricing.implied_vol import compute_implied_vol as _compute_implied_vol
 from deskpricer.schemas import (
+    GreeksOutput,
     GreeksRequest,
     ImpliedVolRequest,
     PnLAttributionGETRequest,
     PortfolioRequest,
 )
-from deskpricer.services.ql_runtime import _QL_LOCK, with_evaluation_date
-
-# Import from app so monkeypatches of ``deskpricer.app.price_vanilla`` still work.
-import deskpricer.app as _app
-
-_QUANTLIB_VERSION = getattr(ql, "__version__", "unknown")
-
-
-def _default_engine(style: str) -> str:
-    return "analytic" if style == "european" else "binomial_crr"
+from deskpricer.services.ql_runtime import QUANTLIB_VERSION, with_evaluation_date
 
 
 def _meta(engine: str | None, valuation_date: date) -> dict[str, Any]:
     return {
         "service_version": service_version,
-        "quantlib_version": _QUANTLIB_VERSION,
+        "quantlib_version": QUANTLIB_VERSION,
         "engine": engine,
         "valuation_date": valuation_date.isoformat(),
     }
@@ -51,12 +46,67 @@ def _add_non_default_bumps(inputs: dict[str, Any], params) -> None:
         inputs["bump_rate_abs"] = params.bump_rate_abs
 
 
+@dataclass(frozen=True)
+class _MarketState:
+    """Typed snapshot of a single-date market state for PnL attribution."""
+
+    s: float
+    t: float
+    r: float
+    q: float
+    v: float
+
+
+def _market_state(params: PnLAttributionGETRequest, suffix: str) -> _MarketState:
+    return _MarketState(
+        s=getattr(params, f"s{suffix}"),
+        t=getattr(params, f"t{suffix}"),
+        r=getattr(params, f"r{suffix}"),
+        q=getattr(params, f"q{suffix}"),
+        v=getattr(params, f"v{suffix}"),
+    )
+
+
+def _pnl_pv_kwargs(
+    state: _MarketState, params: PnLAttributionGETRequest, valuation_date: date
+) -> dict[str, Any]:
+    return {
+        "s": state.s,
+        "k": params.k,
+        "t": state.t,
+        "r": state.r,
+        "q": state.q,
+        "v": state.v,
+        "option_type": params.type,
+        "style": params.style,
+        "engine": params.engine,
+        "valuation_date": valuation_date,
+        "steps": params.steps,
+        "bump_spot_rel": params.bump_spot_rel,
+        "bump_vol_abs": params.bump_vol_abs,
+        "bump_rate_abs": params.bump_rate_abs,
+    }
+
+
+def _pnl_cg_kwargs(
+    state: _MarketState,
+    params: PnLAttributionGETRequest,
+    valuation_date: date,
+    base_price: float,
+) -> dict[str, Any]:
+    return {"base_price": base_price, **_pnl_pv_kwargs(state, params, valuation_date)}
+
+
 async def run_greeks(
     params: GreeksRequest,
+    price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    if price_vanilla_fn is None:
+        price_vanilla_fn = _price_vanilla
     valuation_date = params.valuation_date or date.today()
+    assert params.engine is not None
     async with with_evaluation_date(valuation_date):
-        result = _app.price_vanilla(
+        result = price_vanilla_fn(
             s=params.s,
             k=params.k,
             t=params.t,
@@ -91,10 +141,14 @@ async def run_greeks(
 
 async def run_impliedvol(
     params: ImpliedVolRequest,
+    compute_implied_vol_fn: Callable[..., Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    if compute_implied_vol_fn is None:
+        compute_implied_vol_fn = _compute_implied_vol
     valuation_date = params.valuation_date or date.today()
+    assert params.engine is not None
     async with with_evaluation_date(valuation_date):
-        result = _app.compute_implied_vol(
+        result = compute_implied_vol_fn(
             s=params.s,
             k=params.k,
             t=params.t,
@@ -131,7 +185,10 @@ async def run_impliedvol(
 
 async def run_portfolio(
     payload: PortfolioRequest,
+    price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, float]]:
+    if price_vanilla_fn is None:
+        price_vanilla_fn = _price_vanilla
     valuation_date = payload.valuation_date or date.today()
     legs_out: list[dict[str, Any]] = []
     aggregate: dict[str, float] = {
@@ -142,109 +199,67 @@ async def run_portfolio(
         "rho": 0.0,
         "charm": 0.0,
     }
-    # NOTE: Holding the lock for the entire loop serializes portfolio requests.
-    async with _QL_LOCK:
-        old_eval = ql.Settings.instance().evaluationDate
-        try:
-            ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date)
-            for leg in payload.legs:
-                result = _app.price_vanilla(
-                    s=leg.s,
-                    k=leg.k,
-                    t=leg.t,
-                    r=leg.r,
-                    q=leg.q,
-                    v=leg.v,
-                    option_type=leg.type,
-                    style=leg.style,
-                    engine=leg.engine,
-                    valuation_date=valuation_date,
-                    steps=leg.steps,
-                    bump_spot_rel=leg.bump_spot_rel,
-                    bump_vol_abs=leg.bump_vol_abs,
-                    bump_rate_abs=leg.bump_rate_abs,
+    async with with_evaluation_date(valuation_date):
+        for leg in payload.legs:
+            assert leg.engine is not None
+            result = price_vanilla_fn(
+                s=leg.s,
+                k=leg.k,
+                t=leg.t,
+                r=leg.r,
+                q=leg.q,
+                v=leg.v,
+                option_type=leg.type,
+                style=leg.style,
+                engine=leg.engine,
+                valuation_date=valuation_date,
+                steps=leg.steps,
+                bump_spot_rel=leg.bump_spot_rel,
+                bump_vol_abs=leg.bump_vol_abs,
+                bump_rate_abs=leg.bump_rate_abs,
+            )
+            if not math.isfinite(result.price):
+                raise InvalidInputError(
+                    f"Pricing produced non-finite price for leg {leg.id}",
+                    field="price",
                 )
-                if not math.isfinite(result.price):
+            row = {
+                "id": leg.id,
+                "engine": leg.engine,
+                "price": result.price,
+                "delta": result.delta,
+                "gamma": result.gamma,
+                "vega": result.vega,
+                "theta": result.theta,
+                "rho": result.rho,
+                "charm": result.charm,
+            }
+            legs_out.append(row)
+            for greek in aggregate:
+                val = getattr(result, greek)
+                if not math.isfinite(val):
                     raise InvalidInputError(
-                        f"Pricing produced non-finite price for leg {leg.id}",
-                        field="price",
+                        f"Pricing produced non-finite {greek} for leg {leg.id}",
+                        field=greek,
                     )
-                row = {
-                    "id": leg.id,
-                    "engine": leg.engine,
-                    "price": result.price,
-                    "delta": result.delta,
-                    "gamma": result.gamma,
-                    "vega": result.vega,
-                    "theta": result.theta,
-                    "rho": result.rho,
-                    "charm": result.charm,
-                }
-                legs_out.append(row)
-                for greek in aggregate:
-                    val = getattr(result, greek)
-                    if not math.isfinite(val):
-                        raise InvalidInputError(
-                            f"Pricing produced non-finite {greek} for leg {leg.id}",
-                            field=greek,
-                        )
-                    aggregate[greek] += leg.qty * val
-        finally:
-            ql.Settings.instance().evaluationDate = old_eval
+                aggregate[greek] += leg.qty * val
     meta = {
         "service_version": service_version,
-        "quantlib_version": _QUANTLIB_VERSION,
+        "quantlib_version": QUANTLIB_VERSION,
         "valuation_date": valuation_date.isoformat(),
     }
     return meta, legs_out, aggregate
 
 
-def _pnl_pv_kwargs(
-    params: PnLAttributionGETRequest, suffix: str, valuation_date: date
-) -> dict[str, Any]:
-    return {
-        "s": getattr(params, f"s{suffix}"),
-        "k": params.k,
-        "t": getattr(params, f"t{suffix}"),
-        "r": getattr(params, f"r{suffix}"),
-        "q": getattr(params, f"q{suffix}"),
-        "v": getattr(params, f"v{suffix}"),
-        "option_type": params.type,
-        "style": params.style,
-        "engine": params.engine,
-        "valuation_date": valuation_date,
-        "steps": params.steps,
-        "bump_spot_rel": params.bump_spot_rel,
-        "bump_vol_abs": params.bump_vol_abs,
-        "bump_rate_abs": params.bump_rate_abs,
-    }
-
-
-def _pnl_cg_kwargs(
-    params: PnLAttributionGETRequest, suffix: str, valuation_date: date, base_price: float
-) -> dict[str, Any]:
-    return {
-        "base_price": base_price,
-        "s": getattr(params, f"s{suffix}"),
-        "k": params.k,
-        "t": getattr(params, f"t{suffix}"),
-        "r": getattr(params, f"r{suffix}"),
-        "q": getattr(params, f"q{suffix}"),
-        "v": getattr(params, f"v{suffix}"),
-        "option_type": params.type,
-        "style": params.style,
-        "engine": params.engine,
-        "valuation_date": valuation_date,
-        "steps": params.steps,
-        "bump_spot_rel": params.bump_spot_rel,
-        "bump_vol_abs": params.bump_vol_abs,
-        "bump_rate_abs": params.bump_rate_abs,
-    }
-
-
 async def run_pnl_attribution(
     params: PnLAttributionGETRequest,
+    price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
+    compute_cross_greeks_fn: Callable[..., tuple[float, float]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    if price_vanilla_fn is None:
+        price_vanilla_fn = _price_vanilla
+    if compute_cross_greeks_fn is None:
+        compute_cross_greeks_fn = _compute_cross_greeks
     valuation_date_t_minus_1 = params.valuation_date_t_minus_1
     valuation_date_t = params.valuation_date_t
     method = params.method
@@ -263,27 +278,24 @@ async def run_pnl_attribution(
             field="valuation_date_t",
         )
     vanna_t_m1 = volga_t_m1 = vanna_t = volga_t = 0.0
-    async with _QL_LOCK:
-        old_eval = ql.Settings.instance().evaluationDate
-        try:
-            ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date_t_minus_1)
-            greeks_t_minus_1 = _app.price_vanilla(
-                **_pnl_pv_kwargs(params, "_t_minus_1", valuation_date_t_minus_1)
+    state_t_m1 = _market_state(params, "_t_minus_1")
+    state_t = _market_state(params, "_t")
+    async with with_evaluation_date(valuation_date_t_minus_1):
+        greeks_t_minus_1 = price_vanilla_fn(
+            **_pnl_pv_kwargs(state_t_m1, params, valuation_date_t_minus_1)
+        )
+        if params.cross_greeks:
+            vanna_t_m1, volga_t_m1 = compute_cross_greeks_fn(
+                **_pnl_cg_kwargs(
+                    state_t_m1, params, valuation_date_t_minus_1, greeks_t_minus_1.price
+                )
             )
-            if params.cross_greeks:
-                vanna_t_m1, volga_t_m1 = _app.compute_cross_greeks(
-                    **_pnl_cg_kwargs(
-                        params, "_t_minus_1", valuation_date_t_minus_1, greeks_t_minus_1.price
-                    )
-                )
-            ql.Settings.instance().evaluationDate = ql_date_from_iso(valuation_date_t)
-            greeks_t = _app.price_vanilla(**_pnl_pv_kwargs(params, "_t", valuation_date_t))
-            if params.cross_greeks and method == "average":
-                vanna_t, volga_t = _app.compute_cross_greeks(
-                    **_pnl_cg_kwargs(params, "_t", valuation_date_t, greeks_t.price)
-                )
-        finally:
-            ql.Settings.instance().evaluationDate = old_eval
+    async with with_evaluation_date(valuation_date_t):
+        greeks_t = price_vanilla_fn(**_pnl_pv_kwargs(state_t, params, valuation_date_t))
+        if params.cross_greeks and method == "average":
+            vanna_t, volga_t = compute_cross_greeks_fn(
+                **_pnl_cg_kwargs(state_t, params, valuation_date_t, greeks_t.price)
+            )
     delta_s = params.s_t - params.s_t_minus_1
     delta_v_points = (params.v_t - params.v_t_minus_1) * 100.0
     delta_r_points = (params.r_t - params.r_t_minus_1) * 100.0
@@ -334,7 +346,7 @@ async def run_pnl_attribution(
     }
     meta = {
         "service_version": service_version,
-        "quantlib_version": _QUANTLIB_VERSION,
+        "quantlib_version": QUANTLIB_VERSION,
         "valuation_date_t_minus_1": valuation_date_t_minus_1.isoformat(),
         "valuation_date_t": valuation_date_t.isoformat(),
         "method": method,
@@ -358,7 +370,8 @@ async def run_pnl_attribution(
         inputs["qty"] = params.qty
     if params.steps != DEFAULT_STEPS:
         inputs["steps"] = params.steps
-    if params.engine != _default_engine(params.style):
+    expected_engine = "analytic" if params.style == "european" else "binomial_crr"
+    if params.engine != expected_engine:
         inputs["engine"] = params.engine
     _add_non_default_bumps(inputs, params)
     if params.cross_greeks:

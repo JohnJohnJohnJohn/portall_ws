@@ -52,10 +52,9 @@ class _VanillaOptionCoreBase(_EngineDefaultsMixin, BaseModel):
     steps: int = Field(default=DEFAULT_STEPS, ge=10, le=5000, description="Tree/FD steps")
 
 
-class _VanillaOptionBase(_VanillaOptionCoreBase):
-    """Shared fields for single-leg option pricing requests with bump parameters."""
+class _BumpParamsMixin(BaseModel):
+    """Bump parameters shared by Greeks/Leg and PnL attribution requests."""
 
-    v: float = Field(gt=0, allow_inf_nan=False, description="Black volatility (decimal, not %)")
     bump_spot_rel: float = Field(
         default=DEFAULT_BUMP_SPOT_REL,
         ge=1e-9,
@@ -77,6 +76,12 @@ class _VanillaOptionBase(_VanillaOptionCoreBase):
         allow_inf_nan=False,
         description="Absolute rate bump for Greeks",
     )
+
+
+class _VanillaOptionBase(_VanillaOptionCoreBase, _BumpParamsMixin):
+    """Shared fields for single-leg option pricing requests with bump parameters."""
+
+    v: float = Field(gt=0, allow_inf_nan=False, description="Black volatility (decimal, not %)")
 
 
 class GreeksRequest(_VanillaOptionBase):
@@ -128,7 +133,7 @@ class ImpliedVolOutput(BaseModel):
     npv_at_iv: float
 
 
-class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
+class PnLAttributionGETRequest(_EngineDefaultsMixin, _BumpParamsMixin, BaseModel):
     s_t_minus_1: float = Field(gt=0, allow_inf_nan=False)
     s_t: float = Field(gt=0, allow_inf_nan=False)
     k: float = Field(gt=0, allow_inf_nan=False)
@@ -159,27 +164,6 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
     valuation_date_t: date | None = Field(default=None)
     method: Literal["backward", "average"] = Field(default="backward")
     cross_greeks: bool = Field(default=False)
-    bump_spot_rel: float = Field(
-        default=DEFAULT_BUMP_SPOT_REL,
-        ge=1e-9,
-        le=0.1,
-        allow_inf_nan=False,
-        description="Relative spot bump for Greeks",
-    )
-    bump_vol_abs: float = Field(
-        default=DEFAULT_BUMP_VOL_ABS,
-        ge=1e-9,
-        le=0.01,
-        allow_inf_nan=False,
-        description="Absolute vol bump for Greeks",
-    )
-    bump_rate_abs: float = Field(
-        default=DEFAULT_BUMP_RATE_ABS,
-        ge=1e-9,
-        le=0.01,
-        allow_inf_nan=False,
-        description="Absolute rate bump for Greeks",
-    )
 
     @model_validator(mode="after")
     def check_date_order(self):

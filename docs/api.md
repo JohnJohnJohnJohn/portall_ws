@@ -36,7 +36,7 @@ Version metadata.
 **Response (XML):**
 ```xml
 <version>
-  <service>2.0.0</service>
+  <service>2.2.0</service>
   <quantlib>1.42.1</quantlib>
   <python>3.12.7</python>
 </version>
@@ -86,7 +86,7 @@ Price a single vanilla option and return Greeks.
 ```xml
 <greeks>
   <meta>
-    <service_version>2.0.0</service_version>
+    <service_version>2.2.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -144,7 +144,7 @@ Bulk endpoint for book-level aggregation.
 ```json
 {
   "meta": {
-    "service_version": "2.0.0",
+    "service_version": "2.2.0",
     "quantlib_version": "1.42.1"
   },
   "legs": [
@@ -178,7 +178,7 @@ Aggregate = Σ qty × per-leg Greek.
 ```xml
 <portfolio>
   <meta>
-    <service_version>2.0.0</service_version>
+    <service_version>2.2.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <valuation_date>2026-04-22</valuation_date>
   </meta>
@@ -235,7 +235,7 @@ Solve for implied volatility given an observed market price.
 ```xml
 <impliedvol>
   <meta>
-    <service_version>2.0.0</service_version>
+    <service_version>2.2.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -303,7 +303,7 @@ Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and resi
 ```xml
 <pnl_attribution>
   <meta>
-    <service_version>2.0.0</service_version>
+    <service_version>2.2.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <valuation_date_t_minus_1>2026-04-19</valuation_date_t_minus_1>
     <valuation_date_t>2026-04-20</valuation_date_t>

@@ -538,18 +538,18 @@ class TestDateBoundaries:
 class TestCatchallHandler:
     def test_catchall_500_handler(self, monkeypatch):
         """A generic Exception inside price_vanilla must hit the catchall handler and return 500."""
+        import deskpricer.services.pricing_service as svc
         from deskpricer.app import create_app
         from fastapi.testclient import TestClient
-
-        app = create_app()
-        client = TestClient(app, raise_server_exceptions=False)
-
-        import deskpricer.app as app_module
 
         def _boom(*args, **kwargs):
             raise Exception("simulated internal explosion")
 
-        monkeypatch.setattr(app_module, "price_vanilla", _boom)
+        monkeypatch.setattr(svc, "_price_vanilla", _boom)
+
+        app = create_app()
+        client = TestClient(app, raise_server_exceptions=False)
+
         resp = client.get(
             "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=0.20&type=call&style=european",
             headers={"Accept": "application/json"},

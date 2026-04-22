@@ -72,7 +72,6 @@ def price_european(
     else:
         if expiry_date > one_day_forward:
             try:
-                ql.Settings.instance().evaluationDate = one_day_forward
                 div_ts_t1 = ql.YieldTermStructureHandle(
                     ql.FlatForward(one_day_forward, q, day_count)
                 )
@@ -91,8 +90,6 @@ def price_european(
                 charm = delta_t1 - delta
             except RuntimeError as exc:
                 raise InvalidInputError("Charm calculation failed for the given inputs") from exc
-            finally:
-                ql.Settings.instance().evaluationDate = ql_date
 
     return GreeksOutput(
         price=price,

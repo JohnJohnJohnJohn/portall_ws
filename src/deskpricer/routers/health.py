@@ -8,12 +8,9 @@ from fastapi.responses import Response
 
 from deskpricer import __version__ as service_version
 from deskpricer.responses import serialize_health, serialize_version, use_json_from_request
+from deskpricer.services.ql_runtime import QUANTLIB_VERSION
 
 router = APIRouter()
-
-_QUANTLIB_VERSION = getattr(
-    __import__("QuantLib", fromlist=["__version__"]), "__version__", "unknown"
-)
 _PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 _START_TIME = time.monotonic()
 
@@ -31,7 +28,7 @@ async def health(request: Request):
 async def version(request: Request):
     info = {
         "service": service_version,
-        "quantlib": _QUANTLIB_VERSION,
+        "quantlib": QUANTLIB_VERSION,
         "python": _PYTHON_VERSION,
     }
     use_json = use_json_from_request(request)

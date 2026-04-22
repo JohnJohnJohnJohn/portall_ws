@@ -294,6 +294,45 @@ class TestPnLAttribution:
         assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
 
+    @pytest.mark.parametrize(
+        "v_t_minus_1, v_t, bump_vol_abs, cross_greeks, should_fail",
+        [
+            (0.002, 0.002, 0.001, True, False),   # both > bump — valid
+            (0.001, 0.001, 0.001, True, True),    # v == bump — boundary rejection
+            (0.0005, 0.002, 0.001, True, True),   # v < bump — rejection
+            (0.001, 0.001, 0.001, False, False),  # cross_greeks=False — no check
+        ],
+    )
+    def test_bump_size_vs_vol_validator(
+        self, v_t_minus_1, v_t, bump_vol_abs, cross_greeks, should_fail
+    ):
+        """PnLAttributionGETRequest must reject vol <= bump_vol_abs when cross_greeks=True."""
+        from deskpricer.schemas import PnLAttributionGETRequest
+        from pydantic import ValidationError
+
+        base = {
+            "s_t_minus_1": 100.0,
+            "s_t": 100.0,
+            "k": 100.0,
+            "t_t_minus_1": 0.25,
+            "t_t": 0.25,
+            "r_t_minus_1": 0.05,
+            "r_t": 0.05,
+            "q_t_minus_1": 0.0,
+            "q_t": 0.0,
+            "type": "call",
+            "style": "european",
+            "bump_vol_abs": bump_vol_abs,
+            "cross_greeks": cross_greeks,
+        }
+        if should_fail:
+            with pytest.raises(ValidationError) as exc_info:
+                PnLAttributionGETRequest(**base, v_t_minus_1=v_t_minus_1, v_t=v_t)
+            assert "volatility must be greater than bump_vol_abs" in str(exc_info.value)
+        else:
+            req = PnLAttributionGETRequest(**base, v_t_minus_1=v_t_minus_1, v_t=v_t)
+            assert req.v_t_minus_1 == v_t_minus_1
+
     def test_cross_greeks_zero_moves(self, client: TestClient):
         """cross_greeks=true with zero spot move and zero vol move should yield zero cross PnL."""
         params = {

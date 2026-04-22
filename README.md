@@ -276,7 +276,7 @@ See [`docs/api.md`](docs/api.md) for the full request/response schema.
 | Vega | per **1 vol point** | i.e. decimal vol × 100 |
 | Theta | per **calendar day** | Annual theta / 365 |
 | Rho | per **1% rate point** | i.e. decimal rate × 100 |
-| Charm | per **calendar day** | ∂delta/∂t (delta tomorrow − delta today) |
+| Charm | per **calendar day** | ∂delta/∂t (delta tomorrow − delta today). Negative for a long call — delta decays toward expiry |
 
 ---
 
@@ -364,7 +364,6 @@ Excel's `WEBSERVICE` function only supports HTTP GET. Since the primary user of 
 DeskPricer/
 ├── pyproject.toml
 ├── README.md
-├── requirements.txt
 ├── src/deskpricer/          # FastAPI app + pricing core
 │   ├── app.py               # Thin composition root
 │   ├── routers/             # APIRouter modules

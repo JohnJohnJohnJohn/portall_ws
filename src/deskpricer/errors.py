@@ -33,11 +33,17 @@ class UnsupportedCombinationError(DeskPricerError):
         super().__init__("UNSUPPORTED_COMBINATION", message, field, status=422)
 
 
-async def deskpricer_exception_handler(request: Request, exc: DeskPricerError) -> Response:
+def _error_response(
+    request: Request, code: str, message: str, status: int, field: str | None = None
+) -> Response:
     use_json = use_json_from_request(request)
-    body = serialize_error(exc.code, exc.message, exc.field, json_format=use_json)
+    body = serialize_error(code, message, field, json_format=use_json)
     media_type = "application/json" if use_json else "application/xml; charset=utf-8"
-    return Response(content=body, status_code=exc.status, media_type=media_type)
+    return Response(content=body, status_code=status, media_type=media_type)
+
+
+async def deskpricer_exception_handler(request: Request, exc: DeskPricerError) -> Response:
+    return _error_response(request, exc.code, exc.message, exc.status, exc.field)
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> Response:
@@ -52,14 +58,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         field = None
         message = "Validation error"
 
-    use_json = use_json_from_request(request)
-    body = serialize_error("INVALID_INPUT", message, field, json_format=use_json)
-    media_type = "application/json" if use_json else "application/xml; charset=utf-8"
-    return Response(content=body, status_code=422, media_type=media_type)
+    return _error_response(request, "INVALID_INPUT", message, 422, field)
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> Response:
-    use_json = use_json_from_request(request)
     if exc.status_code == 404:
         code = "NOT_FOUND"
     elif exc.status_code == 405:
@@ -69,9 +71,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     else:
         code = "INVALID_INPUT"
     message = str(exc.detail) if exc.detail is not None else ""
-    body = serialize_error(code, message, None, json_format=use_json)
-    media_type = "application/json" if use_json else "application/xml; charset=utf-8"
-    return Response(content=body, status_code=exc.status_code, media_type=media_type)
+    return _error_response(request, code, message, exc.status_code)
 
 
 async def catchall_exception_handler(request: Request, exc: Exception) -> Response:
@@ -95,9 +95,4 @@ async def catchall_exception_handler(request: Request, exc: Exception) -> Respon
         # If the request object is too malformed to extract URL info,
         # swallow the logging failure so the user still gets a 500 response.
         pass
-    use_json = use_json_from_request(request)
-    body = serialize_error(
-        "PRICING_FAILURE", "An internal error occurred", None, json_format=use_json
-    )
-    media_type = "application/json" if use_json else "application/xml; charset=utf-8"
-    return Response(content=body, status_code=500, media_type=media_type)
+    return _error_response(request, "PRICING_FAILURE", "An internal error occurred", 500)

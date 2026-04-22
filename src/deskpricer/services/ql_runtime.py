@@ -10,6 +10,10 @@ from deskpricer.pricing.conventions import ql_date_from_iso
 
 _QL_LOCK = asyncio.Lock()
 
+QUANTLIB_VERSION = getattr(
+    __import__("QuantLib", fromlist=["__version__"]), "__version__", "unknown"
+)
+
 
 @asynccontextmanager
 async def with_evaluation_date(valuation_date: date):

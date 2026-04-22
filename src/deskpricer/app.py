@@ -1,8 +1,6 @@
 """FastAPI application factory."""
 
 import time
-from typing import Any
-
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -16,33 +14,12 @@ from deskpricer.errors import (
     validation_exception_handler,
 )
 from deskpricer.logging_config import setup_logging
-from deskpricer.pricing import engine as _pricing_engine
-from deskpricer.pricing.cross_greeks import compute_cross_greeks as _compute_cross_greeks
-from deskpricer.pricing.implied_vol import compute_implied_vol as _compute_implied_vol
 
 _REQUEST_LOGGER = setup_logging()
 
 
-# Backward-compat wrappers so tests that monkeypatch app_module.price_vanilla keep working.
-def price_vanilla(*args: Any, **kwargs: Any):
-    return _pricing_engine.price_vanilla(*args, **kwargs)
-
-
-def compute_implied_vol(*args: Any, **kwargs: Any):
-    return _compute_implied_vol(*args, **kwargs)
-
-
-def compute_cross_greeks(*args: Any, **kwargs: Any):
-    return _compute_cross_greeks(*args, **kwargs)
-
-
 def create_app() -> FastAPI:
-    app = FastAPI(
-        title="DeskPricer",
-        version=service_version,
-        docs_url=None,
-        redoc_url=None,
-    )
+    app = FastAPI(title="DeskPricer", version=service_version, docs_url=None, redoc_url=None)
 
     @app.middleware("http")
     async def log_and_format(request: Request, call_next):
@@ -75,11 +52,9 @@ def create_app() -> FastAPI:
                     },
                 )
             except OSError as exc:
-                # If the request logger itself fails (disk full, broken handler,
-                # etc.), at least emit a stderr line so the failure isn't silent.
-                try:
-                    import sys
+                import sys
 
+                try:
                     sys.stderr.write(f"[DeskPricer] request logging failed: {exc}\n")
                 except OSError:
                     pass
@@ -96,5 +71,4 @@ def create_app() -> FastAPI:
     app.include_router(impliedvol.router)
     app.include_router(portfolio.router)
     app.include_router(pnl_attribution.router)
-
     return app
