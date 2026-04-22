@@ -31,13 +31,22 @@ def _to_xml(payload: dict[str, Any]) -> str:
 def use_json_from_request(request) -> bool:
     """Determine whether to return JSON based on Accept header or query param."""
     accept = request.headers.get("accept", "")
-    media_types = [
-        mt.strip().split(";")[0].strip().lower()
-        for mt in accept.split(",")
-        if mt.strip()
-    ]
-    if "application/json" in media_types:
-        return True
+    for mt in accept.split(","):
+        mt = mt.strip()
+        if not mt:
+            continue
+        parts = [p.strip() for p in mt.split(";")]
+        mime = parts[0].lower()
+        q = 1.0
+        for p in parts[1:]:
+            if p.startswith("q="):
+                try:
+                    q = float(p[2:])
+                except ValueError:
+                    q = 1.0
+                break
+        if mime == "application/json" and q != 0:
+            return True
     return request.query_params.get("format") == "json"
 
 
@@ -70,7 +79,7 @@ def serialize_error(code: str, message: str, field: str | None = None, json_form
         payload["error"]["field"] = field
 
     if json_format:
-        return json.dumps(payload, indent=2, default=str)
+        return json.dumps(payload, indent=2)
 
     return _to_xml(payload)
 
@@ -90,7 +99,7 @@ def serialize_greeks(
     }
 
     if json_format:
-        return json.dumps(payload, indent=2, default=str)
+        return json.dumps(payload, indent=2)
 
     return _to_xml(payload)
 
@@ -110,22 +119,22 @@ def serialize_impliedvol(
     }
 
     if json_format:
-        return json.dumps(payload, indent=2, default=str)
+        return json.dumps(payload, indent=2)
 
     return _to_xml(payload)
 
 
 def serialize_health(status: str, uptime_seconds: float, json_format: bool = False) -> str:
-    payload = {"health": {"status": status, "uptime_seconds": uptime_seconds}}
+    payload = {"health": {"status": status, "uptime_seconds": _clean_value(uptime_seconds)}}
     if json_format:
-        return json.dumps(payload, indent=2, default=str)
+        return json.dumps(payload, indent=2)
     return _to_xml(payload)
 
 
 def serialize_version(version_info: dict[str, str], json_format: bool = False) -> str:
     payload = {"version": version_info}
     if json_format:
-        return json.dumps(payload, indent=2, default=str)
+        return json.dumps(payload, indent=2)
     return _to_xml(payload)
 
 
@@ -144,7 +153,7 @@ def serialize_portfolio(
                 "aggregate": _clean_value(aggregate),
             }
         }
-        return json.dumps(payload, indent=2, default=str)
+        return json.dumps(payload, indent=2)
 
     payload = {
         "portfolio": {
@@ -171,5 +180,5 @@ def serialize_pnl_attribution(
         }
     }
     if json_format:
-        return json.dumps(payload, indent=2, default=str)
+        return json.dumps(payload, indent=2)
     return _to_xml(payload)

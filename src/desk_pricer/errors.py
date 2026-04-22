@@ -77,7 +77,9 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         code = "INTERNAL_ERROR"
     else:
         code = "INVALID_INPUT"
-    body = serialize_error(code, exc.detail, None, json_format=use_json)
+    detail = exc.detail
+    message = str(detail) if detail is not None else ""
+    body = serialize_error(code, message, None, json_format=use_json)
     media_type = "application/json" if use_json else "application/xml; charset=utf-8"
     return Response(content=body, status_code=exc.status_code, media_type=media_type)
 

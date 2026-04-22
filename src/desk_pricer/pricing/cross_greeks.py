@@ -31,11 +31,17 @@ def compute_cross_greeks(
     Both are calculated via central finite differences using the
     existing bump_spot_rel and bump_vol_abs conventions.
     """
+    if s <= 0:
+        raise InvalidInputError("spot price must be positive", field="s")
     if v <= bump_vol_abs:
         raise InvalidInputError(
             "volatility must be greater than bump_vol_abs for cross-greeks computation",
             field="v",
         )
+    if bump_spot_rel <= 0:
+        raise InvalidInputError("bump_spot_rel must be positive", field="bump_spot_rel")
+    if bump_vol_abs <= 0:
+        raise InvalidInputError("bump_vol_abs must be positive", field="bump_vol_abs")
 
     ds = s * bump_spot_rel
     dv_points = bump_vol_abs * 100.0

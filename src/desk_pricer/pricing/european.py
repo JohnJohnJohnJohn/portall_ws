@@ -4,6 +4,7 @@ from datetime import date
 
 import QuantLib as ql
 
+from desk_pricer.errors import InvalidInputError
 from desk_pricer.pricing.conventions import (
     default_calendar,
     default_day_count,
@@ -34,6 +35,12 @@ def price_european(
     vol_ts = ql.BlackVolTermStructureHandle(
         ql.BlackConstantVol(ql_date, calendar, v, day_count)
     )
+
+    if option_type not in ("call", "put"):
+        raise InvalidInputError(
+            f"option_type must be 'call' or 'put'; got {option_type}",
+            field="type",
+        )
 
     process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
     payoff = ql.PlainVanillaPayoff(
@@ -67,6 +74,8 @@ def price_european(
         option_t1.setPricingEngine(ql.AnalyticEuropeanEngine(process_t1))
         delta_t1 = float(option_t1.delta())
         charm = delta_t1 - delta
+    except RuntimeError as exc:
+        raise InvalidInputError(f"Charm calculation failed: {exc}") from exc
     finally:
         ql.Settings.instance().evaluationDate = ql_date
 

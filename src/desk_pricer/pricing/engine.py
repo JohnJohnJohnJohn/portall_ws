@@ -29,6 +29,15 @@ def price_vanilla(
     bump_vol_abs: float = 0.001,
     bump_rate_abs: float = 0.001,
 ) -> GreeksOutput:
+    if option_type not in ("call", "put"):
+        raise UnsupportedCombinationError(
+            f"option_type must be 'call' or 'put'; got {option_type}",
+            field="type",
+        )
+    if t < 0:
+        raise UnsupportedCombinationError(
+            "time to expiry must be non-negative", field="t"
+        )
     # Floor t to 1 day to avoid QuantLib zero-day collapse
     effective_t = max(t, 1.0 / 365.0)
     if style == "european":

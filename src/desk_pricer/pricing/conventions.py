@@ -19,6 +19,8 @@ def default_day_count() -> ql.DayCounter:
 
 
 def expiry_from_t(valuation_date: ql.Date, t: float) -> ql.Date:
+    if t < 0:
+        raise ValueError("time to expiry must be non-negative")
     # Round-half-up to avoid Python's banker's rounding bias
     days = max(1, math.floor(t * 365 + 0.5))
     return valuation_date + days

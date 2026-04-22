@@ -1,9 +1,11 @@
 """American option pricing via BinomialVanillaEngine with bump-and-revalue Greeks."""
 
+import math
 from datetime import date
 
 import QuantLib as ql
 
+from desk_pricer.errors import InvalidInputError
 from desk_pricer.pricing.conventions import (
     default_calendar,
     default_day_count,
@@ -25,6 +27,18 @@ def _create_option(
     steps: int,
     engine_type: str,
 ) -> ql.VanillaOption:
+    if option_type not in ("call", "put"):
+        raise InvalidInputError(
+            f"option_type must be 'call' or 'put'; got {option_type}",
+            field="type",
+        )
+    if steps < 1:
+        raise InvalidInputError("steps must be positive", field="steps")
+    if engine_type not in ("crr", "jr"):
+        raise InvalidInputError(
+            f"unsupported binomial engine: {engine_type}", field="engine"
+        )
+
     calendar = default_calendar()
     day_count = default_day_count()
 
@@ -57,8 +71,11 @@ def _npv(
     steps: int,
     engine_type: str,
 ) -> float:
-    option = _create_option(s, k, r, q, v, option_type, valuation_date, expiry_date, steps, engine_type)
-    return float(option.NPV())
+    try:
+        option = _create_option(s, k, r, q, v, option_type, valuation_date, expiry_date, steps, engine_type)
+        return float(option.NPV())
+    except RuntimeError as exc:
+        raise InvalidInputError(f"American pricing failed: {exc}") from exc
 
 
 def price_american(
@@ -76,6 +93,11 @@ def price_american(
     bump_vol_abs: float = 0.001,
     bump_rate_abs: float = 0.001,
 ) -> GreeksOutput:
+    if s <= 0:
+        raise InvalidInputError("spot price must be positive", field="s")
+    if v <= 0:
+        raise InvalidInputError("volatility must be positive", field="v")
+
     ql_date = ql_date_from_iso(valuation_date)
     expiry_date = expiry_from_t(ql_date, t)
 
@@ -110,7 +132,10 @@ def price_american(
             s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type
         )
     else:
-        price_tomorrow = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
+        dt = 1.0 / 365.0
+        fwd_s = s * math.exp(-q * dt)
+        fwd_k = k * math.exp(-r * dt)
+        price_tomorrow = max(fwd_s - fwd_k, 0.0) if option_type == "call" else max(fwd_k - fwd_s, 0.0)
     theta = price_tomorrow - price
 
     # Charm: ∂delta/∂t per calendar day (forward difference)

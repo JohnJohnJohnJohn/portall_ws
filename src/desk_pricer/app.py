@@ -301,8 +301,6 @@ def create_app() -> FastAPI:
                         aggregate[greek] += leg.qty * getattr(result, greek)
             except DeskPricerError:
                 raise
-            except RuntimeError as exc:
-                raise InvalidInputError(f"Pricing failed: {exc}") from exc
             finally:
                 ql.Settings.instance().evaluationDate = old_eval
 

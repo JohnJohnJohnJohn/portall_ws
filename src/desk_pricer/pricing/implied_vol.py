@@ -41,6 +41,12 @@ def compute_implied_vol(
     div_ts = ql.YieldTermStructureHandle(ql.FlatForward(ql_date, q, day_count))
     rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(ql_date, r, day_count))
 
+    if option_type not in ("call", "put"):
+        raise InvalidInputError(
+            f"option_type must be 'call' or 'put'; got {option_type}",
+            field="type",
+        )
+
     payoff = ql.PlainVanillaPayoff(
         ql.Option.Call if option_type == "call" else ql.Option.Put, k
     )
@@ -118,6 +124,9 @@ def compute_implied_vol(
         option_iv = ql.VanillaOption(payoff, exercise)
         option_iv.setPricingEngine(ql.BinomialVanillaEngine(process_iv, ql_engine, steps))
 
-    npv_at_iv = float(option_iv.NPV())
+    try:
+        npv_at_iv = float(option_iv.NPV())
+    except RuntimeError as exc:
+        raise InvalidInputError(f"Re-pricing at solved vol failed: {exc}") from exc
 
     return ImpliedVolOutput(implied_vol=float(implied_vol), npv_at_iv=npv_at_iv)
