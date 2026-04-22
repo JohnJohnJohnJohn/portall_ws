@@ -5,7 +5,14 @@ from datetime import date
 import math
 
 from deskpricer.errors import InvalidInputError
+from deskpricer.pricing.conventions import (
+    DEFAULT_BUMP_RATE_ABS,
+    DEFAULT_BUMP_SPOT_REL,
+    DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_STEPS,
+)
 from deskpricer.pricing.engine import price_vanilla
+from deskpricer.schemas import EngineLiteral
 
 
 def compute_cross_greeks(
@@ -18,12 +25,12 @@ def compute_cross_greeks(
     v: float,
     option_type: str,
     style: str,
-    engine: str,
+    engine: EngineLiteral,
     valuation_date: date,
-    steps: int,
-    bump_spot_rel: float,
-    bump_vol_abs: float,
-    bump_rate_abs: float,
+    steps: int = DEFAULT_STEPS,
+    bump_spot_rel: float = DEFAULT_BUMP_SPOT_REL,
+    bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
+    bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
 ) -> tuple[float, float]:
     """Compute vanna and volga for a single market state.
 

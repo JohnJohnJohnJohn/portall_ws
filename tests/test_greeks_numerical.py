@@ -1,5 +1,6 @@
 """Bump-and-revalue consistency tests for Greeks."""
 
+from deskpricer.pricing.conventions import DEFAULT_STEPS
 from fastapi.testclient import TestClient
 
 
@@ -65,7 +66,7 @@ class TestAmericanBumpConsistency:
             "v": 0.25,
             "type": "put",
             "style": "american",
-            "steps": 400,
+            "steps": DEFAULT_STEPS,
         }
         g = fetch_greeks(client, **base)
         p_base = g["price"]

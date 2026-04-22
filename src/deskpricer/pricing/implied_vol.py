@@ -7,13 +7,17 @@ import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError, UnsupportedCombinationError
 from deskpricer.pricing.conventions import (
+    DEFAULT_STEPS,
+    MIN_T_YEARS,
+)
+from deskpricer.pricing.conventions import (
     default_calendar,
     default_day_count,
     expiry_from_t,
     ql_date_from_iso,
 )
 from deskpricer.pricing.engine import ENGINE_MAP
-from deskpricer.schemas import ImpliedVolOutput
+from deskpricer.schemas import EngineLiteral, ImpliedVolOutput
 
 
 def compute_implied_vol(
@@ -25,16 +29,16 @@ def compute_implied_vol(
     target_price: float,
     option_type: str,
     style: str,
-    engine: str,
+    engine: EngineLiteral,
     valuation_date: date,
-    steps: int = 400,
+    steps: int = DEFAULT_STEPS,
     accuracy: float = 1e-4,
     max_iterations: int = 1000,
 ) -> ImpliedVolOutput:
     """Solve for implied volatility given an observed market price."""
     if not math.isfinite(t):
         raise InvalidInputError("time to expiry must be a finite number", field="t")
-    effective_t = max(t, 1.0 / 365.0)
+    effective_t = max(t, MIN_T_YEARS)
     ql_date = ql_date_from_iso(valuation_date)
     expiry_date = expiry_from_t(ql_date, effective_t)
     calendar = default_calendar()

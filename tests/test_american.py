@@ -1,5 +1,6 @@
 """American option tests vs published binomial results."""
 
+from deskpricer.pricing.conventions import DEFAULT_STEPS
 from fastapi.testclient import TestClient
 
 
@@ -19,14 +20,14 @@ class TestAmericanPut:
                 "v": 0.40,
                 "type": "put",
                 "style": "american",
-                "steps": 400,
+                "steps": DEFAULT_STEPS,
                 "valuation_date": "2026-04-20",
             },
             headers={"Accept": "application/json"},
         )
         assert resp.status_code == 200
         price = resp.json()["greeks"]["outputs"]["price"]
-        # QuantLib CRR 400-step converges to ~4.283 for these params
+        # QuantLib CRR DEFAULT_STEPS-step converges to ~4.283 for these params
         assert abs(price - 4.283) < 0.01
 
     def test_american_put_ge_european_put(self, client: TestClient):
@@ -42,7 +43,7 @@ class TestAmericanPut:
         }
         resp_am = client.get(
             "/v1/greeks",
-            params={**params, "style": "american", "steps": 400},
+            params={**params, "style": "american", "steps": DEFAULT_STEPS},
             headers={"Accept": "application/json"},
         )
         resp_eu = client.get(

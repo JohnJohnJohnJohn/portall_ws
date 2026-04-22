@@ -5,8 +5,15 @@ from datetime import date
 
 from deskpricer.errors import UnsupportedCombinationError
 from deskpricer.pricing.american import price_american
+from deskpricer.pricing.conventions import (
+    DEFAULT_BUMP_RATE_ABS,
+    DEFAULT_BUMP_SPOT_REL,
+    DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_STEPS,
+    MIN_T_YEARS,
+)
 from deskpricer.pricing.european import price_european
-from deskpricer.schemas import GreeksOutput
+from deskpricer.schemas import EngineLiteral, GreeksOutput
 
 ENGINE_MAP = {
     "binomial_crr": "crr",
@@ -23,12 +30,12 @@ def price_vanilla(
     v: float,
     option_type: str,
     style: str,
-    engine: str,
+    engine: EngineLiteral,
     valuation_date: date,
-    steps: int = 400,
-    bump_spot_rel: float = 0.01,
-    bump_vol_abs: float = 0.001,
-    bump_rate_abs: float = 0.001,
+    steps: int = DEFAULT_STEPS,
+    bump_spot_rel: float = DEFAULT_BUMP_SPOT_REL,
+    bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
+    bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
 ) -> GreeksOutput:
     if option_type not in ("call", "put"):
         raise UnsupportedCombinationError(
@@ -50,7 +57,7 @@ def price_vanilla(
     if t < 0:
         raise UnsupportedCombinationError("time to expiry must be non-negative", field="t")
     # Floor t to 1 day to avoid QuantLib zero-day collapse
-    effective_t = max(t, 1.0 / 365.0)
+    effective_t = max(t, MIN_T_YEARS)
     if style == "european":
         if engine != "analytic":
             raise UnsupportedCombinationError(

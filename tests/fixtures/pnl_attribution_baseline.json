@@ -1,0 +1,38 @@
+{
+  "name": "pnl_attribution_baseline",
+  "description": "Baseline PnL attribution for a single European call with spot and vol moves.",
+  "inputs": {
+    "s_t_minus_1": 100.0,
+    "s_t": 102.0,
+    "k": 105.0,
+    "t_t_minus_1": 0.25,
+    "t_t": 0.2466,
+    "r_t_minus_1": 0.05,
+    "r_t": 0.05,
+    "q_t_minus_1": 0.0,
+    "q_t": 0.0,
+    "v_t_minus_1": 0.2,
+    "v_t": 0.22,
+    "type": "call",
+    "style": "european",
+    "qty": 10.0,
+    "method": "backward",
+    "cross_greeks": true,
+    "valuation_date_t_minus_1": "2026-04-19",
+    "valuation_date_t": "2026-04-20"
+  },
+  "expected": {
+    "price_t_minus_1": 2.4714888078497514,
+    "price_t": 3.675703918590219,
+    "actual_pnl": 12.042151107404674,
+    "delta_pnl": 7.5366438649963206,
+    "gamma_pnl": 0.7605918754328401,
+    "vega_pnl": 3.792540310377449,
+    "theta_pnl": -0.2566165830187669,
+    "rho_pnl": 0.0,
+    "vanna_pnl": 0.3130538389564118,
+    "volga_pnl": 0.02461711538970232,
+    "explained_pnl": 12.170830422133958,
+    "residual_pnl": -0.12867931472928307
+  }
+}

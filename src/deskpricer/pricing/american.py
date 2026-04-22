@@ -9,6 +9,11 @@ import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (
+    DEFAULT_BUMP_RATE_ABS,
+    DEFAULT_BUMP_SPOT_REL,
+    DEFAULT_BUMP_VOL_ABS,
+)
+from deskpricer.pricing.conventions import (
     default_calendar,
     default_day_count,
     expiry_from_t,
@@ -52,8 +57,7 @@ def _npv(
         return float(option.NPV())
     except RuntimeError as exc:
         logging.getLogger("deskpricer").warning(
-            "American pricing failed",
-            extra={"error": str(exc)},
+            "American pricing failed", extra={"error": str(exc)}
         )
         raise InvalidInputError("Pricing failed for the given inputs") from exc
 
@@ -69,9 +73,9 @@ def price_american(
     valuation_date: date,
     steps: int,
     engine_type: str,
-    bump_spot_rel: float = 0.01,
-    bump_vol_abs: float = 0.001,
-    bump_rate_abs: float = 0.001,
+    bump_spot_rel: float = DEFAULT_BUMP_SPOT_REL,
+    bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
+    bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
 ) -> GreeksOutput:
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")

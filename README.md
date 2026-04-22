@@ -1,8 +1,81 @@
-# DeskPricer v2.1.0
+# DeskPricer v2.2.0
 
 Local HTTP pricing microservice for vanilla European and American equity options. Designed for Excel `WEBSERVICE` + `FILTERXML` integration — no VBA, no Bloomberg terminal calls inside the service.
 
 > **Design intent:** DeskPricer is a **local-only tool** for personal desk pricing and option analytics. It is **not intended to be run or served as a public/server-style service**. All design choices — localhost binding, no auth, no TLS, no rate limiting, XML-by-default — reflect this.
+
+---
+
+## Quickstart
+
+Go from clean clone to a working pricing call in under 5 minutes:
+
+```powershell
+# 1. Install
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e ".[dev]"
+
+# 2. Run
+python -m deskpricer.main
+
+# 3. Test with curl
+curl "http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&type=call&style=european"
+
+# 4. Test with Excel (copy into a cell)
+# =FILTERXML(WEBSERVICE("http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&type=call&style=european"),"//outputs/price")
+```
+
+Expected output for the curl call (XML):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<greeks>
+  <meta>
+    <service_version>2.2.0</service_version>
+    <quantlib_version>1.42.1</quantlib_version>
+    <engine>analytic</engine>
+    <valuation_date>2026-04-22</valuation_date>
+  </meta>
+  <inputs>
+    <s>100.0</s>
+    <k>105.0</k>
+    <t>0.25</t>
+    <r>0.05</r>
+    <q>0.02</q>
+    <v>0.2</v>
+    <type>call</type>
+    <style>european</style>
+  </inputs>
+  <outputs>
+    <price>2.288743</price>
+    <delta>0.356244</delta>
+    <gamma>0.037206</gamma>
+    <vega>0.185519</vega>
+    <theta>-0.023001</theta>
+    <rho>0.083111</rho>
+    <charm>-0.001241</charm>
+  </outputs>
+</greeks>
+```
+
+For JSON, send `Accept: application/json` or append `?format=json`.
+
+---
+
+## Try the Demo Workbook
+
+Open **`sample/DeskPricer_Bitcoin_Demo.xlsx`** for a ready-to-run example. It contains 3 sheets:
+
+| Sheet | What it shows |
+|-------|---------------|
+| **Greeks** | Bitcoin European Call — $75K spot, $100K strike, 3M expiry, 50% vol |
+| **ImpliedVol** | Back out ~68.3% implied vol from a $3,398.71 market price |
+| **PnL Attribution** | Decompose PnL when spot rallies $75K → $80K and vol widens 50% → 55% |
+
+Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just start DeskPricer and the cells will populate automatically.
+
+---
 
 ## What it does
 
@@ -14,9 +87,9 @@ Local HTTP pricing microservice for vanilla European and American equity options
 
 ---
 
-## Quick Start
+## Installation Options
 
-### Option A: Standalone Executable (Recommended)
+### Standalone Executable (Recommended)
 
 Download `DeskPricer_v2.exe` from the [Releases](https://github.com/JohnJohnJohnJohn/portall_ws/releases) page and run:
 
@@ -30,7 +103,7 @@ The service starts on port `8765`. To use a different port:
 .\DeskPricer_v2.exe --port 9000
 ```
 
-### Option B: From Source
+### From Source
 
 ```powershell
 python -m venv .venv
@@ -38,26 +111,6 @@ python -m venv .venv
 pip install -e ".[dev]"
 python -m deskpricer.main
 ```
-
-Test with curl:
-
-```powershell
-curl "http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&type=call&style=european"
-```
-
----
-
-## Try the Demo Workbook
-
-Open `sample/DeskPricer_Bitcoin_Demo.xlsx` for a **ready-to-run** example. It contains 3 sheets:
-
-| Sheet | What it shows |
-|-------|---------------|
-| **Greeks** | Bitcoin European Call — $75K spot, $100K strike, 3M expiry, 50% vol |
-| **ImpliedVol** | Back out ~68.3% implied vol from a $3,398.71 market price |
-| **PnL Attribution** | Decompose PnL when spot rallies $75K → $80K and vol widens 50% → 55% |
-
-Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just start DeskPricer and the cells will populate automatically.
 
 ---
 
@@ -227,52 +280,49 @@ See [`docs/api.md`](docs/api.md) for the full request/response schema.
 
 ---
 
-## Installation Options
+## Log Location and Structured Logging
 
-### Standalone Executable
+- **Log path**: `DESKPRICER_LOG_DIR` env var overrides the default (`C:\ProgramData\DeskPricer\logs` on Windows, `~/.local/share/deskpricer/logs` elsewhere).
+- **Format**: Uses Python's stdlib `logging` module with a custom JSON formatter and `RotatingFileHandler` (10 MB rotation, 5 backups). This replaces the earlier hand-rolled `open()` approach.
+- **Change the path**:
+  ```powershell
+  $env:DESKPRICER_LOG_DIR = "C:\MyLogs"
+  python -m deskpricer.main
+  ```
 
-Build a single `.exe` that bundles Python, all dependencies, and QuantLib — no venv or pip install required on the target machine.
+---
 
-```powershell
-# Install PyInstaller in your dev venv first
-pip install pyinstaller
+## Troubleshooting
 
-# Build DeskPricer_v2.exe (~80–120 MB)
-python scripts/build_executable.py
-```
+### QuantLib install failures
+If `pip install` fails on QuantLib, ensure you have a C++ compiler and CMake, or use a pre-built wheel. See `docs/operator_guide.md` for detailed steps.
 
-The executable picks the port in this priority order:
-1. `--port` CLI argument
-2. `DESKPRICER_PORT` environment variable
-3. Default `8765`
+### Zero-DTE surprises
+`t=0` is floored to 1 calendar day to prevent QuantLib collapse. You will get a small time-value premium rather than pure intrinsic. This is intentional.
 
-```powershell
-# CLI argument
-.\dist\DeskPricer_v2.exe --port 9000
+### Engine/style mismatches
+- `style=european` → only `engine=analytic`
+- `style=american` → only `engine=binomial_crr` or `binomial_jr`
 
-# Or environment variable
-$env:DESKPRICER_PORT = "9000"
-.\dist\DeskPricer_v2.exe
-```
+### XML vs JSON
+Excel receives XML by default. For JSON, send `Accept: application/json` or `?format=json`.
 
-### Register as a Windows Service
+### Error codes
+| Code | Meaning |
+|------|---------|
+| `INVALID_INPUT` | Business-rule or schema validation failed |
+| `UNSUPPORTED_COMBINATION` | Engine/style mismatch |
+| `PRICING_FAILURE` | Unexpected internal error (no traceback leaked) |
 
-Use [NSSM](https://nssm.cc/) to run the `.exe` as a service:
+---
 
-```powershell
-nssm install DeskPricer "C:\full\path\to\DeskPricer_v2.exe"
-nssm set DeskPricer AppDirectory "C:\full\path\to"
-nssm start DeskPricer
-```
+## Limitations
 
-Or keep the original Python-based setup:
-
-1. Install NSSM.
-2. Copy this repo to `C:\deskpricer` and install the Python package.
-3. Run `scripts\install_service.bat` as Administrator.
-4. Check `http://127.0.0.1:8765/v1/health` from Excel or browser.
-
-Uninstall: `scripts\uninstall_service.bat` as Administrator.
+- **No FD engine** — analytic BSM for Europeans, binomial CRR/JR for Americans only.
+- **Portfolio serializes via `_QL_LOCK`** — max 500 legs; throughput is limited by QuantLib's global state.
+- **Bounded bump ranges** — `bump_spot_rel` ≤ 0.1, `bump_vol_abs` ≤ 0.01, `bump_rate_abs` ≤ 0.01.
+- **No database or persistence** — all state is in-memory per-request.
+- **No auth, TLS, or rate limiting** — local-only by design.
 
 ---
 
@@ -306,11 +356,6 @@ QuantLib's Python bindings rely on a single process-global `Settings.instance()`
 
 Excel's `WEBSERVICE` function only supports HTTP GET. Since the primary user of this service is Excel, the `GET /v1/pnl_attribution` endpoint is designed specifically for `WEBSERVICE` compatibility. Programmatic clients that need a cleaner JSON body can use `POST /v1/portfolio/greeks` today; a `POST` alternative for PnL attribution may be added in a future release.
 
-### Log directory and structured logging
-
-- **Log path**: `DESKPRICER_LOG_DIR` env var overrides the default (`C:\ProgramData\DeskPricer\logs` on Windows, `~/.local/share/deskpricer/logs` elsewhere).
-- **Format**: Uses Python's stdlib `logging` module with a custom JSON formatter and `RotatingFileHandler` (10 MB rotation, 5 backups). This replaces the earlier hand-rolled `open()` approach.
-
 ---
 
 ## Project Structure
@@ -321,10 +366,20 @@ DeskPricer/
 ├── README.md
 ├── requirements.txt
 ├── src/deskpricer/          # FastAPI app + pricing core
-├── tests/                    # pytest + hypothesis
-├── scripts/                  # Build + NSSM install/uninstall
-├── sample/                   # Demo Excel workbook
-└── docs/                     # API ref + Excel usage
+│   ├── app.py               # Thin composition root
+│   ├── routers/             # APIRouter modules
+│   ├── services/            # Pricing orchestration + QL lock
+│   ├── pricing/             # QuantLib pricing engines
+│   ├── schemas.py           # Pydantic models
+│   ├── responses.py         # XML/JSON serializers
+│   ├── errors.py            # Custom exceptions
+│   ├── logging_config.py    # Structured JSON logging
+│   └── main.py              # Uvicorn entrypoint
+├── tests/                   # pytest + hypothesis
+├── tests/fixtures/          # Regression baseline JSONs
+├── scripts/                 # Build + fixture generation
+├── sample/                  # Demo Excel workbook
+└── docs/                    # API ref + operator guide
 ```
 
 ## License

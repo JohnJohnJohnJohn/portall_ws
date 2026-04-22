@@ -5,6 +5,17 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from deskpricer.pricing.conventions import (
+    DAY_COUNT,
+    DEFAULT_BUMP_RATE_ABS,
+    DEFAULT_BUMP_SPOT_REL,
+    DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_STEPS,
+    MIN_T_YEARS,
+)
+
+EngineLiteral = Literal["analytic", "binomial_crr", "binomial_jr"]
+
 
 class _EngineDefaultsMixin(BaseModel):
     @model_validator(mode="before")
@@ -22,8 +33,8 @@ class _EngineDefaultsMixin(BaseModel):
         return self
 
 
-class _VanillaOptionBase(_EngineDefaultsMixin, BaseModel):
-    """Shared fields for single-leg option pricing requests."""
+class _VanillaOptionCoreBase(_EngineDefaultsMixin, BaseModel):
+    """Shared core fields for single-leg option pricing requests (no bumps)."""
 
     s: float = Field(gt=0, allow_inf_nan=False, description="Spot price of underlying")
     k: float = Field(gt=0, allow_inf_nan=False, description="Strike")
@@ -31,33 +42,36 @@ class _VanillaOptionBase(_EngineDefaultsMixin, BaseModel):
         ge=0,
         le=100,
         allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
+        description=f"Time to expiry in years ({DAY_COUNT}); values < {MIN_T_YEARS} are floored to 1 day",
     )
     r: float = Field(allow_inf_nan=False, description="Continuously compounded risk-free rate")
     q: float = Field(allow_inf_nan=False, description="Continuously compounded dividend yield")
-    v: float = Field(gt=0, allow_inf_nan=False, description="Black volatility (decimal, not %)")
     type: Literal["call", "put"] = Field(description="Option type")
     style: Literal["european", "american"] = Field(description="Option style")
-    engine: Literal["analytic", "binomial_crr", "binomial_jr"] | None = Field(
-        default=None, description="Pricing engine"
-    )
-    steps: int = Field(default=400, ge=10, le=5000, description="Tree/FD steps")
+    engine: EngineLiteral | None = Field(default=None, description="Pricing engine")
+    steps: int = Field(default=DEFAULT_STEPS, ge=10, le=5000, description="Tree/FD steps")
+
+
+class _VanillaOptionBase(_VanillaOptionCoreBase):
+    """Shared fields for single-leg option pricing requests with bump parameters."""
+
+    v: float = Field(gt=0, allow_inf_nan=False, description="Black volatility (decimal, not %)")
     bump_spot_rel: float = Field(
-        default=0.01,
+        default=DEFAULT_BUMP_SPOT_REL,
         ge=1e-9,
         le=0.1,
         allow_inf_nan=False,
         description="Relative spot bump for Greeks",
     )
     bump_vol_abs: float = Field(
-        default=0.001,
+        default=DEFAULT_BUMP_VOL_ABS,
         ge=1e-9,
         le=0.01,
         allow_inf_nan=False,
         description="Absolute vol bump for Greeks",
     )
     bump_rate_abs: float = Field(
-        default=0.001,
+        default=DEFAULT_BUMP_RATE_ABS,
         ge=1e-9,
         le=0.01,
         allow_inf_nan=False,
@@ -98,33 +112,15 @@ class GreeksOutput(BaseModel):
     charm: float
 
 
-class ImpliedVolRequest(_EngineDefaultsMixin, BaseModel):
-    s: float = Field(gt=0, allow_inf_nan=False, description="Spot price of underlying")
-    k: float = Field(gt=0, allow_inf_nan=False, description="Strike")
-    t: float = Field(
-        ge=0,
-        le=100,
-        allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
-    )
-    r: float = Field(allow_inf_nan=False, description="Continuously compounded risk-free rate")
-    q: float = Field(allow_inf_nan=False, description="Continuously compounded dividend yield")
+class ImpliedVolRequest(_VanillaOptionCoreBase):
     price: float = Field(
         ge=0, allow_inf_nan=False, description="Observed market price of the option"
     )
-    type: Literal["call", "put"] = Field(description="Option type")
-    style: Literal["european", "american"] = Field(description="Option style")
-    engine: Literal["analytic", "binomial_crr", "binomial_jr"] | None = Field(
-        default=None, description="Pricing engine"
-    )
-    steps: int = Field(default=400, ge=10, le=5000, description="Tree/FD steps")
     valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
     accuracy: float = Field(
         default=1e-4, gt=0, le=1e-2, allow_inf_nan=False, description="Brent solver accuracy"
     )
-    max_iterations: int = Field(
-        default=1000, ge=100, le=10000, description="Max solver iterations"
-    )
+    max_iterations: int = Field(default=1000, ge=100, le=10000, description="Max solver iterations")
 
 
 class ImpliedVolOutput(BaseModel):
@@ -140,13 +136,13 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
         ge=0,
         le=100,
         allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
+        description=f"Time to expiry in years ({DAY_COUNT}); values < {MIN_T_YEARS} are floored to 1 day",
     )
     t_t: float = Field(
         ge=0,
         le=100,
         allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
+        description=f"Time to expiry in years ({DAY_COUNT}); values < {MIN_T_YEARS} are floored to 1 day",
     )
     r_t_minus_1: float = Field(allow_inf_nan=False)
     r_t: float = Field(allow_inf_nan=False)
@@ -156,29 +152,29 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
     v_t: float = Field(gt=0, allow_inf_nan=False)
     type: Literal["call", "put"]
     style: Literal["european", "american"]
-    engine: Literal["analytic", "binomial_crr", "binomial_jr"] | None = Field(default=None)
-    steps: int = Field(default=400, ge=10, le=5000)
+    engine: EngineLiteral | None = Field(default=None)
+    steps: int = Field(default=DEFAULT_STEPS, ge=10, le=5000)
     qty: float = Field(default=1.0, allow_inf_nan=False, ge=-1e12, le=1e12)
     valuation_date_t_minus_1: date | None = Field(default=None)
     valuation_date_t: date | None = Field(default=None)
     method: Literal["backward", "average"] = Field(default="backward")
     cross_greeks: bool = Field(default=False)
     bump_spot_rel: float = Field(
-        default=0.01,
+        default=DEFAULT_BUMP_SPOT_REL,
         ge=1e-9,
         le=0.1,
         allow_inf_nan=False,
         description="Relative spot bump for Greeks",
     )
     bump_vol_abs: float = Field(
-        default=0.001,
+        default=DEFAULT_BUMP_VOL_ABS,
         ge=1e-9,
         le=0.01,
         allow_inf_nan=False,
         description="Absolute vol bump for Greeks",
     )
     bump_rate_abs: float = Field(
-        default=0.001,
+        default=DEFAULT_BUMP_RATE_ABS,
         ge=1e-9,
         le=0.01,
         allow_inf_nan=False,

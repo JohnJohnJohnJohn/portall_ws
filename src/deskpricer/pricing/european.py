@@ -64,14 +64,13 @@ def price_european(
     # Charm: ∂delta/∂t per calendar day (forward difference, 1 day)
     # When the option has <= 1 day left, QuantLib returns delta=0 for the expired
     # option, which would give charm = -delta (wrong). Fallback to 0.
+    charm = 0.0
     try:
         one_day_forward = ql_date + 1
     except RuntimeError:
-        charm = 0.0
+        pass
     else:
-        if expiry_date <= one_day_forward:
-            charm = 0.0
-        else:
+        if expiry_date > one_day_forward:
             try:
                 ql.Settings.instance().evaluationDate = one_day_forward
                 div_ts_t1 = ql.YieldTermStructureHandle(

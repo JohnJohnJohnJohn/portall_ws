@@ -1,0 +1,41 @@
+{
+  "name": "covered_call",
+  "description": "Short 1 ATM European call (the option component of a covered call).",
+  "legs": [
+    {
+      "id": "call",
+      "qty": -1,
+      "s": 100,
+      "k": 100,
+      "t": 0.25,
+      "r": 0.05,
+      "q": 0.0,
+      "v": 0.2,
+      "type": "call",
+      "style": "european"
+    }
+  ],
+  "expected": {
+    "legs": [
+      {
+        "id": "call",
+        "engine": "analytic",
+        "price": 4.607819287568139,
+        "delta": 0.5693659330685212,
+        "gamma": 0.039343581474022886,
+        "vega": 0.1961789541992375,
+        "theta": -0.028726452043202115,
+        "rho": 0.13046351878780432,
+        "charm": -0.00037834117492629993
+      }
+    ],
+    "aggregate": {
+      "delta": -0.5693659330685212,
+      "gamma": -0.039343581474022886,
+      "vega": -0.1961789541992375,
+      "theta": 0.028726452043202115,
+      "rho": -0.13046351878780432,
+      "charm": 0.00037834117492629993
+    }
+  }
+}

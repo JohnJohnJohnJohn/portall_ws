@@ -9,6 +9,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from deskpricer.pricing.conventions import (
+    DEFAULT_STEPS,
     default_calendar,
     default_day_count,
     expiry_from_t,
@@ -69,7 +70,7 @@ class TestAmericanPriceBounds:
             "v": v,
             "type": "put",
             "style": "american",
-            "steps": 400,
+            "steps": DEFAULT_STEPS,
         }
         resp_am = client.get("/v1/greeks", params=base, headers={"Accept": "application/json"})
         if resp_am.status_code != 200:
@@ -90,7 +91,7 @@ class TestAmericanPriceBounds:
         payoff = ql.PlainVanillaPayoff(ql.Option.Put, k)
         exercise = ql.EuropeanExercise(expiry)
         eu_option = ql.VanillaOption(payoff, exercise)
-        eu_option.setPricingEngine(ql.BinomialVanillaEngine(process, "crr", 400))
+        eu_option.setPricingEngine(ql.BinomialVanillaEngine(process, "crr", DEFAULT_STEPS))
         p_eu_tree = float(eu_option.NPV())
         # Tree discretization can occasionally make the American CRR price slightly
         # below the European CRR price (e.g. r=0 where early-exercise premium is
@@ -144,3 +145,131 @@ class TestGreekBounds:
         d_put = resp_put.json()["greeks"]["outputs"]["delta"]
         assert 0 <= d_call <= 1
         assert -1 <= d_put <= 0
+
+
+class TestMonotonicity:
+    @given(
+        s=st.floats(min_value=10.0, max_value=500.0),
+        k=st.floats(min_value=10.0, max_value=500.0),
+        t=st.floats(min_value=0.05, max_value=1.0),
+        r=st.floats(min_value=0.0, max_value=0.20),
+        q=st.floats(min_value=0.0, max_value=0.20),
+        v=st.floats(min_value=0.05, max_value=1.0),
+    )
+    @settings(
+        max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
+    def test_call_price_nondecreasing_in_spot(self, client: TestClient, s, k, t, r, q, v):
+        base = {"k": k, "t": t, "r": r, "q": q, "v": v, "style": "european", "type": "call"}
+        resp1 = client.get(
+            "/v1/greeks", params={**base, "s": s}, headers={"Accept": "application/json"}
+        )
+        resp2 = client.get(
+            "/v1/greeks", params={**base, "s": s * 1.01}, headers={"Accept": "application/json"}
+        )
+        if resp1.status_code != 200 or resp2.status_code != 200:
+            pytest.skip("Invalid parameter combination generated")
+        p1 = resp1.json()["greeks"]["outputs"]["price"]
+        p2 = resp2.json()["greeks"]["outputs"]["price"]
+        assert p2 >= p1 - 1e-8
+
+    @given(
+        s=st.floats(min_value=10.0, max_value=500.0),
+        k=st.floats(min_value=10.0, max_value=500.0),
+        t=st.floats(min_value=0.05, max_value=1.0),
+        r=st.floats(min_value=0.0, max_value=0.20),
+        q=st.floats(min_value=0.0, max_value=0.20),
+        v=st.floats(min_value=0.05, max_value=1.0),
+    )
+    @settings(
+        max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
+    def test_put_price_nonincreasing_in_spot(self, client: TestClient, s, k, t, r, q, v):
+        base = {"k": k, "t": t, "r": r, "q": q, "v": v, "style": "european", "type": "put"}
+        resp1 = client.get(
+            "/v1/greeks", params={**base, "s": s}, headers={"Accept": "application/json"}
+        )
+        resp2 = client.get(
+            "/v1/greeks", params={**base, "s": s * 1.01}, headers={"Accept": "application/json"}
+        )
+        if resp1.status_code != 200 or resp2.status_code != 200:
+            pytest.skip("Invalid parameter combination generated")
+        p1 = resp1.json()["greeks"]["outputs"]["price"]
+        p2 = resp2.json()["greeks"]["outputs"]["price"]
+        assert p2 <= p1 + 1e-8
+
+
+class TestPnLExplain:
+    def test_zero_moves_residual_near_zero(self, client: TestClient):
+        """When all market data is unchanged, residual PnL should be ~0."""
+        params = {
+            "s_t_minus_1": 100.0,
+            "s_t": 100.0,
+            "k": 100.0,
+            "t_t_minus_1": 0.25,
+            "t_t": 0.25,
+            "r_t_minus_1": 0.05,
+            "r_t": 0.05,
+            "q_t_minus_1": 0.0,
+            "q_t": 0.0,
+            "v_t_minus_1": 0.20,
+            "v_t": 0.20,
+            "type": "call",
+            "style": "european",
+            "qty": 1.0,
+            "cross_greeks": True,
+            "method": "backward",
+            "valuation_date_t_minus_1": "2026-04-19",
+            "valuation_date_t": "2026-04-19",
+        }
+        resp = client.get(
+            "/v1/pnl_attribution", params=params, headers={"Accept": "application/json"}
+        )
+        assert resp.status_code == 200
+        data = resp.json()["pnl_attribution"]["outputs"]
+        assert data["actual_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["residual_pnl"] == pytest.approx(0.0, abs=1e-10)
+
+
+class TestPortfolioAggregation:
+    def test_aggregate_equals_sum_of_legs(self, client: TestClient):
+        """Portfolio aggregate must equal sum(qty * leg_greek) for each Greek."""
+        payload = {
+            "legs": [
+                {
+                    "id": "L1",
+                    "qty": 3,
+                    "s": 100,
+                    "k": 105,
+                    "t": 0.25,
+                    "r": 0.05,
+                    "q": 0,
+                    "v": 0.20,
+                    "type": "call",
+                    "style": "european",
+                },
+                {
+                    "id": "L2",
+                    "qty": -2,
+                    "s": 100,
+                    "k": 95,
+                    "t": 0.25,
+                    "r": 0.05,
+                    "q": 0,
+                    "v": 0.22,
+                    "type": "put",
+                    "style": "american",
+                },
+            ]
+        }
+        resp = client.post(
+            "/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"}
+        )
+        assert resp.status_code == 200
+        data = resp.json()["portfolio"]
+        legs = data["legs"]
+        agg = data["aggregate"]
+        qtys = [leg["qty"] for leg in payload["legs"]]
+        for greek in ["delta", "gamma", "vega", "theta", "rho", "charm"]:
+            expected = sum(qtys[i] * legs[i][greek] for i in range(len(legs)))
+            assert agg[greek] == pytest.approx(expected, abs=1e-6)

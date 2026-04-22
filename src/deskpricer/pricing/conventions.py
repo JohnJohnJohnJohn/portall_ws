@@ -1,4 +1,16 @@
-"""Day counts, calendars and convention helpers."""
+"""Day counts, calendars, convention helpers, and numerical constants.
+
+Numerical conventions
+---------------------
+- Vega is per **1 vol point** (1% absolute).
+- Rho is per **1 rate point** (1% absolute).
+- Theta is per **calendar day**.
+- Greeks bump semantics:
+  - Relative spot bump (e.g., 1% of spot).
+  - Absolute vol bump (e.g., 0.001 = 0.1 vol points).
+  - Absolute rate bump (e.g., 0.001 = 0.1% rate points).
+- Zero-DTE handling: ``t < 1/365`` is floored to 1 day.
+"""
 
 import math
 from datetime import date
@@ -6,6 +18,13 @@ from datetime import date
 import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
+
+MIN_T_YEARS = 1.0 / 365.0
+DEFAULT_STEPS = 400
+DEFAULT_BUMP_SPOT_REL = 0.01
+DEFAULT_BUMP_VOL_ABS = 0.001
+DEFAULT_BUMP_RATE_ABS = 0.001
+DAY_COUNT = "ACT/365F"
 
 
 def ql_date_from_iso(d: date) -> ql.Date:

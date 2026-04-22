@@ -1,0 +1,43 @@
+{
+  "name": "american_single_stock_put",
+  "description": "Long 1 American put on a single stock (no divs).",
+  "legs": [
+    {
+      "id": "put",
+      "qty": 1,
+      "s": 50,
+      "k": 50,
+      "t": 0.4167,
+      "r": 0.1,
+      "q": 0.0,
+      "v": 0.4,
+      "type": "put",
+      "style": "american",
+      "engine": "binomial_crr",
+      "steps": 400
+    }
+  ],
+  "expected": {
+    "legs": [
+      {
+        "id": "put",
+        "engine": "binomial_crr",
+        "price": 4.2817860177320375,
+        "delta": -0.4136484870541173,
+        "gamma": 0.011607976642057594,
+        "vega": 0.12326728999276337,
+        "theta": -0.011464495199730251,
+        "rho": -0.07268496557940818,
+        "charm": -0.0008323331063921913
+      }
+    ],
+    "aggregate": {
+      "delta": -0.4136484870541173,
+      "gamma": 0.011607976642057594,
+      "vega": 0.12326728999276337,
+      "theta": -0.011464495199730251,
+      "rho": -0.07268496557940818,
+      "charm": -0.0008323331063921913
+    }
+  }
+}

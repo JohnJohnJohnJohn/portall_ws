@@ -525,11 +525,11 @@ class TestDateBoundaries:
 
     def test_expiry_from_t_year_boundary(self):
         """expiry_from_t must correctly advance from Dec 31 into the next year."""
-        from deskpricer.pricing.conventions import expiry_from_t
+        from deskpricer.pricing.conventions import MIN_T_YEARS, expiry_from_t
         import QuantLib as ql
 
         dec_31 = ql.Date(31, 12, 2026)
-        expiry = expiry_from_t(dec_31, 1 / 365.0)
+        expiry = expiry_from_t(dec_31, MIN_T_YEARS)
         assert expiry.dayOfMonth() == 1
         assert expiry.month() == 1
         assert expiry.year() == 2027

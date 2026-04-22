@@ -3,6 +3,7 @@
 import xml.etree.ElementTree as ET
 
 import pytest
+from deskpricer.pricing.conventions import MIN_T_YEARS
 from fastapi.testclient import TestClient
 
 
@@ -78,7 +79,7 @@ class TestPnLAttribution:
         """One calendar day passes, all market data identical.
         Actual PnL should be approximately theta * 1 day."""
         params = self._base_params(
-            t_t=0.25 - 1 / 365,
+            t_t=0.25 - MIN_T_YEARS,
         )
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
@@ -175,7 +176,7 @@ class TestPnLAttribution:
 
     def test_omit_both_dates_diff_t(self, client: TestClient):
         """Omitting both dates with 1-day t decay: theta_pnl ≈ theta * 1 day."""
-        params = self._base_params(t_t=0.25 - 1 / 365)
+        params = self._base_params(t_t=0.25 - MIN_T_YEARS)
         del params["valuation_date_t_minus_1"]
         del params["valuation_date_t"]
         resp = self._get(client, params, json_format=True)
