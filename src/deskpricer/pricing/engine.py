@@ -1,11 +1,12 @@
 """Pricing dispatch function."""
 
+import math
 from datetime import date
 
-from desk_pricer.errors import UnsupportedCombinationError
-from desk_pricer.pricing.american import price_american
-from desk_pricer.pricing.european import price_european
-from desk_pricer.schemas import GreeksOutput
+from deskpricer.errors import UnsupportedCombinationError
+from deskpricer.pricing.american import price_american
+from deskpricer.pricing.european import price_european
+from deskpricer.schemas import GreeksOutput
 
 ENGINE_MAP = {
     "binomial_crr": "crr",
@@ -34,10 +35,21 @@ def price_vanilla(
             f"option_type must be 'call' or 'put'; got {option_type}",
             field="type",
         )
+    for field_name, field_val in (
+        ("s", s),
+        ("k", k),
+        ("r", r),
+        ("q", q),
+        ("v", v),
+    ):
+        if not math.isfinite(field_val):
+            raise UnsupportedCombinationError(
+                f"{field_name} must be a finite number", field=field_name
+            )
+    if not math.isfinite(t):
+        raise UnsupportedCombinationError("time to expiry must be a finite number", field="t")
     if t < 0:
-        raise UnsupportedCombinationError(
-            "time to expiry must be non-negative", field="t"
-        )
+        raise UnsupportedCombinationError("time to expiry must be non-negative", field="t")
     # Floor t to 1 day to avoid QuantLib zero-day collapse
     effective_t = max(t, 1.0 / 365.0)
     if style == "european":
@@ -66,7 +78,16 @@ def price_vanilla(
                 field="engine",
             )
         return price_american(
-            s, k, effective_t, r, q, v, option_type, valuation_date, steps, ql_engine,
+            s,
+            k,
+            effective_t,
+            r,
+            q,
+            v,
+            option_type,
+            valuation_date,
+            steps,
+            ql_engine,
             bump_spot_rel=bump_spot_rel,
             bump_vol_abs=bump_vol_abs,
             bump_rate_abs=bump_rate_abs,

@@ -126,8 +126,14 @@ class TestPnLAttribution:
         data_10 = resp_10.json()["pnl_attribution"]["outputs"]
 
         for bucket in [
-            "actual_pnl", "delta_pnl", "gamma_pnl", "vega_pnl",
-            "theta_pnl", "rho_pnl", "vanna_pnl", "volga_pnl",
+            "actual_pnl",
+            "delta_pnl",
+            "gamma_pnl",
+            "vega_pnl",
+            "theta_pnl",
+            "rho_pnl",
+            "vanna_pnl",
+            "volga_pnl",
         ]:
             assert data_10[bucket] == pytest.approx(10 * data_1[bucket], abs=1e-7)
 
@@ -262,16 +268,22 @@ class TestPnLAttribution:
         data_10 = resp_10.json()["pnl_attribution"]["outputs"]
 
         for bucket in [
-            "actual_pnl", "delta_pnl", "gamma_pnl", "vega_pnl",
-            "theta_pnl", "rho_pnl", "vanna_pnl", "volga_pnl",
+            "actual_pnl",
+            "delta_pnl",
+            "gamma_pnl",
+            "vega_pnl",
+            "theta_pnl",
+            "rho_pnl",
+            "vanna_pnl",
+            "volga_pnl",
         ]:
             assert data_10[bucket] == pytest.approx(10 * data_1[bucket], abs=1e-7)
 
     def test_small_vol_t_rejected(self, client: TestClient):
-        """v_t <= bump_vol_abs should be rejected for american options."""
+        """Extremely low vol causes QuantLib to fail; pricing layer returns 400."""
         params = self._base_params(style="american", v_t=0.0005)
         resp = self._get(client, params, json_format=True)
-        assert resp.status_code == 422
+        assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
 
     def test_missing_param(self, client: TestClient):
@@ -280,3 +292,39 @@ class TestPnLAttribution:
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
+
+    def test_cross_greeks_zero_moves(self, client: TestClient):
+        """cross_greeks=true with zero spot move and zero vol move should yield zero cross PnL."""
+        params = {
+            "s_t_minus_1": 100.0,
+            "s_t": 100.0,
+            "k": 100.0,
+            "t_t_minus_1": 0.25,
+            "t_t": 0.25,
+            "r_t_minus_1": 0.05,
+            "r_t": 0.05,
+            "q_t_minus_1": 0.0,
+            "q_t": 0.0,
+            "v_t_minus_1": 0.20,
+            "v_t": 0.20,
+            "type": "call",
+            "style": "european",
+            "qty": 1.0,
+            "cross_greeks": True,
+            "method": "backward",
+            "valuation_date_t_minus_1": "2026-04-19",
+            "valuation_date_t": "2026-04-19",
+        }
+        resp = client.get(
+            "/v1/pnl_attribution", params=params, headers={"Accept": "application/json"}
+        )
+        assert resp.status_code == 200
+        data = resp.json()["pnl_attribution"]["outputs"]
+        assert data["vanna_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["volga_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["delta_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["gamma_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["vega_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["theta_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["actual_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["residual_pnl"] == pytest.approx(0.0, abs=1e-10)

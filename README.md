@@ -1,4 +1,4 @@
-# DeskPricer v1.0.0
+# DeskPricer v2.0.0
 
 Local HTTP pricing microservice for vanilla European and American equity options. Designed for Excel `WEBSERVICE` + `FILTERXML` integration — no VBA, no Bloomberg terminal calls inside the service.
 
@@ -6,7 +6,7 @@ Local HTTP pricing microservice for vanilla European and American equity options
 
 - **Price + Greeks** for single options or multi-leg portfolios
 - **Implied volatility** solver (Brent method via QuantLib)
-- **PnL attribution** — decompose option PnL into delta, gamma, vega, vanna, volga, theta, and unexplained
+- **PnL attribution** — decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and residual
 - **XML by default** — Excel `WEBSERVICE` + `FILTERXML` work out of the box; JSON available via `Accept: application/json`
 - **Localhost-only** — binds to `127.0.0.1`; no network exposure
 
@@ -16,16 +16,16 @@ Local HTTP pricing microservice for vanilla European and American equity options
 
 ### Option A: Standalone Executable (Recommended)
 
-Download `DeskPricer_v1.exe` from the [Releases](https://github.com/JohnJohnJohnJohn/portall_ws/releases) page and run:
+Download `DeskPricer_v2.exe` from the [Releases](https://github.com/JohnJohnJohnJohn/portall_ws/releases) page and run:
 
 ```powershell
-.\DeskPricer_v1.exe
+.\DeskPricer_v2.exe
 ```
 
 The service starts on port `8765`. To use a different port:
 
 ```powershell
-.\DeskPricer_v1.exe --port 9000
+.\DeskPricer_v2.exe --port 9000
 ```
 
 ### Option B: From Source
@@ -34,7 +34,7 @@ The service starts on port `8765`. To use a different port:
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-python -m desk_pricer.main
+python -m deskpricer.main
 ```
 
 Test with curl:
@@ -116,13 +116,13 @@ Assume your sheet has:
 
 | Greek | Value |
 |-------|-------|
-| Price | `5.876509` |
-| Delta | `0.542068` |
-| Gamma | `0.039315` |
-| Vega  | `0.196575` |
-| Theta | `-0.028038` |
-| Rho   | `0.118376` |
-| Charm | `-0.001392` |
+| Price | `2.288743` |
+| Delta | `0.356244` |
+| Gamma | `0.037206` |
+| Vega  | `0.185519` |
+| Theta | `-0.023001` |
+| Rho   | `0.083111` |
+| Charm | `-0.001241` |
 
 > **Tip:** Wrap each `FILTERXML` in `IFERROR(...,"ERR")` so one bad row doesn't break the whole sheet.
 
@@ -144,7 +144,7 @@ You observe a mid-market price of `6.50` for the same option and want the implie
 =VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/implied_vol"))
 ```
 
-**Expected output:** `0.214089` (≈ 21.4 % vol)
+**Expected output:** `0.417484` (≈ 41.7 % vol)
 
 ---
 
@@ -166,7 +166,7 @@ Assume:
 **Step 1 — Build the URL:**
 
 ```excel
-="http://127.0.0.1:8765/v1/pnl_attribution?s_t_minus_1=100&s_t=102&k=105&t_t_minus_1=0.25&t_t=0.2466&r_t_minus_1=0.05&r_t=0.05&q_t_minus_1=0.02&q_t=0.02&v_t_minus_1=0.2&v_t=0.22&type=call&style=european&qty=10"
+="http://127.0.0.1:8765/v1/pnl_attribution?s_t_minus_1=100&s_t=102&k=105&t_t_minus_1=0.25&t_t=0.2466&r_t_minus_1=0.05&r_t=0.05&q_t_minus_1=0.02&q_t=0.02&v_t_minus_1=0.2&v_t=0.22&type=call&style=european&qty=10&cross_greeks=true"
 ```
 
 **Step 2 — Extract attribution buckets:**
@@ -178,24 +178,29 @@ Assume:
 | Gamma PnL | `=VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/gamma_pnl"))` |
 | Vega PnL | `=VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/vega_pnl"))` |
 | Theta PnL | `=VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/theta_pnl"))` |
+| Rho PnL | `=VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/rho_pnl"))` |
 | Vanna PnL | `=VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/vanna_pnl"))` |
 | Volga PnL | `=VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/volga_pnl"))` |
-| Unexplained | `=VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/unexplained_pnl"))` |
+| Residual | `=VALUE(FILTERXML(WEBSERVICE(H2),"//outputs/residual_pnl"))` |
 
 **Expected output:**
 
 | Bucket | Value |
 |--------|-------|
-| Actual PnL | `12.261` |
-| Delta PnL | `10.841` |
-| Gamma PnL | `0.393` |
-| Vega PnL | `3.932` |
-| Theta PnL | `-0.109` |
-| Vanna PnL | `0.164` |
-| Volga PnL | `0.039` |
-| Unexplained | `-2.999` |
+| price_t_minus_1 | `2.288743` |
+| price_t | `3.448643` |
+| Actual PnL | `11.601` |
+| Delta PnL | `7.125` |
+| Gamma PnL | `0.744` |
+| Vega PnL | `3.710` |
+| Theta PnL | `-0.230` |
+| Rho PnL | `0.0` |
+| Vanna PnL | `0.343` |
+| Volga PnL | `0.031` |
+| Explained PnL | `11.724` |
+| Residual | `-0.123` |
 
-> The `unexplained_pnl` captures higher-order effects and model differences between t-1 and t.
+> The `residual_pnl` captures higher-order effects and model differences between t-1 and t. Enable `cross_greeks=true` to include vanna and volga contributions.
 
 ---
 
@@ -230,22 +235,22 @@ Build a single `.exe` that bundles Python, all dependencies, and QuantLib — no
 # Install PyInstaller in your dev venv first
 pip install pyinstaller
 
-# Build DeskPricer_v1.exe (~38 MB)
+# Build DeskPricer_v2.exe (~80–120 MB)
 python scripts/build_executable.py
 ```
 
 The executable picks the port in this priority order:
 1. `--port` CLI argument
-2. `DESK_PRICER_PORT` environment variable
+2. `DESKPRICER_PORT` environment variable
 3. Default `8765`
 
 ```powershell
 # CLI argument
-.\dist\DeskPricer_v1.exe --port 9000
+.\dist\DeskPricer_v2.exe --port 9000
 
 # Or environment variable
-$env:DESK_PRICER_PORT = "9000"
-.\dist\DeskPricer_v1.exe
+$env:DESKPRICER_PORT = "9000"
+.\dist\DeskPricer_v2.exe
 ```
 
 ### Register as a Windows Service
@@ -253,7 +258,7 @@ $env:DESK_PRICER_PORT = "9000"
 Use [NSSM](https://nssm.cc/) to run the `.exe` as a service:
 
 ```powershell
-nssm install DeskPricer "C:\full\path\to\DeskPricer_v1.exe"
+nssm install DeskPricer "C:\full\path\to\DeskPricer_v2.exe"
 nssm set DeskPricer AppDirectory "C:\full\path\to"
 nssm start DeskPricer
 ```
@@ -289,7 +294,7 @@ Excel's `WEBSERVICE` function only supports HTTP GET. Since the primary user of 
 
 ### Log directory and structured logging
 
-- **Log path**: `DESK_PRICER_LOG_DIR` env var overrides the default (`C:\ProgramData\DeskPricer\logs` on Windows, `~/.local/share/deskpricer/logs` elsewhere).
+- **Log path**: `DESKPRICER_LOG_DIR` env var overrides the default (`C:\ProgramData\DeskPricer\logs` on Windows, `~/.local/share/deskpricer/logs` elsewhere).
 - **Format**: Uses Python's stdlib `logging` module with a custom JSON formatter and `RotatingFileHandler` (10 MB rotation, 5 backups). This replaces the earlier hand-rolled `open()` approach.
 
 ---
@@ -301,7 +306,7 @@ DeskPricer/
 ├── pyproject.toml
 ├── README.md
 ├── requirements.txt
-├── src/desk_pricer/          # FastAPI app + pricing core
+├── src/deskpricer/          # FastAPI app + pricing core
 ├── tests/                    # pytest + hypothesis
 ├── scripts/                  # Build + NSSM install/uninstall
 ├── sample/                   # Demo Excel workbook

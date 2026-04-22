@@ -6,7 +6,7 @@
 http://127.0.0.1:8765/v1
 ```
 
-Port is configurable via the `DESK_PRICER_PORT` environment variable.
+Port is configurable via the `DESKPRICER_PORT` environment variable.
 
 ## Content Negotiation
 
@@ -36,8 +36,8 @@ Version metadata.
 **Response (XML):**
 ```xml
 <version>
-  <service>1.0.0</service>
-  <quantlib>1.42</quantlib>
+  <service>2.0.0</service>
+  <quantlib>1.42.1</quantlib>
   <python>3.12.7</python>
 </version>
 ```
@@ -86,10 +86,10 @@ Price a single vanilla option and return Greeks.
 ```xml
 <greeks>
   <meta>
-    <service_version>1.0.0</service_version>
-    <quantlib_version>1.42</quantlib_version>
+    <service_version>2.0.0</service_version>
+    <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
-    <valuation_date>2026-04-20</valuation_date>
+    <valuation_date>2026-04-22</valuation_date>
   </meta>
   <inputs>
     <s>100.0</s>
@@ -144,33 +144,67 @@ Bulk endpoint for book-level aggregation.
 ```json
 {
   "meta": {
-    "service_version": "1.0.0",
-    "quantlib_version": "1.42"
+    "service_version": "2.0.0",
+    "quantlib_version": "1.42.1"
   },
   "legs": [
     {
       "id": "L1",
-      "price": 2.69,
-      "delta": 0.38,
-      "gamma": 0.034,
-      "vega": 0.189,
-      "theta": -0.026,
-      "rho": 0.087,
-      "charm": -0.001189
+      "engine": "analytic",
+      "price": 2.667973,
+      "delta": 0.374319,
+      "gamma": 0.034621,
+      "vega": 0.187806,
+      "theta": -0.026009,
+      "rho": 0.085719,
+      "charm": -0.001205
     }
   ],
   "aggregate": {
-    "delta": 3.8,
-    "gamma": 0.34,
-    "vega": 1.89,
-    "theta": -0.26,
-    "rho": 0.87,
-    "charm": -0.01189
+    "delta": 3.74319,
+    "gamma": 0.34621,
+    "vega": 1.87806,
+    "theta": -0.26009,
+    "rho": 0.85719,
+    "charm": -0.01205
   }
 }
 ```
 
 Aggregate = Σ qty × per-leg Greek.
+
+#### Response (XML)
+
+```xml
+<portfolio>
+  <meta>
+    <service_version>2.0.0</service_version>
+    <quantlib_version>1.42.1</quantlib_version>
+    <valuation_date>2026-04-22</valuation_date>
+  </meta>
+  <legs>
+    <leg>
+      <id>L1</id>
+      <engine>analytic</engine>
+      <price>2.667973</price>
+      <delta>0.374319</delta>
+      <gamma>0.034621</gamma>
+      <vega>0.187806</vega>
+      <theta>-0.026009</theta>
+      <rho>0.085719</rho>
+      <charm>-0.001205</charm>
+    </leg>
+  </legs>
+  <aggregate>
+    <delta>3.74319</delta>
+    <gamma>0.34621</gamma>
+    <vega>1.87806</vega>
+    <theta>-0.26009</theta>
+    <rho>0.85719</rho>
+    <charm>-0.01205</charm>
+  </aggregate>
+</portfolio>
+```
 
 ---
 
@@ -201,10 +235,10 @@ Solve for implied volatility given an observed market price.
 ```xml
 <impliedvol>
   <meta>
-    <service_version>1.0.0</service_version>
-    <quantlib_version>1.42</quantlib_version>
+    <service_version>2.0.0</service_version>
+    <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
-    <valuation_date>2026-04-20</valuation_date>
+    <valuation_date>2026-04-22</valuation_date>
   </meta>
   <inputs>
     <s>100.0</s>
@@ -212,13 +246,13 @@ Solve for implied volatility given an observed market price.
     <t>0.5</t>
     <r>0.05</r>
     <q>0.02</q>
-    <price>6.877605</price>
+    <price>6.317050</price>
     <type>call</type>
     <style>european</style>
   </inputs>
   <outputs>
-    <implied_vol>0.199984</implied_vol>
-    <npv_at_iv>6.877177</npv_at_iv>
+    <implied_vol>0.199986</implied_vol>
+    <npv_at_iv>6.316673</npv_at_iv>
   </outputs>
 </impliedvol>
 ```
@@ -229,6 +263,85 @@ Solve for implied volatility given an observed market price.
 
 - If `price` is outside arbitrage bounds (e.g., below intrinsic value or above max possible), the endpoint returns `400 INVALID_INPUT` with field=`price`.
 - If the Brent solver fails to converge, returns `400 INVALID_INPUT`.
+
+---
+
+### `GET /v1/pnl_attribution`
+
+Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and residual.
+
+#### Query Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `s_t_minus_1` | float > 0 | Yes | Spot at t-1 |
+| `s_t` | float > 0 | Yes | Spot at t |
+| `k` | float > 0 | Yes | Strike |
+| `t_t_minus_1` | float ≥ 0 | Yes | Time to expiry at t-1 (floored to 1 day) |
+| `t_t` | float ≥ 0 | Yes | Time to expiry at t (floored to 1 day) |
+| `r_t_minus_1` | float | Yes | Rate at t-1 |
+| `r_t` | float | Yes | Rate at t |
+| `q_t_minus_1` | float | Yes | Div yield at t-1 |
+| `q_t` | float | Yes | Div yield at t |
+| `v_t_minus_1` | float > 0 | Yes | Vol at t-1 |
+| `v_t` | float > 0 | Yes | Vol at t |
+| `type` | `call` / `put` | Yes | Option type |
+| `style` | `european` / `american` | Yes | Option style |
+| `qty` | float | No | Position size. Default: 1.0 |
+| `method` | `backward` / `average` | No | Greeks averaging method. Default: `backward` |
+| `cross_greeks` | bool | No | Include vanna/volga. Default: `false` |
+| `engine` | enum | No | Pricing engine |
+| `steps` | int (10–5000) | No | Tree steps. Default: 400 |
+| `valuation_date_t_minus_1` | ISO date | No | Defaults to today if both dates omitted |
+| `valuation_date_t` | ISO date | No | Defaults to today if both dates omitted |
+| `bump_spot_rel` | float | No | Relative spot bump. Default: 0.01 |
+| `bump_vol_abs` | float | No | Absolute vol bump. Default: 0.001 |
+| `bump_rate_abs` | float | No | Absolute rate bump. Default: 0.001 |
+
+#### Response (XML)
+
+```xml
+<pnl_attribution>
+  <meta>
+    <service_version>2.0.0</service_version>
+    <quantlib_version>1.42.1</quantlib_version>
+    <valuation_date_t_minus_1>2026-04-19</valuation_date_t_minus_1>
+    <valuation_date_t>2026-04-20</valuation_date_t>
+    <method>backward</method>
+  </meta>
+  <inputs>
+    <s_t_minus_1>100.0</s_t_minus_1>
+    <s_t>102.0</s_t>
+    <k>105.0</k>
+    <t_t_minus_1>0.25</t_t_minus_1>
+    <t_t>0.2466</t_t>
+    <r_t_minus_1>0.05</r_t_minus_1>
+    <r_t>0.05</r_t>
+    <q_t_minus_1>0.02</q_t_minus_1>
+    <q_t>0.02</q_t>
+    <v_t_minus_1>0.2</v_t_minus_1>
+    <v_t>0.22</v_t>
+    <type>call</type>
+    <style>european</style>
+    <qty>10.0</qty>
+    <cross_greeks>true</cross_greeks>
+  </inputs>
+  <outputs>
+    <price_t_minus_1>2.288743</price_t_minus_1>
+    <price_t>3.448643</price_t>
+    <actual_pnl>11.601</actual_pnl>
+    <delta_pnl>7.125</delta_pnl>
+    <gamma_pnl>0.744</gamma_pnl>
+    <vega_pnl>3.710</vega_pnl>
+    <theta_pnl>-0.230</theta_pnl>
+    <rho_pnl>0.0</rho_pnl>
+    <vanna_pnl>0.343</vanna_pnl>
+    <volga_pnl>0.031</volga_pnl>
+    <explained_pnl>11.724</explained_pnl>
+    <residual_pnl>-0.123</residual_pnl>
+  </outputs>
+</pnl_attribution>
+```
 
 ---
 
@@ -247,7 +360,9 @@ All errors return a consistent body:
 
 | HTTP | Code | Meaning |
 |------|------|---------|
-| 400 | `INVALID_INPUT` | Validation failed |
+| 400 | `INVALID_INPUT` | Business-rule validation failed (e.g. price out of arbitrage bounds) |
+| 422 | `INVALID_INPUT` | Schema validation failed (Pydantic) |
 | 422 | `UNSUPPORTED_COMBINATION` | e.g. `american` + `analytic` |
-| 500 | `PRICING_FAILURE` | QuantLib exception |
-| 503 | `SERVICE_DEGRADED` | Reserved |
+| 404 | `NOT_FOUND` | Endpoint not found |
+| 405 | `METHOD_NOT_ALLOWED` | HTTP method not allowed |
+| 500 | `PRICING_FAILURE` | Unexpected internal error |

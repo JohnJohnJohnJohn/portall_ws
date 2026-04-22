@@ -8,7 +8,7 @@ from scipy.stats import norm
 
 def bsm_price(s, k, t, r, q, v, option_type):
     """Direct Black-Scholes-Merton price for verification."""
-    d1 = (math.log(s / k) + (r - q + 0.5 * v ** 2) * t) / (v * math.sqrt(t))
+    d1 = (math.log(s / k) + (r - q + 0.5 * v**2) * t) / (v * math.sqrt(t))
     d2 = d1 - v * math.sqrt(t)
     if option_type == "call":
         return s * math.exp(-q * t) * norm.cdf(d1) - k * math.exp(-r * t) * norm.cdf(d2)
@@ -52,15 +52,67 @@ class TestHullReference:
 
 class TestEuropeanProperties:
     def test_call_price_increases_with_spot(self, client: TestClient):
-        resp1 = client.get("/v1/greeks", params={"s": 90, "k": 100, "t": 0.5, "r": 0.05, "q": 0, "v": 0.20, "type": "call", "style": "european"}, headers={"Accept": "application/json"})
-        resp2 = client.get("/v1/greeks", params={"s": 100, "k": 100, "t": 0.5, "r": 0.05, "q": 0, "v": 0.20, "type": "call", "style": "european"}, headers={"Accept": "application/json"})
+        resp1 = client.get(
+            "/v1/greeks",
+            params={
+                "s": 90,
+                "k": 100,
+                "t": 0.5,
+                "r": 0.05,
+                "q": 0,
+                "v": 0.20,
+                "type": "call",
+                "style": "european",
+            },
+            headers={"Accept": "application/json"},
+        )
+        resp2 = client.get(
+            "/v1/greeks",
+            params={
+                "s": 100,
+                "k": 100,
+                "t": 0.5,
+                "r": 0.05,
+                "q": 0,
+                "v": 0.20,
+                "type": "call",
+                "style": "european",
+            },
+            headers={"Accept": "application/json"},
+        )
         p1 = resp1.json()["greeks"]["outputs"]["price"]
         p2 = resp2.json()["greeks"]["outputs"]["price"]
         assert p2 > p1
 
     def test_put_price_increases_with_strike(self, client: TestClient):
-        resp1 = client.get("/v1/greeks", params={"s": 100, "k": 90, "t": 0.5, "r": 0.05, "q": 0, "v": 0.20, "type": "put", "style": "european"}, headers={"Accept": "application/json"})
-        resp2 = client.get("/v1/greeks", params={"s": 100, "k": 100, "t": 0.5, "r": 0.05, "q": 0, "v": 0.20, "type": "put", "style": "european"}, headers={"Accept": "application/json"})
+        resp1 = client.get(
+            "/v1/greeks",
+            params={
+                "s": 100,
+                "k": 90,
+                "t": 0.5,
+                "r": 0.05,
+                "q": 0,
+                "v": 0.20,
+                "type": "put",
+                "style": "european",
+            },
+            headers={"Accept": "application/json"},
+        )
+        resp2 = client.get(
+            "/v1/greeks",
+            params={
+                "s": 100,
+                "k": 100,
+                "t": 0.5,
+                "r": 0.05,
+                "q": 0,
+                "v": 0.20,
+                "type": "put",
+                "style": "european",
+            },
+            headers={"Accept": "application/json"},
+        )
         p1 = resp1.json()["greeks"]["outputs"]["price"]
         p2 = resp2.json()["greeks"]["outputs"]["price"]
         assert p2 > p1

@@ -6,8 +6,8 @@ import sys
 
 import uvicorn
 
-from desk_pricer.app import create_app
-from desk_pricer.logging_config import get_log_file
+from deskpricer.app import create_app
+from deskpricer.logging_config import get_log_file
 
 app = create_app()
 
@@ -18,7 +18,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--port",
         type=int,
         default=None,
-        help="TCP port to listen on (default: DESK_PRICER_PORT env var or 8765)",
+        help="TCP port to listen on (default: DESKPRICER_PORT env var or 8765)",
     )
     parser.add_argument(
         "--host",
@@ -40,27 +40,31 @@ def main(argv: list[str] | None = None) -> None:
     if args.port is not None:
         port = args.port
     else:
-        raw_port = os.environ.get("DESK_PRICER_PORT", "8765")
+        raw_port = os.environ.get("DESKPRICER_PORT", "8765")
         try:
             port = int(raw_port)
         except ValueError:
-            print(f"ERROR: DESK_PRICER_PORT must be an integer, got: {raw_port}", file=sys.stderr)
+            print(f"ERROR: DESKPRICER_PORT must be an integer, got: {raw_port}", file=sys.stderr)
             sys.exit(1)
+
+    if not (1 <= port <= 65535):
+        print(f"ERROR: port must be between 1 and 65535, got: {port}", file=sys.stderr)
+        sys.exit(1)
 
     import logging
 
     log_file = get_log_file()
     print(f"DeskPricer starting on http://{args.host}:{port}", file=sys.stderr)
-    logger = logging.getLogger("desk_pricer")
+    logger = logging.getLogger("deskpricer")
     has_file_handler = any(isinstance(h, logging.FileHandler) for h in logger.handlers)
     if has_file_handler:
         print(f"Logs written to: {log_file}", file=sys.stderr)
     else:
         print("Logs written to stderr (file logging unavailable)", file=sys.stderr)
-    print("Change log path with: DESK_PRICER_LOG_DIR=<path>", file=sys.stderr)
+    print("Change log path with: DESKPRICER_LOG_DIR=<path>", file=sys.stderr)
 
     uvicorn.run(
-        "desk_pricer.main:app",
+        "deskpricer.main:app",
         host=args.host,
         port=port,
         access_log=not args.quiet,

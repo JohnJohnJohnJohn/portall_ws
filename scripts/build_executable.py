@@ -13,7 +13,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 SPEC_FILE = PROJECT_ROOT / "DeskPricer.spec"
-ENTRY_SCRIPT = PROJECT_ROOT / "scripts" / "run_desk_pricer.py"
+ENTRY_SCRIPT = PROJECT_ROOT / "scripts" / "run_deskpricer.py"
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 
 
@@ -49,6 +49,7 @@ def clean():
 
 def build(onefile: bool = True, windowed: bool = False):
     env_python = sys.executable
+
     clean()
 
     mode = "--onefile" if onefile else "--onedir"
@@ -66,34 +67,39 @@ def build(onefile: bool = True, windowed: bool = False):
         # Add src/ to PYTHONPATH so imports work inside the bundle
         "--paths", str(SRC_DIR),
         # Hidden imports that PyInstaller might miss
-        "--hidden-import", "desk_pricer.app",
-        "--hidden-import", "desk_pricer.pricing.american",
-        "--hidden-import", "desk_pricer.pricing.european",
-        "--hidden-import", "desk_pricer.pricing.engine",
-        "--hidden-import", "desk_pricer.pricing.cross_greeks",
-        "--hidden-import", "desk_pricer.pricing.implied_vol",
-        "--hidden-import", "desk_pricer.pricing.conventions",
-        "--hidden-import", "desk_pricer.errors",
-        "--hidden-import", "desk_pricer.responses",
-        "--hidden-import", "desk_pricer.schemas",
-        "--hidden-import", "desk_pricer.main",
-        # Data files
-        "--add-data", f"{PYPROJECT};.",
+        "--hidden-import", "deskpricer.app",
+        "--hidden-import", "deskpricer.pricing.american",
+        "--hidden-import", "deskpricer.pricing.european",
+        "--hidden-import", "deskpricer.pricing.engine",
+        "--hidden-import", "deskpricer.pricing.cross_greeks",
+        "--hidden-import", "deskpricer.pricing.implied_vol",
+        "--hidden-import", "deskpricer.pricing.conventions",
+        "--hidden-import", "deskpricer.errors",
+        "--hidden-import", "deskpricer.responses",
+        "--hidden-import", "deskpricer.schemas",
+        "--hidden-import", "deskpricer.logging_config",
+        "--hidden-import", "deskpricer.main",
+        # Uvicorn dynamic imports
+        "--hidden-import", "uvicorn.protocols.http.auto",
+        "--hidden-import", "uvicorn.protocols.http.httptools_impl",
+        "--hidden-import", "uvicorn.loops.auto",
+        # QuantLib native binaries
+        "--collect-all", "QuantLib",
         str(ENTRY_SCRIPT),
     ]
 
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
-    raw_exe = DIST_DIR / "DeskPricer.exe"
-    versioned_exe = DIST_DIR / f"DeskPricer_v{_major_version()}.exe"
-
     if onefile:
+        raw_exe = DIST_DIR / "DeskPricer.exe"
+        versioned_exe = DIST_DIR / f"DeskPricer_v{_major_version()}.exe"
         shutil.move(str(raw_exe), str(versioned_exe))
         size_mb = versioned_exe.stat().st_size / (1024 * 1024)
         print(f"\nBuild complete: {versioned_exe}")
         print(f"Size: {size_mb:.1f} MB")
     else:
+        raw_exe = DIST_DIR / "DeskPricer" / "DeskPricer.exe"
         print(f"\nBuild complete: {raw_exe}")
         print(f"Run with: {raw_exe}")
 

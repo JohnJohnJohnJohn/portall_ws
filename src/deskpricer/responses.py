@@ -7,9 +7,9 @@ from typing import Any
 
 import xmltodict
 
-# XML 1.0 does not allow certain control characters (\x85 NEL included)
+# XML 1.0 does not allow control characters, surrogates, or non-characters
 _ILLEGAL_XML_CHARS_RE = re.compile(
-    "[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]"
+    "[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\ud800-\udfff\ufffe-\uffff]"
 )
 
 
@@ -17,7 +17,11 @@ def _sanitize_for_xml(v: Any) -> Any:
     if isinstance(v, str):
         return _ILLEGAL_XML_CHARS_RE.sub("", v)
     if isinstance(v, dict):
-        return {k: _sanitize_for_xml(val) for k, val in v.items()}
+        safe = {}
+        for k, val in v.items():
+            safe_key = _ILLEGAL_XML_CHARS_RE.sub("", str(k))
+            safe[safe_key] = _sanitize_for_xml(val)
+        return safe
     if isinstance(v, list):
         return [_sanitize_for_xml(x) for x in v]
     return v
@@ -25,7 +29,17 @@ def _sanitize_for_xml(v: Any) -> Any:
 
 def _to_xml(payload: dict[str, Any]) -> str:
     safe = _sanitize_for_xml(payload)
-    return '<?xml version="1.0" encoding="UTF-8"?>\n' + xmltodict.unparse(safe, pretty=True, full_document=False)
+    try:
+        return '<?xml version="1.0" encoding="UTF-8"?>\n' + xmltodict.unparse(
+            safe, pretty=True, full_document=False
+        )
+    except Exception:
+        # Absolute fallback — never let an XML serialization glitch return a 500
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            "<error><code>XML_SERIALIZATION_ERROR</code>"
+            "<message>Failed to serialize response to XML</message></error>"
+        )
 
 
 def use_json_from_request(request) -> bool:
@@ -63,12 +77,14 @@ def _clean_value(v: Any) -> Any:
         return cleaned
     if isinstance(v, dict):
         return {k: _clean_value(val) for k, val in v.items()}
-    if isinstance(v, list):
+    if isinstance(v, (list, tuple, set)):
         return [_clean_value(x) for x in v]
     return v
 
 
-def serialize_error(code: str, message: str, field: str | None = None, json_format: bool = False) -> str:
+def serialize_error(
+    code: str, message: str, field: str | None = None, json_format: bool = False
+) -> str:
     payload: dict[str, Any] = {
         "error": {
             "code": code,

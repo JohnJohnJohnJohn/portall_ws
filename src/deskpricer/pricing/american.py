@@ -1,18 +1,20 @@
 """American option pricing via BinomialVanillaEngine with bump-and-revalue Greeks."""
 
-import math
 from datetime import date
+
+import logging
+import math
 
 import QuantLib as ql
 
-from desk_pricer.errors import InvalidInputError
-from desk_pricer.pricing.conventions import (
+from deskpricer.errors import InvalidInputError
+from deskpricer.pricing.conventions import (
     default_calendar,
     default_day_count,
     expiry_from_t,
     ql_date_from_iso,
 )
-from desk_pricer.schemas import GreeksOutput
+from deskpricer.schemas import GreeksOutput
 
 
 def _create_option(
@@ -27,17 +29,8 @@ def _create_option(
     steps: int,
     engine_type: str,
 ) -> ql.VanillaOption:
-    if option_type not in ("call", "put"):
-        raise InvalidInputError(
-            f"option_type must be 'call' or 'put'; got {option_type}",
-            field="type",
-        )
     if steps < 1:
         raise InvalidInputError("steps must be positive", field="steps")
-    if engine_type not in ("crr", "jr"):
-        raise InvalidInputError(
-            f"unsupported binomial engine: {engine_type}", field="engine"
-        )
 
     calendar = default_calendar()
     day_count = default_day_count()
@@ -50,9 +43,7 @@ def _create_option(
     )
 
     process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
-    payoff = ql.PlainVanillaPayoff(
-        ql.Option.Call if option_type == "call" else ql.Option.Put, k
-    )
+    payoff = ql.PlainVanillaPayoff(ql.Option.Call if option_type == "call" else ql.Option.Put, k)
     exercise = ql.AmericanExercise(valuation_date, expiry_date)
     option = ql.VanillaOption(payoff, exercise)
     option.setPricingEngine(ql.BinomialVanillaEngine(process, engine_type, steps))
@@ -72,10 +63,16 @@ def _npv(
     engine_type: str,
 ) -> float:
     try:
-        option = _create_option(s, k, r, q, v, option_type, valuation_date, expiry_date, steps, engine_type)
+        option = _create_option(
+            s, k, r, q, v, option_type, valuation_date, expiry_date, steps, engine_type
+        )
         return float(option.NPV())
     except RuntimeError as exc:
-        raise InvalidInputError(f"American pricing failed: {exc}") from exc
+        logging.getLogger("deskpricer").warning(
+            "American pricing failed",
+            extra={"error": str(exc)},
+        )
+        raise InvalidInputError("Pricing failed for the given inputs") from exc
 
 
 def price_american(
@@ -95,8 +92,18 @@ def price_american(
 ) -> GreeksOutput:
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
+    if k <= 0:
+        raise InvalidInputError("strike must be positive", field="k")
     if v <= 0:
         raise InvalidInputError("volatility must be positive", field="v")
+    if bump_spot_rel <= 0:
+        raise InvalidInputError("bump_spot_rel must be positive", field="bump_spot_rel")
+    if bump_vol_abs <= 0:
+        raise InvalidInputError("bump_vol_abs must be positive", field="bump_vol_abs")
+    if bump_rate_abs <= 0:
+        raise InvalidInputError("bump_rate_abs must be positive", field="bump_rate_abs")
+    if bump_spot_rel >= 1.0:
+        raise InvalidInputError("bump_spot_rel must be < 1.0", field="bump_spot_rel")
 
     ql_date = ql_date_from_iso(valuation_date)
     expiry_date = expiry_from_t(ql_date, t)
@@ -105,6 +112,11 @@ def price_american(
 
     # Delta & Gamma via central differences on spot
     h_s = bump_spot_rel * s
+    if h_s <= 0.0 or not math.isfinite(h_s):
+        raise InvalidInputError(
+            "Spot bump underflowed to zero; use larger spot or bump_spot_rel",
+            field="bump_spot_rel",
+        )
     price_up_s = _npv(s + h_s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
     price_down_s = _npv(s - h_s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
     delta = (price_up_s - price_down_s) / (2.0 * h_s)
@@ -113,6 +125,11 @@ def price_american(
     # Vega via central difference on vol
     # Divide by 100 to report standard market convention (per 1%)
     h_v = min(bump_vol_abs, v * 0.5)
+    if h_v <= 0.0 or not math.isfinite(h_v):
+        raise InvalidInputError(
+            "Vol bump underflowed to zero; use larger vol or bump_vol_abs",
+            field="bump_vol_abs",
+        )
     price_up_v = _npv(s, k, r, q, v + h_v, option_type, ql_date, expiry_date, steps, engine_type)
     price_down_v = _npv(s, k, r, q, v - h_v, option_type, ql_date, expiry_date, steps, engine_type)
     vega = (price_up_v - price_down_v) / (2.0 * h_v) / 100.0
@@ -127,21 +144,25 @@ def price_american(
     # Theta via one-day-forward revalue
     # When the option has <= 1 day left, forward revalue hits expiry;
     # fallback to intrinsic value for the overnight price
-    if expiry_date > ql_date + 1:
-        price_tomorrow = _npv(
-            s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type
-        )
+    try:
+        tomorrow = ql_date + 1
+    except RuntimeError as exc:
+        raise InvalidInputError("Valuation date too close to maximum supported date") from exc
+    if expiry_date > tomorrow:
+        price_tomorrow = _npv(s, k, r, q, v, option_type, tomorrow, expiry_date, steps, engine_type)
     else:
-        dt = 1.0 / 365.0
-        fwd_s = s * math.exp(-q * dt)
-        fwd_k = k * math.exp(-r * dt)
-        price_tomorrow = max(fwd_s - fwd_k, 0.0) if option_type == "call" else max(fwd_k - fwd_s, 0.0)
+        # At expiry the option is worth its intrinsic value
+        price_tomorrow = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
     theta = price_tomorrow - price
 
     # Charm: ∂delta/∂t per calendar day (forward difference)
-    if expiry_date > ql_date + 1:
-        price_up_s_t1 = _npv(s + h_s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type)
-        price_down_s_t1 = _npv(s - h_s, k, r, q, v, option_type, ql_date + 1, expiry_date, steps, engine_type)
+    if expiry_date > tomorrow:
+        price_up_s_t1 = _npv(
+            s + h_s, k, r, q, v, option_type, tomorrow, expiry_date, steps, engine_type
+        )
+        price_down_s_t1 = _npv(
+            s - h_s, k, r, q, v, option_type, tomorrow, expiry_date, steps, engine_type
+        )
         delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
         charm = delta_t1 - delta
     else:

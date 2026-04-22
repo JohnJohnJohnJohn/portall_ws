@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from desk_pricer.main import app
+from deskpricer.main import app
 
 
 @pytest.fixture

@@ -40,8 +40,16 @@ class TestAmericanPut:
             "v": 0.25,
             "type": "put",
         }
-        resp_am = client.get("/v1/greeks", params={**params, "style": "american", "steps": 400}, headers={"Accept": "application/json"})
-        resp_eu = client.get("/v1/greeks", params={**params, "style": "european"}, headers={"Accept": "application/json"})
+        resp_am = client.get(
+            "/v1/greeks",
+            params={**params, "style": "american", "steps": 400},
+            headers={"Accept": "application/json"},
+        )
+        resp_eu = client.get(
+            "/v1/greeks",
+            params={**params, "style": "european"},
+            headers={"Accept": "application/json"},
+        )
         assert resp_am.status_code == 200
         assert resp_eu.status_code == 200
         p_am = resp_am.json()["greeks"]["outputs"]["price"]
@@ -59,8 +67,62 @@ class TestAmericanPut:
             "v": 0.25,
             "type": "call",
         }
-        resp_am = client.get("/v1/greeks", params={**params, "style": "american", "steps": 400}, headers={"Accept": "application/json"})
-        resp_eu = client.get("/v1/greeks", params={**params, "style": "european"}, headers={"Accept": "application/json"})
+        resp_am = client.get(
+            "/v1/greeks",
+            params={**params, "style": "american", "steps": 400},
+            headers={"Accept": "application/json"},
+        )
+        resp_eu = client.get(
+            "/v1/greeks",
+            params={**params, "style": "european"},
+            headers={"Accept": "application/json"},
+        )
         p_am = resp_am.json()["greeks"]["outputs"]["price"]
         p_eu = resp_eu.json()["greeks"]["outputs"]["price"]
         assert abs(p_am - p_eu) < 0.01
+
+    def test_american_min_steps(self, client: TestClient):
+        """American option with minimum steps (10) should price successfully."""
+        resp = client.get(
+            "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=0.20&type=put&style=american&steps=10",
+            headers={"Accept": "application/json"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["greeks"]["outputs"]["price"] > 0
+
+    def test_american_max_steps(self, client: TestClient):
+        """American option with maximum steps (5000) should price successfully."""
+        resp = client.get(
+            "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=0.20&type=put&style=american&steps=5000",
+            headers={"Accept": "application/json"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["greeks"]["outputs"]["price"] > 0
+
+
+class TestPricingLayerNaNInf:
+    def test_nan_inf_inputs_raise_structured_error(self):
+        """price_vanilla must reject NaN/Inf for all inputs, not leak QuantLib crashes."""
+        from datetime import date
+
+        import pytest
+        from deskpricer.errors import UnsupportedCombinationError
+        from deskpricer.pricing.engine import price_vanilla
+
+        base = {
+            "s": 100.0,
+            "k": 100.0,
+            "t": 0.25,
+            "r": 0.05,
+            "q": 0.0,
+            "v": 0.20,
+            "option_type": "call",
+            "style": "european",
+            "engine": "analytic",
+            "valuation_date": date(2026, 4, 20),
+        }
+        for field in ("s", "k", "v", "r", "q", "t"):
+            for bad_val in (float("nan"), float("inf"), -float("inf")):
+                params = {**base, field: bad_val}
+                with pytest.raises(UnsupportedCombinationError):
+                    price_vanilla(**params)

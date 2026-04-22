@@ -21,83 +21,89 @@ class _EngineDefaultsMixin(BaseModel):
         return self
 
 
-
-
 class GreeksRequest(_EngineDefaultsMixin, BaseModel):
     s: float = Field(gt=0, allow_inf_nan=False, description="Spot price of underlying")
     k: float = Field(gt=0, allow_inf_nan=False, description="Strike")
     t: float = Field(
-        ge=0, le=100, allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+        ge=0,
+        le=100,
+        allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
     )
     r: float = Field(allow_inf_nan=False, description="Continuously compounded risk-free rate")
     q: float = Field(allow_inf_nan=False, description="Continuously compounded dividend yield")
     v: float = Field(gt=0, allow_inf_nan=False, description="Black volatility (decimal, not %)")
     type: Literal["call", "put"] = Field(description="Option type")
     style: Literal["european", "american"] = Field(description="Option style")
-    engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(
+    engine: Literal["analytic", "binomial_crr", "binomial_jr"] | None = Field(
         default=None, description="Pricing engine"
     )
     steps: int = Field(default=400, ge=10, le=5000, description="Tree/FD steps")
     valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
     bump_spot_rel: float = Field(
-        default=0.01, gt=0, le=0.1, allow_inf_nan=False,
-        description="Relative spot bump for Greeks"
+        default=0.01,
+        ge=1e-9,
+        le=0.1,
+        allow_inf_nan=False,
+        description="Relative spot bump for Greeks",
     )
     bump_vol_abs: float = Field(
-        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
-        description="Absolute vol bump for Greeks"
+        default=0.001,
+        ge=1e-9,
+        le=0.01,
+        allow_inf_nan=False,
+        description="Absolute vol bump for Greeks",
     )
     bump_rate_abs: float = Field(
-        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
-        description="Absolute rate bump for Greeks"
+        default=0.001,
+        ge=1e-9,
+        le=0.01,
+        allow_inf_nan=False,
+        description="Absolute rate bump for Greeks",
     )
-
-    @model_validator(mode="after")
-    def check_bump_size_vs_vol(self):
-        if self.style == "american" and self.v <= self.bump_vol_abs:
-            raise ValueError(
-                "volatility must be greater than bump_vol_abs for American bump-and-revalue Greeks"
-            )
-        return self
 
 
 class LegInput(_EngineDefaultsMixin, BaseModel):
     id: str = Field(min_length=1, max_length=32)
-    qty: float = Field(allow_inf_nan=False, ge=-1e12, le=1e12, description="Quantity (negative for short)")
+    qty: float = Field(
+        allow_inf_nan=False, ge=-1e12, le=1e12, description="Quantity (negative for short)"
+    )
     s: float = Field(gt=0, allow_inf_nan=False)
     k: float = Field(gt=0, allow_inf_nan=False)
     t: float = Field(
-        ge=0, le=100, allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+        ge=0,
+        le=100,
+        allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
     )
     r: float = Field(allow_inf_nan=False)
     q: float = Field(allow_inf_nan=False)
     v: float = Field(gt=0, allow_inf_nan=False)
     type: Literal["call", "put"]
     style: Literal["european", "american"]
-    engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(default=None)
+    engine: Literal["analytic", "binomial_crr", "binomial_jr"] | None = Field(default=None)
     steps: int = Field(default=400, ge=10, le=5000)
     bump_spot_rel: float = Field(
-        default=0.01, gt=0, le=0.1, allow_inf_nan=False,
-        description="Relative spot bump for Greeks"
+        default=0.01,
+        ge=1e-9,
+        le=0.1,
+        allow_inf_nan=False,
+        description="Relative spot bump for Greeks",
     )
     bump_vol_abs: float = Field(
-        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
-        description="Absolute vol bump for Greeks"
+        default=0.001,
+        ge=1e-9,
+        le=0.01,
+        allow_inf_nan=False,
+        description="Absolute vol bump for Greeks",
     )
     bump_rate_abs: float = Field(
-        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
-        description="Absolute rate bump for Greeks"
+        default=0.001,
+        ge=1e-9,
+        le=0.01,
+        allow_inf_nan=False,
+        description="Absolute rate bump for Greeks",
     )
-
-    @model_validator(mode="after")
-    def check_bump_size_vs_vol(self):
-        if self.style == "american" and self.v <= self.bump_vol_abs:
-            raise ValueError(
-                "volatility must be greater than bump_vol_abs for American bump-and-revalue Greeks"
-            )
-        return self
 
 
 class PortfolioRequest(BaseModel):
@@ -126,22 +132,25 @@ class ImpliedVolRequest(_EngineDefaultsMixin, BaseModel):
     s: float = Field(gt=0, allow_inf_nan=False, description="Spot price of underlying")
     k: float = Field(gt=0, allow_inf_nan=False, description="Strike")
     t: float = Field(
-        ge=0, le=100, allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+        ge=0,
+        le=100,
+        allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
     )
     r: float = Field(allow_inf_nan=False, description="Continuously compounded risk-free rate")
     q: float = Field(allow_inf_nan=False, description="Continuously compounded dividend yield")
-    price: float = Field(ge=0, allow_inf_nan=False, description="Observed market price of the option")
+    price: float = Field(
+        ge=0, allow_inf_nan=False, description="Observed market price of the option"
+    )
     type: Literal["call", "put"] = Field(description="Option type")
     style: Literal["european", "american"] = Field(description="Option style")
-    engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(
+    engine: Literal["analytic", "binomial_crr", "binomial_jr"] | None = Field(
         default=None, description="Pricing engine"
     )
     steps: int = Field(default=400, ge=10, le=5000, description="Tree/FD steps")
     valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
     accuracy: float = Field(
-        default=1e-4, gt=0, le=1e-2, allow_inf_nan=False,
-        description="Brent solver accuracy"
+        default=1e-4, gt=0, le=1e-2, allow_inf_nan=False, description="Brent solver accuracy"
     )
     max_iterations: int = Field(default=1000, ge=100, le=10000, description="Max solver iterations")
 
@@ -156,12 +165,16 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
     s_t: float = Field(gt=0, allow_inf_nan=False)
     k: float = Field(gt=0, allow_inf_nan=False)
     t_t_minus_1: float = Field(
-        ge=0, le=100, allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+        ge=0,
+        le=100,
+        allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
     )
     t_t: float = Field(
-        ge=0, le=100, allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day"
+        ge=0,
+        le=100,
+        allow_inf_nan=False,
+        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
     )
     r_t_minus_1: float = Field(allow_inf_nan=False)
     r_t: float = Field(allow_inf_nan=False)
@@ -171,7 +184,7 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
     v_t: float = Field(gt=0, allow_inf_nan=False)
     type: Literal["call", "put"]
     style: Literal["european", "american"]
-    engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(default=None)
+    engine: Literal["analytic", "binomial_crr", "binomial_jr"] | None = Field(default=None)
     steps: int = Field(default=400, ge=10, le=5000)
     qty: float = Field(default=1.0, allow_inf_nan=False, ge=-1e12, le=1e12)
     valuation_date_t_minus_1: date | None = Field(default=None)
@@ -179,16 +192,25 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
     method: Literal["backward", "average"] = Field(default="backward")
     cross_greeks: bool = Field(default=False)
     bump_spot_rel: float = Field(
-        default=0.01, gt=0, le=0.1, allow_inf_nan=False,
-        description="Relative spot bump for Greeks"
+        default=0.01,
+        ge=1e-9,
+        le=0.1,
+        allow_inf_nan=False,
+        description="Relative spot bump for Greeks",
     )
     bump_vol_abs: float = Field(
-        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
-        description="Absolute vol bump for Greeks"
+        default=0.001,
+        ge=1e-9,
+        le=0.01,
+        allow_inf_nan=False,
+        description="Absolute vol bump for Greeks",
     )
     bump_rate_abs: float = Field(
-        default=0.001, gt=0, le=0.01, allow_inf_nan=False,
-        description="Absolute rate bump for Greeks"
+        default=0.001,
+        ge=1e-9,
+        le=0.01,
+        allow_inf_nan=False,
+        description="Absolute rate bump for Greeks",
     )
 
     @model_validator(mode="after")
@@ -209,10 +231,10 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
 
     @model_validator(mode="after")
     def check_bump_size_vs_vol(self):
-        if self.style == "american":
+        if self.cross_greeks:
             for vol in (self.v_t_minus_1, self.v_t):
                 if vol <= self.bump_vol_abs:
                     raise ValueError(
-                        "volatility must be greater than bump_vol_abs for American bump-and-revalue Greeks"
+                        "volatility must be greater than bump_vol_abs for cross-greeks computation"
                     )
         return self

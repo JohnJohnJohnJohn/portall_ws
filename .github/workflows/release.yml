@@ -46,6 +46,7 @@ jobs:
         with:
           files: |
             dist/DeskPricer_v*.exe
+            sample/DeskPricer_Bitcoin_Demo.xlsx
           generate_release_notes: true
           fail_on_unmatched_files: true
         env:

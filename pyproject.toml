@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deskpricer"
-version = "1.0.1"
+version = "2.0.0"
 description = "Local HTTP pricing microservice for vanilla equity options"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,10 +34,23 @@ dev = [
     "pytest>=7.4",
     "hypothesis>=6.82",
     "httpx>=0.24",
+    "mypy>=1.5",
 ]
 
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = false
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
+
 [project.scripts]
-deskpricer = "desk_pricer.main:main"
+deskpricer = "deskpricer.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -48,7 +61,7 @@ pythonpath = ["src"]
 addopts = "-v --tb=short"
 
 [tool.coverage.run]
-source = ["src/desk_pricer"]
+source = ["src/deskpricer"]
 branch = true
 
 [tool.coverage.report]

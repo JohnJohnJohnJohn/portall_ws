@@ -1,18 +1,19 @@
 """Implied volatility solver via QuantLib."""
 
+import math
 from datetime import date
 
 import QuantLib as ql
 
-from desk_pricer.errors import InvalidInputError, UnsupportedCombinationError
-from desk_pricer.pricing.conventions import (
+from deskpricer.errors import InvalidInputError, UnsupportedCombinationError
+from deskpricer.pricing.conventions import (
     default_calendar,
     default_day_count,
     expiry_from_t,
     ql_date_from_iso,
 )
-from desk_pricer.pricing.engine import ENGINE_MAP
-from desk_pricer.schemas import ImpliedVolOutput
+from deskpricer.pricing.engine import ENGINE_MAP
+from deskpricer.schemas import ImpliedVolOutput
 
 
 def compute_implied_vol(
@@ -31,6 +32,8 @@ def compute_implied_vol(
     max_iterations: int = 1000,
 ) -> ImpliedVolOutput:
     """Solve for implied volatility given an observed market price."""
+    if not math.isfinite(t):
+        raise InvalidInputError("time to expiry must be a finite number", field="t")
     effective_t = max(t, 1.0 / 365.0)
     ql_date = ql_date_from_iso(valuation_date)
     expiry_date = expiry_from_t(ql_date, effective_t)
@@ -47,9 +50,14 @@ def compute_implied_vol(
             field="type",
         )
 
-    payoff = ql.PlainVanillaPayoff(
-        ql.Option.Call if option_type == "call" else ql.Option.Put, k
+    payoff = ql.PlainVanillaPayoff(ql.Option.Call if option_type == "call" else ql.Option.Put, k)
+
+    # Seed vol surface for the solver
+    seed_vol = 0.20
+    vol_ts = ql.BlackVolTermStructureHandle(
+        ql.BlackConstantVol(ql_date, calendar, seed_vol, day_count)
     )
+    process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
 
     if style == "european":
         if engine != "analytic":
@@ -59,13 +67,6 @@ def compute_implied_vol(
             )
         exercise = ql.EuropeanExercise(expiry_date)
         option = ql.VanillaOption(payoff, exercise)
-
-        # Seed vol surface for the solver
-        seed_vol = 0.20
-        vol_ts = ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(ql_date, calendar, seed_vol, day_count)
-        )
-        process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
         option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
 
     elif style == "american":
@@ -87,12 +88,6 @@ def compute_implied_vol(
             )
         exercise = ql.AmericanExercise(ql_date, expiry_date)
         option = ql.VanillaOption(payoff, exercise)
-
-        seed_vol = 0.20
-        vol_ts = ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(ql_date, calendar, seed_vol, day_count)
-        )
-        process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
         option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, steps))
 
     else:
@@ -109,24 +104,30 @@ def compute_implied_vol(
                 "Target price implies volatility outside solver bounds [1e-6, 5.0] or is outside arbitrage bounds",
                 field="price",
             ) from exc
-        raise InvalidInputError(f"Implied vol convergence failed: {msg}") from exc
+        # Let unexpected QuantLib failures propagate as 500s
+        raise
 
     # Re-price at solved vol to provide a sanity-check NPV
-    vol_ts_iv = ql.BlackVolTermStructureHandle(
-        ql.BlackConstantVol(ql_date, calendar, implied_vol, day_count)
-    )
-    process_iv = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts_iv)
-
-    if style == "european":
-        option_iv = ql.VanillaOption(payoff, exercise)
-        option_iv.setPricingEngine(ql.AnalyticEuropeanEngine(process_iv))
-    else:
-        option_iv = ql.VanillaOption(payoff, exercise)
-        option_iv.setPricingEngine(ql.BinomialVanillaEngine(process_iv, ql_engine, steps))
-
     try:
+        vol_ts_iv = ql.BlackVolTermStructureHandle(
+            ql.BlackConstantVol(ql_date, calendar, implied_vol, day_count)
+        )
+        process_iv = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts_iv)
+
+        if style == "european":
+            option_iv = ql.VanillaOption(payoff, exercise)
+            option_iv.setPricingEngine(ql.AnalyticEuropeanEngine(process_iv))
+        else:
+            option_iv = ql.VanillaOption(payoff, exercise)
+            option_iv.setPricingEngine(ql.BinomialVanillaEngine(process_iv, ql_engine, steps))
+
         npv_at_iv = float(option_iv.NPV())
     except RuntimeError as exc:
-        raise InvalidInputError(f"Re-pricing at solved vol failed: {exc}") from exc
+        raise InvalidInputError(
+            "Pricing failed at solved implied volatility", field="price"
+        ) from exc
+
+    if not math.isfinite(implied_vol) or not math.isfinite(npv_at_iv):
+        raise InvalidInputError("Solver returned non-finite implied volatility", field="price")
 
     return ImpliedVolOutput(implied_vol=float(implied_vol), npv_at_iv=npv_at_iv)
