@@ -5,7 +5,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-OUTPUT_PATH = "DeskPricer_Bitcoin_Demo.xlsx"
+OUTPUT_PATH = "sample/DeskPricer_Bitcoin_Demo.xlsx"
 
 # ------------------------------------------------------------------
 # Styles
@@ -101,11 +101,7 @@ def build_greeks_sheet(wb):
     # URL construction
     row = 13
     ws.cell(row=row, column=1, value="Service URL").font = LABEL_FONT
-    url_formula = (
-        '="http://127.0.0.1:8765/v1/greeks?s="&B4&"&k="&B5&"&t="&B6&'
-        '"&r="&B7&"&q="&B8&"&v="&B9&"&type="&B10&"&style="&B11'
-    )
-    ws.cell(row=row, column=2, value=url_formula).font = FORMULA_FONT
+    ws.cell(row=row, column=2, value="http://127.0.0.1:8765/v1/greeks?s=75000&k=100000&t=0.25&r=0.0365&q=0&v=0.5&type=call&style=european").font = FORMULA_FONT
 
     row = 14
     ws.cell(row=row, column=1, value="Raw XML").font = LABEL_FONT
@@ -171,11 +167,7 @@ def build_impliedvol_sheet(wb):
 
     row = 13
     ws.cell(row=row, column=1, value="Service URL").font = LABEL_FONT
-    url_formula = (
-        '="http://127.0.0.1:8765/v1/impliedvol?s="&B4&"&k="&B5&"&t="&B6&'
-        '"&r="&B7&"&q="&B8&"&price="&B9&"&type="&B10&"&style="&B11'
-    )
-    ws.cell(row=row, column=2, value=url_formula).font = FORMULA_FONT
+    ws.cell(row=row, column=2, value="http://127.0.0.1:8765/v1/impliedvol?s=75000&k=100000&t=0.25&r=0.0365&q=0&price=3398.71&type=call&style=european").font = FORMULA_FONT
 
     row = 14
     ws.cell(row=row, column=1, value="Raw XML").font = LABEL_FONT
@@ -257,13 +249,7 @@ def build_pnl_sheet(wb):
     # URL
     row = 13
     ws.cell(row=row, column=1, value="Service URL").font = LABEL_FONT
-    url_formula = (
-        '="http://127.0.0.1:8765/v1/pnl_attribution?s_t_minus_1="&B4&"&s_t="&D4&'
-        '"&k="&B10&"&t_t_minus_1="&B5&"&t_t="&D5&"&r_t_minus_1="&B6&"&r_t="&D6&'
-        '"&q_t_minus_1="&B7&"&q_t="&D7&"&v_t_minus_1="&B8&"&v_t="&D8&'
-        '"&type="&B11&"&style="&E11&"&qty="&E10'
-    )
-    ws.cell(row=row, column=2, value=url_formula).font = FORMULA_FONT
+    ws.cell(row=row, column=2, value="http://127.0.0.1:8765/v1/pnl_attribution?s_t_minus_1=75000&s_t=80000&k=100000&t_t_minus_1=0.25&t_t=0.2466&r_t_minus_1=0.0365&r_t=0.0365&q_t_minus_1=0&q_t=0&v_t_minus_1=0.5&v_t=0.55&type=call&style=european&qty=1").font = FORMULA_FONT
 
     row = 14
     ws.cell(row=row, column=1, value="Raw XML").font = LABEL_FONT
