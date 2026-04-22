@@ -4,7 +4,7 @@ Single entry point for any coding agent working on this repo.
 
 ## Project Summary
 
-DeskPricer is a local HTTP microservice that prices vanilla European and American equity options and returns Greeks, implied volatility, and PnL attribution. The primary consumer is Excel via `WEBSERVICE` + `FILTERXML`; JSON is available for programmatic clients.
+DeskPricer is a **local-only** HTTP microservice that prices vanilla European and American equity options and returns Greeks, implied volatility, and PnL attribution. The primary consumer is Excel via `WEBSERVICE` + `FILTERXML`; JSON is available for programmatic clients. It is **not intended to be run or served as a public/server-style service**.
 
 ## Tech Stack
 

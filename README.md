@@ -2,6 +2,8 @@
 
 Local HTTP pricing microservice for vanilla European and American equity options. Designed for Excel `WEBSERVICE` + `FILTERXML` integration — no VBA, no Bloomberg terminal calls inside the service.
 
+> **Design intent:** DeskPricer is a **local-only tool** for personal desk pricing and option analytics. It is **not intended to be run or served as a public/server-style service**. All design choices — localhost binding, no auth, no TLS, no rate limiting, XML-by-default — reflect this.
+
 ## What it does
 
 - **Price + Greeks** for single options or multi-leg portfolios
@@ -283,6 +285,18 @@ pytest tests -v
 ---
 
 ## Design Decisions
+
+### Local-only by design
+
+DeskPricer is built as a **personal desktop tool**, not a public API. This explains every intentional omission:
+
+- **No authentication / authorization** — only `127.0.0.1` can reach the service.
+- **No TLS / HTTPS** — local loopback traffic is unencrypted by design.
+- **No rate limiting** — the `asyncio.Lock` serializes requests only to protect QuantLib's global `Settings.instance()` state, not to throttle users.
+- **No Swagger / Redoc** — OpenAPI docs are hidden in production builds to reduce attack surface.
+- **XML by default** — Excel's `WEBSERVICE` function does not send `Accept: application/json`.
+
+If you need any of these features, DeskPricer is the wrong tool. Use a proper API gateway or a full-featured pricing platform.
 
 ### Why all requests are serialized (`asyncio.Lock`)
 

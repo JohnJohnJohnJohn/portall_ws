@@ -66,11 +66,6 @@ def price_vanilla(
                 "American style does not support analytic engine",
                 field="engine",
             )
-        if engine == "fd":
-            raise UnsupportedCombinationError(
-                "FD engine not yet implemented in v1.0",
-                field="engine",
-            )
         ql_engine = ENGINE_MAP.get(engine)
         if ql_engine is None:
             raise UnsupportedCombinationError(

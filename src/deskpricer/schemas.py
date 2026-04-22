@@ -11,6 +11,7 @@ class _EngineDefaultsMixin(BaseModel):
     @classmethod
     def empty_str_to_none(cls, data):
         if isinstance(data, dict) and data.get("engine") == "":
+            data = dict(data)
             data["engine"] = None
         return data
 
@@ -21,7 +22,9 @@ class _EngineDefaultsMixin(BaseModel):
         return self
 
 
-class GreeksRequest(_EngineDefaultsMixin, BaseModel):
+class _VanillaOptionBase(_EngineDefaultsMixin, BaseModel):
+    """Shared fields for single-leg option pricing requests."""
+
     s: float = Field(gt=0, allow_inf_nan=False, description="Spot price of underlying")
     k: float = Field(gt=0, allow_inf_nan=False, description="Strike")
     t: float = Field(
@@ -39,7 +42,6 @@ class GreeksRequest(_EngineDefaultsMixin, BaseModel):
         default=None, description="Pricing engine"
     )
     steps: int = Field(default=400, ge=10, le=5000, description="Tree/FD steps")
-    valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
     bump_spot_rel: float = Field(
         default=0.01,
         ge=1e-9,
@@ -63,46 +65,14 @@ class GreeksRequest(_EngineDefaultsMixin, BaseModel):
     )
 
 
-class LegInput(_EngineDefaultsMixin, BaseModel):
+class GreeksRequest(_VanillaOptionBase):
+    valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
+
+
+class LegInput(_VanillaOptionBase):
     id: str = Field(min_length=1, max_length=32)
     qty: float = Field(
         allow_inf_nan=False, ge=-1e12, le=1e12, description="Quantity (negative for short)"
-    )
-    s: float = Field(gt=0, allow_inf_nan=False)
-    k: float = Field(gt=0, allow_inf_nan=False)
-    t: float = Field(
-        ge=0,
-        le=100,
-        allow_inf_nan=False,
-        description="Time to expiry in years (ACT/365F); values < 1/365 are floored to 1 day",
-    )
-    r: float = Field(allow_inf_nan=False)
-    q: float = Field(allow_inf_nan=False)
-    v: float = Field(gt=0, allow_inf_nan=False)
-    type: Literal["call", "put"]
-    style: Literal["european", "american"]
-    engine: Literal["analytic", "binomial_crr", "binomial_jr"] | None = Field(default=None)
-    steps: int = Field(default=400, ge=10, le=5000)
-    bump_spot_rel: float = Field(
-        default=0.01,
-        ge=1e-9,
-        le=0.1,
-        allow_inf_nan=False,
-        description="Relative spot bump for Greeks",
-    )
-    bump_vol_abs: float = Field(
-        default=0.001,
-        ge=1e-9,
-        le=0.01,
-        allow_inf_nan=False,
-        description="Absolute vol bump for Greeks",
-    )
-    bump_rate_abs: float = Field(
-        default=0.001,
-        ge=1e-9,
-        le=0.01,
-        allow_inf_nan=False,
-        description="Absolute rate bump for Greeks",
     )
 
 
@@ -152,7 +122,9 @@ class ImpliedVolRequest(_EngineDefaultsMixin, BaseModel):
     accuracy: float = Field(
         default=1e-4, gt=0, le=1e-2, allow_inf_nan=False, description="Brent solver accuracy"
     )
-    max_iterations: int = Field(default=1000, ge=100, le=10000, description="Max solver iterations")
+    max_iterations: int = Field(
+        default=1000, ge=100, le=10000, description="Max solver iterations"
+    )
 
 
 class ImpliedVolOutput(BaseModel):

@@ -2,6 +2,8 @@
 
 Module boundaries, data flow, and invariants.
 
+> **Design intent:** DeskPricer is a **local-only** tool for personal desk pricing and option analytics. It is **not intended to be run or served as a public/server-style service**. All design choices — localhost binding, no auth, no TLS, no rate limiting, XML-by-default — reflect this.
+
 ## Module Boundaries
 
 ```
