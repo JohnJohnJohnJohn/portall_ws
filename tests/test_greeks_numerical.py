@@ -1,8 +1,6 @@
 """Bump-and-revalue consistency tests for Greeks."""
 
-import math
 
-import pytest
 from fastapi.testclient import TestClient
 
 

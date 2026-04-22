@@ -1,12 +1,12 @@
 """Property-based tests using hypothesis."""
 
 import math
-from datetime import date
 
-import QuantLib as ql
 import pytest
+import QuantLib as ql
 from fastapi.testclient import TestClient
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from desk_pricer.pricing.conventions import (
     default_calendar,

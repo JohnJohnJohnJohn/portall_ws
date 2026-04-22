@@ -1,10 +1,14 @@
 """Custom exceptions and FastAPI HTTP exception handlers."""
 
+import logging
+
 from fastapi import Request
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from desk_pricer.responses import serialize_error, use_json_from_request
+
+_logger = logging.getLogger("desk_pricer")
 
 
 class DeskPricerError(Exception):
@@ -56,7 +60,7 @@ async def validation_exception_handler(request: Request, exc: Exception) -> Resp
     use_json = use_json_from_request(request)
     body = serialize_error("INVALID_INPUT", message, field, json_format=use_json)
     media_type = "application/json" if use_json else "application/xml; charset=utf-8"
-    return Response(content=body, status_code=400, media_type=media_type)
+    return Response(content=body, status_code=422, media_type=media_type)
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> Response:
@@ -65,6 +69,12 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         code = "NOT_FOUND"
     elif exc.status_code == 405:
         code = "METHOD_NOT_ALLOWED"
+    elif exc.status_code == 401:
+        code = "UNAUTHORIZED"
+    elif exc.status_code == 403:
+        code = "FORBIDDEN"
+    elif exc.status_code >= 500:
+        code = "INTERNAL_ERROR"
     else:
         code = "INVALID_INPUT"
     body = serialize_error(code, exc.detail, None, json_format=use_json)
@@ -73,7 +83,8 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 async def catchall_exception_handler(request: Request, exc: Exception) -> Response:
+    _logger.exception("Unhandled exception")
     use_json = use_json_from_request(request)
-    body = serialize_error("PRICING_FAILURE", str(exc), None, json_format=use_json)
+    body = serialize_error("PRICING_FAILURE", "An internal error occurred", None, json_format=use_json)
     media_type = "application/json" if use_json else "application/xml; charset=utf-8"
     return Response(content=body, status_code=500, media_type=media_type)

@@ -1,9 +1,6 @@
 """Logging tests."""
 
-import pytest
 from fastapi.testclient import TestClient
-
-from desk_pricer.logging_config import get_log_file
 
 
 class TestLogging:
@@ -30,6 +27,7 @@ class TestLogging:
         custom_dir = "/tmp/test_deskpricer_logs"
         monkeypatch.setenv("DESK_PRICER_LOG_DIR", custom_dir)
         # Re-import to pick up the new env var
-        from desk_pricer.logging_config import _default_log_dir
         from pathlib import Path
+
+        from desk_pricer.logging_config import _default_log_dir
         assert _default_log_dir() == Path(custom_dir)

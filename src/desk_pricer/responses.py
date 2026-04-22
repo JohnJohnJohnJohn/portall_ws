@@ -1,14 +1,15 @@
 """XML and JSON response serializers."""
 
 import json
+import math
 import re
 from typing import Any
 
 import xmltodict
 
-# XML 1.0 does not allow certain control characters
+# XML 1.0 does not allow certain control characters (\x85 NEL included)
 _ILLEGAL_XML_CHARS_RE = re.compile(
-    "[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f]"
+    "[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]"
 )
 
 
@@ -24,7 +25,7 @@ def _sanitize_for_xml(v: Any) -> Any:
 
 def _to_xml(payload: dict[str, Any]) -> str:
     safe = _sanitize_for_xml(payload)
-    return xmltodict.unparse(safe, pretty=True, full_document=False)
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + xmltodict.unparse(safe, pretty=True, full_document=False)
 
 
 def use_json_from_request(request) -> bool:
@@ -37,13 +38,13 @@ def use_json_from_request(request) -> bool:
     ]
     if "application/json" in media_types:
         return True
-    if request.query_params.get("format") == "json":
-        return True
-    return False
+    return request.query_params.get("format") == "json"
 
 
 def _clean_value(v: Any) -> Any:
     if isinstance(v, float):
+        if not math.isfinite(v):
+            return None
         # 9 decimals preserves small Greeks (e.g. charm ~1e-7)
         # while cleaning up float noise from QuantLib
         cleaned = round(v, 9)
@@ -69,7 +70,7 @@ def serialize_error(code: str, message: str, field: str | None = None, json_form
         payload["error"]["field"] = field
 
     if json_format:
-        return json.dumps(payload, indent=2)
+        return json.dumps(payload, indent=2, default=str)
 
     return _to_xml(payload)
 
@@ -89,7 +90,7 @@ def serialize_greeks(
     }
 
     if json_format:
-        return json.dumps(payload, indent=2)
+        return json.dumps(payload, indent=2, default=str)
 
     return _to_xml(payload)
 
@@ -109,7 +110,7 @@ def serialize_impliedvol(
     }
 
     if json_format:
-        return json.dumps(payload, indent=2)
+        return json.dumps(payload, indent=2, default=str)
 
     return _to_xml(payload)
 
@@ -117,14 +118,14 @@ def serialize_impliedvol(
 def serialize_health(status: str, uptime_seconds: float, json_format: bool = False) -> str:
     payload = {"health": {"status": status, "uptime_seconds": uptime_seconds}}
     if json_format:
-        return json.dumps(payload, indent=2)
+        return json.dumps(payload, indent=2, default=str)
     return _to_xml(payload)
 
 
 def serialize_version(version_info: dict[str, str], json_format: bool = False) -> str:
     payload = {"version": version_info}
     if json_format:
-        return json.dumps(payload, indent=2)
+        return json.dumps(payload, indent=2, default=str)
     return _to_xml(payload)
 
 
@@ -143,7 +144,7 @@ def serialize_portfolio(
                 "aggregate": _clean_value(aggregate),
             }
         }
-        return json.dumps(payload, indent=2)
+        return json.dumps(payload, indent=2, default=str)
 
     payload = {
         "portfolio": {
@@ -170,5 +171,5 @@ def serialize_pnl_attribution(
         }
     }
     if json_format:
-        return json.dumps(payload, indent=2)
+        return json.dumps(payload, indent=2, default=str)
     return _to_xml(payload)

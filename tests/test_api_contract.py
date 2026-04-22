@@ -3,7 +3,6 @@
 import math
 import xml.etree.ElementTree as ET
 
-import pytest
 from fastapi.testclient import TestClient
 
 
@@ -69,7 +68,7 @@ class TestGreeks:
 
     def test_greeks_missing_param(self, client: TestClient):
         resp = client.get("/v1/greeks?s=100&k=105")
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
         assert root.find("field") is not None
@@ -80,7 +79,7 @@ class TestGreeks:
             "/v1/greeks?s=bad&k=100&t=0.5&r=0.05&q=0&v=0.20&type=call&style=european",
             headers={"Accept": "application/json"},
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         msg = resp.json()["error"]["message"]
         # Should be a short message like "Input should be a valid number..."
         assert "pydantic.dev" not in msg.lower()
@@ -92,7 +91,7 @@ class TestGreeks:
         resp = client.get(
             "/v1/greeks?s=100&k=100&t=0.5&r=0.05&q=0&v=0.20&type=call&style=european&bump_vol_abs=999",
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         # ET.fromstring will raise ParseError if XML contains illegal chars
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
@@ -122,7 +121,7 @@ class TestGreeks:
         resp = client.get(
             "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=-0.1&type=call&style=european"
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
         assert root.find("field").text == "v"
@@ -235,7 +234,7 @@ class TestImpliedVol:
 
     def test_impliedvol_missing_param(self, client: TestClient):
         resp = client.get("/v1/impliedvol?s=100&k=100")
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         root = ET.fromstring(resp.text)
         assert root.find("code").text == "INVALID_INPUT"
         assert root.find("field") is not None
@@ -306,5 +305,5 @@ class TestPortfolio:
             ]
         }
         resp = client.post("/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"})
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "INVALID_INPUT"

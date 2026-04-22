@@ -9,6 +9,7 @@ import QuantLib as ql
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
+from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from desk_pricer import __version__ as service_version
@@ -22,8 +23,8 @@ from desk_pricer.errors import (
 )
 from desk_pricer.logging_config import setup_logging
 from desk_pricer.pricing.conventions import ql_date_from_iso
-from desk_pricer.pricing.engine import price_vanilla
 from desk_pricer.pricing.cross_greeks import compute_cross_greeks
+from desk_pricer.pricing.engine import price_vanilla
 from desk_pricer.pricing.implied_vol import compute_implied_vol
 from desk_pricer.responses import (
     serialize_greeks,
@@ -34,8 +35,12 @@ from desk_pricer.responses import (
     serialize_version,
     use_json_from_request,
 )
-from desk_pricer.schemas import GreeksRequest, ImpliedVolRequest, PortfolioRequest, PnLAttributionGETRequest
-from pydantic import ValidationError
+from desk_pricer.schemas import (
+    GreeksRequest,
+    ImpliedVolRequest,
+    PnLAttributionGETRequest,
+    PortfolioRequest,
+)
 
 # Protect QuantLib global state
 _QL_LOCK = asyncio.Lock()
@@ -59,19 +64,23 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def log_and_format(request: Request, call_next):
         start = time.perf_counter()
-        response = await call_next(request)
-        duration_ms = (time.perf_counter() - start) * 1000
-        _REQUEST_LOGGER.info(
-            "request",
-            extra={
-                "method": request.method,
-                "path": request.url.path,
-                "query": request.url.query[:200],
-                "duration_ms": round(duration_ms, 3),
-                "status": response.status_code,
-            },
-        )
-        return response
+        status = 500
+        try:
+            response = await call_next(request)
+            status = response.status_code
+            return response
+        finally:
+            duration_ms = (time.perf_counter() - start) * 1000
+            _REQUEST_LOGGER.info(
+                "request",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "query": request.url.query[:200],
+                    "duration_ms": round(duration_ms, 3),
+                    "status": status,
+                },
+            )
 
     @app.exception_handler(DeskPricerError)
     async def _desk_pricer_exc(request: Request, exc: DeskPricerError):
@@ -141,8 +150,6 @@ def create_app() -> FastAPI:
                 )
             except DeskPricerError:
                 raise
-            except RuntimeError as exc:
-                raise InvalidInputError(f"Pricing failed: {exc}") from exc
             finally:
                 ql.Settings.instance().evaluationDate = old_eval
 
@@ -208,7 +215,13 @@ def create_app() -> FastAPI:
             except DeskPricerError:
                 raise
             except RuntimeError as exc:
-                raise InvalidInputError(f"Implied vol calculation failed: {exc}") from exc
+                msg = str(exc).lower()
+                if "root not bracketed" in msg:
+                    raise InvalidInputError(
+                        "Price is outside arbitrage bounds for implied volatility",
+                        field="price",
+                    ) from exc
+                raise
             finally:
                 ql.Settings.instance().evaluationDate = old_eval
 
@@ -410,8 +423,6 @@ def create_app() -> FastAPI:
                     )
             except DeskPricerError:
                 raise
-            except RuntimeError as exc:
-                raise InvalidInputError(f"Pricing failed: {exc}") from exc
             finally:
                 ql.Settings.instance().evaluationDate = old_eval
 

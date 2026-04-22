@@ -40,12 +40,24 @@ def main(argv: list[str] | None = None) -> None:
     if args.port is not None:
         port = args.port
     else:
-        port = int(os.environ.get("DESK_PRICER_PORT", "8765"))
+        raw_port = os.environ.get("DESK_PRICER_PORT", "8765")
+        try:
+            port = int(raw_port)
+        except ValueError:
+            print(f"ERROR: DESK_PRICER_PORT must be an integer, got: {raw_port}", file=sys.stderr)
+            sys.exit(1)
+
+    import logging
 
     log_file = get_log_file()
     print(f"DeskPricer starting on http://{args.host}:{port}", file=sys.stderr)
-    print(f"Logs written to: {log_file}", file=sys.stderr)
-    print(f"Change log path with: DESK_PRICER_LOG_DIR=<path>", file=sys.stderr)
+    logger = logging.getLogger("desk_pricer")
+    has_file_handler = any(isinstance(h, logging.FileHandler) for h in logger.handlers)
+    if has_file_handler:
+        print(f"Logs written to: {log_file}", file=sys.stderr)
+    else:
+        print("Logs written to stderr (file logging unavailable)", file=sys.stderr)
+    print("Change log path with: DESK_PRICER_LOG_DIR=<path>", file=sys.stderr)
 
     uvicorn.run(
         "desk_pricer.main:app",

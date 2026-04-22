@@ -193,7 +193,7 @@ class TestPnLAttribution:
             valuation_date_t="2026-04-20",
         )
         resp = self._get(client, params, json_format=True)
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
 
     def test_cross_greeks_backward(self, client: TestClient):
@@ -271,12 +271,12 @@ class TestPnLAttribution:
         """v_t <= bump_vol_abs should be rejected for american options."""
         params = self._base_params(style="american", v_t=0.0005)
         resp = self._get(client, params, json_format=True)
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
 
     def test_missing_param(self, client: TestClient):
         """Missing required param should fail validation."""
         params = {"s_t_minus_1": 100, "s_t": 102, "k": 100}
         resp = self._get(client, params, json_format=True)
-        assert resp.status_code == 400
+        assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "INVALID_INPUT"

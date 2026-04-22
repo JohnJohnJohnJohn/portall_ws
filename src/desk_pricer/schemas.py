@@ -21,6 +21,8 @@ class _EngineDefaultsMixin(BaseModel):
         return self
 
 
+
+
 class GreeksRequest(_EngineDefaultsMixin, BaseModel):
     s: float = Field(gt=0, allow_inf_nan=False, description="Spot price of underlying")
     k: float = Field(gt=0, allow_inf_nan=False, description="Strike")
@@ -62,7 +64,7 @@ class GreeksRequest(_EngineDefaultsMixin, BaseModel):
 
 class LegInput(_EngineDefaultsMixin, BaseModel):
     id: str = Field(min_length=1, max_length=32)
-    qty: float = Field(allow_inf_nan=False, description="Quantity (negative for short)")
+    qty: float = Field(allow_inf_nan=False, ge=-1e12, le=1e12, description="Quantity (negative for short)")
     s: float = Field(gt=0, allow_inf_nan=False)
     k: float = Field(gt=0, allow_inf_nan=False)
     t: float = Field(
@@ -102,6 +104,13 @@ class PortfolioRequest(BaseModel):
     valuation_date: date | None = Field(default=None)
     legs: list[LegInput] = Field(min_length=1, max_length=500)
 
+    @model_validator(mode="after")
+    def check_unique_ids(self):
+        ids = [leg.id for leg in self.legs]
+        if len(ids) != len(set(ids)):
+            raise ValueError("leg ids must be unique within a portfolio")
+        return self
+
 
 class GreeksOutput(BaseModel):
     price: float
@@ -122,7 +131,7 @@ class ImpliedVolRequest(_EngineDefaultsMixin, BaseModel):
     )
     r: float = Field(allow_inf_nan=False, description="Continuously compounded risk-free rate")
     q: float = Field(allow_inf_nan=False, description="Continuously compounded dividend yield")
-    price: float = Field(gt=0, allow_inf_nan=False, description="Observed market price of the option")
+    price: float = Field(ge=0, allow_inf_nan=False, description="Observed market price of the option")
     type: Literal["call", "put"] = Field(description="Option type")
     style: Literal["european", "american"] = Field(description="Option style")
     engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(
@@ -164,7 +173,7 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
     style: Literal["european", "american"]
     engine: Literal["analytic", "binomial_crr", "binomial_jr", "fd"] | None = Field(default=None)
     steps: int = Field(default=400, ge=10, le=5000)
-    qty: float = Field(default=1.0, allow_inf_nan=False)
+    qty: float = Field(default=1.0, allow_inf_nan=False, ge=-1e12, le=1e12)
     valuation_date_t_minus_1: date | None = Field(default=None)
     valuation_date_t: date | None = Field(default=None)
     method: Literal["backward", "average"] = Field(default="backward")
@@ -190,6 +199,12 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, BaseModel):
             and self.valuation_date_t_minus_1 > self.valuation_date_t
         ):
             raise ValueError("valuation_date_t_minus_1 must not be after valuation_date_t")
+        return self
+
+    @model_validator(mode="after")
+    def check_time_decay(self):
+        if self.t_t > self.t_t_minus_1:
+            raise ValueError("t_t must not be greater than t_t_minus_1")
         return self
 
     @model_validator(mode="after")

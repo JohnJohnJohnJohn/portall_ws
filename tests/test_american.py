@@ -1,6 +1,5 @@
 """American option tests vs published binomial results."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 
