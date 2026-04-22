@@ -1,4 +1,4 @@
-# DeskPricer v2.0.1
+# DeskPricer v2.1.0
 
 Local HTTP pricing microservice for vanilla European and American equity options. Designed for Excel `WEBSERVICE` + `FILTERXML` integration — no VBA, no Bloomberg terminal calls inside the service.
 
