@@ -1,11 +1,13 @@
 """Uvicorn entrypoint."""
 
 import argparse
+import logging
 import os
 import sys
 
 import uvicorn
 
+from deskpricer import __version__ as _APP_VERSION
 from deskpricer.app import create_app
 from deskpricer.logging_config import get_log_file
 
@@ -51,10 +53,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"ERROR: port must be between 1 and 65535, got: {port}", file=sys.stderr)
         sys.exit(1)
 
-    import logging
-
     log_file = get_log_file()
-    print(f"DeskPricer starting on http://{args.host}:{port}", file=sys.stderr)
+    print(f"DeskPricer v{_APP_VERSION} starting on http://{args.host}:{port}", file=sys.stderr)
     logger = logging.getLogger("deskpricer")
     has_file_handler = any(isinstance(h, logging.FileHandler) for h in logger.handlers)
     if has_file_handler:

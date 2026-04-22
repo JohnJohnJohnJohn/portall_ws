@@ -58,108 +58,36 @@ def compute_cross_greeks(
             field="bump_vol_abs",
         )
 
+    def _price(spot: float, vol: float):
+        return price_vanilla(
+            s=spot,
+            k=k,
+            t=t,
+            r=r,
+            q=q,
+            v=vol,
+            option_type=option_type,
+            style=style,
+            engine=engine,
+            valuation_date=valuation_date,
+            steps=steps,
+            bump_spot_rel=bump_spot_rel,
+            bump_vol_abs=bump_vol_abs,
+            bump_rate_abs=bump_rate_abs,
+        )
+
     # --- Volga: V(S,σ+Δσ) - 2V(S,σ) + V(S,σ-Δσ) over (Δσ)² ---
     # 2 extra pricing calls
-    result_v_up = price_vanilla(
-        s=s,
-        k=k,
-        t=t,
-        r=r,
-        q=q,
-        v=v + bump_vol_abs,
-        option_type=option_type,
-        style=style,
-        engine=engine,
-        valuation_date=valuation_date,
-        steps=steps,
-        bump_spot_rel=bump_spot_rel,
-        bump_vol_abs=bump_vol_abs,
-        bump_rate_abs=bump_rate_abs,
-    )
-    result_v_down = price_vanilla(
-        s=s,
-        k=k,
-        t=t,
-        r=r,
-        q=q,
-        v=v - bump_vol_abs,
-        option_type=option_type,
-        style=style,
-        engine=engine,
-        valuation_date=valuation_date,
-        steps=steps,
-        bump_spot_rel=bump_spot_rel,
-        bump_vol_abs=bump_vol_abs,
-        bump_rate_abs=bump_rate_abs,
-    )
+    result_v_up = _price(s, v + bump_vol_abs)
+    result_v_down = _price(s, v - bump_vol_abs)
     volga = (result_v_up.price - 2.0 * base_price + result_v_down.price) / (dv_points**2)
 
     # --- Vanna: 4-point cross difference ---
     # 4 extra pricing calls
-    result_pp = price_vanilla(
-        s=s + ds,
-        k=k,
-        t=t,
-        r=r,
-        q=q,
-        v=v + bump_vol_abs,
-        option_type=option_type,
-        style=style,
-        engine=engine,
-        valuation_date=valuation_date,
-        steps=steps,
-        bump_spot_rel=bump_spot_rel,
-        bump_vol_abs=bump_vol_abs,
-        bump_rate_abs=bump_rate_abs,
-    )
-    result_pm = price_vanilla(
-        s=s + ds,
-        k=k,
-        t=t,
-        r=r,
-        q=q,
-        v=v - bump_vol_abs,
-        option_type=option_type,
-        style=style,
-        engine=engine,
-        valuation_date=valuation_date,
-        steps=steps,
-        bump_spot_rel=bump_spot_rel,
-        bump_vol_abs=bump_vol_abs,
-        bump_rate_abs=bump_rate_abs,
-    )
-    result_mp = price_vanilla(
-        s=s - ds,
-        k=k,
-        t=t,
-        r=r,
-        q=q,
-        v=v + bump_vol_abs,
-        option_type=option_type,
-        style=style,
-        engine=engine,
-        valuation_date=valuation_date,
-        steps=steps,
-        bump_spot_rel=bump_spot_rel,
-        bump_vol_abs=bump_vol_abs,
-        bump_rate_abs=bump_rate_abs,
-    )
-    result_mm = price_vanilla(
-        s=s - ds,
-        k=k,
-        t=t,
-        r=r,
-        q=q,
-        v=v - bump_vol_abs,
-        option_type=option_type,
-        style=style,
-        engine=engine,
-        valuation_date=valuation_date,
-        steps=steps,
-        bump_spot_rel=bump_spot_rel,
-        bump_vol_abs=bump_vol_abs,
-        bump_rate_abs=bump_rate_abs,
-    )
+    result_pp = _price(s + ds, v + bump_vol_abs)
+    result_pm = _price(s + ds, v - bump_vol_abs)
+    result_mp = _price(s - ds, v + bump_vol_abs)
+    result_mm = _price(s - ds, v - bump_vol_abs)
     vanna = (result_pp.price - result_pm.price - result_mp.price + result_mm.price) / (
         4.0 * ds * dv_points
     )

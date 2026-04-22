@@ -1,1 +1,6 @@
-__version__ = "2.0.1"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("deskpricer")
+except PackageNotFoundError:
+    __version__ = "unknown"

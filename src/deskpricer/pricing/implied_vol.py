@@ -66,8 +66,8 @@ def compute_implied_vol(
                 field="engine",
             )
         exercise = ql.EuropeanExercise(expiry_date)
-        option = ql.VanillaOption(payoff, exercise)
-        option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
+        engine_cls = ql.AnalyticEuropeanEngine
+        ql_engine = None
 
     elif style == "american":
         if engine == "analytic":
@@ -82,11 +82,16 @@ def compute_implied_vol(
                 field="engine",
             )
         exercise = ql.AmericanExercise(ql_date, expiry_date)
-        option = ql.VanillaOption(payoff, exercise)
-        option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, steps))
+        engine_cls = None
 
     else:
         raise UnsupportedCombinationError(f"Unknown style: {style}", field="style")
+
+    option = ql.VanillaOption(payoff, exercise)
+    if engine_cls is not None:
+        option.setPricingEngine(engine_cls(process))
+    else:
+        option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, steps))
 
     try:
         implied_vol = option.impliedVolatility(
@@ -109,11 +114,10 @@ def compute_implied_vol(
         )
         process_iv = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts_iv)
 
+        option_iv = ql.VanillaOption(payoff, exercise)
         if style == "european":
-            option_iv = ql.VanillaOption(payoff, exercise)
             option_iv.setPricingEngine(ql.AnalyticEuropeanEngine(process_iv))
         else:
-            option_iv = ql.VanillaOption(payoff, exercise)
             option_iv.setPricingEngine(ql.BinomialVanillaEngine(process_iv, ql_engine, steps))
 
         npv_at_iv = float(option_iv.NPV())

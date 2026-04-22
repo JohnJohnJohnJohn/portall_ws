@@ -100,24 +100,32 @@ def serialize_error(
     return _to_xml(payload)
 
 
-def serialize_greeks(
+def _serialize_wrap(
+    key: str,
     meta: dict[str, Any],
     inputs: dict[str, Any],
     outputs: dict[str, Any],
     json_format: bool = False,
 ) -> str:
     payload: dict[str, Any] = {
-        "greeks": {
+        key: {
             "meta": meta,
             "inputs": inputs,
             "outputs": _clean_value(outputs),
         }
     }
-
     if json_format:
         return json.dumps(payload, indent=2)
-
     return _to_xml(payload)
+
+
+def serialize_greeks(
+    meta: dict[str, Any],
+    inputs: dict[str, Any],
+    outputs: dict[str, Any],
+    json_format: bool = False,
+) -> str:
+    return _serialize_wrap("greeks", meta, inputs, outputs, json_format)
 
 
 def serialize_impliedvol(
@@ -126,18 +134,7 @@ def serialize_impliedvol(
     outputs: dict[str, Any],
     json_format: bool = False,
 ) -> str:
-    payload: dict[str, Any] = {
-        "impliedvol": {
-            "meta": meta,
-            "inputs": inputs,
-            "outputs": _clean_value(outputs),
-        }
-    }
-
-    if json_format:
-        return json.dumps(payload, indent=2)
-
-    return _to_xml(payload)
+    return _serialize_wrap("impliedvol", meta, inputs, outputs, json_format)
 
 
 def serialize_health(status: str, uptime_seconds: float, json_format: bool = False) -> str:
@@ -188,13 +185,4 @@ def serialize_pnl_attribution(
     json_format: bool = False,
 ) -> str:
     """Single-leg PnL attribution serializer matching greeks/impliedvol shape."""
-    payload: dict[str, Any] = {
-        "pnl_attribution": {
-            "meta": meta,
-            "inputs": inputs,
-            "outputs": _clean_value(outputs),
-        }
-    }
-    if json_format:
-        return json.dumps(payload, indent=2)
-    return _to_xml(payload)
+    return _serialize_wrap("pnl_attribution", meta, inputs, outputs, json_format)

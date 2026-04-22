@@ -17,7 +17,7 @@ from deskpricer.pricing.conventions import (
 from deskpricer.schemas import GreeksOutput
 
 
-def _create_option(
+def _npv(
     s: float,
     k: float,
     r: float,
@@ -28,7 +28,7 @@ def _create_option(
     expiry_date: ql.Date,
     steps: int,
     engine_type: str,
-) -> ql.VanillaOption:
+) -> float:
     if steps < 1:
         raise InvalidInputError("steps must be positive", field="steps")
 
@@ -47,25 +47,8 @@ def _create_option(
     exercise = ql.AmericanExercise(valuation_date, expiry_date)
     option = ql.VanillaOption(payoff, exercise)
     option.setPricingEngine(ql.BinomialVanillaEngine(process, engine_type, steps))
-    return option
 
-
-def _npv(
-    s: float,
-    k: float,
-    r: float,
-    q: float,
-    v: float,
-    option_type: str,
-    valuation_date: ql.Date,
-    expiry_date: ql.Date,
-    steps: int,
-    engine_type: str,
-) -> float:
     try:
-        option = _create_option(
-            s, k, r, q, v, option_type, valuation_date, expiry_date, steps, engine_type
-        )
         return float(option.NPV())
     except RuntimeError as exc:
         logging.getLogger("deskpricer").warning(

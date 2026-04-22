@@ -38,6 +38,7 @@ def price_vanilla(
     for field_name, field_val in (
         ("s", s),
         ("k", k),
+        ("t", t),
         ("r", r),
         ("q", q),
         ("v", v),
@@ -46,8 +47,6 @@ def price_vanilla(
             raise UnsupportedCombinationError(
                 f"{field_name} must be a finite number", field=field_name
             )
-    if not math.isfinite(t):
-        raise UnsupportedCombinationError("time to expiry must be a finite number", field="t")
     if t < 0:
         raise UnsupportedCombinationError("time to expiry must be non-negative", field="t")
     # Floor t to 1 day to avoid QuantLib zero-day collapse

@@ -94,7 +94,7 @@ class _SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
                     self.stream.close()
                 except OSError:
                     pass
-                self.stream = None
+                self.stream = None  # type: ignore[assignment]
             self.stream = self._open()
 
 
