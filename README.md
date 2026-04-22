@@ -45,6 +45,20 @@ curl "http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&ty
 
 ---
 
+## Try the Demo Workbook
+
+Open `sample/DeskPricer_Bitcoin_Demo.xlsx` for a **ready-to-run** example. It contains 3 sheets:
+
+| Sheet | What it shows |
+|-------|---------------|
+| **Greeks** | Bitcoin European Call — $75K spot, $100K strike, 3M expiry, 50% vol |
+| **ImpliedVol** | Back out ~68.3% implied vol from a $3,398.71 market price |
+| **PnL Attribution** | Decompose PnL when spot rallies $75K → $80K and vol widens 50% → 55% |
+
+Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just start DeskPricer and the cells will populate automatically.
+
+---
+
 ## Excel User Guide
 
 ### Service Status
@@ -279,6 +293,7 @@ desk-pricer/
 ├── src/desk_pricer/          # FastAPI app + pricing core
 ├── tests/                    # pytest + hypothesis
 ├── scripts/                  # Build + NSSM install/uninstall
+├── sample/                   # Demo Excel workbook
 └── docs/                     # API ref + Excel usage
 ```
 

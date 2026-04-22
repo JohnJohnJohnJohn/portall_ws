@@ -5,6 +5,18 @@
 - Service running on `127.0.0.1:8765` (install via NSSM scripts)
 - Excel with `WEBSERVICE` and `FILTERXML` functions (Excel 2013+)
 
+## Demo Workbook
+
+The fastest way to get started is to open `sample/DeskPricer_Bitcoin_Demo.xlsx`. It contains three pre-built sheets:
+
+1. **Greeks** — prices a Bitcoin European Call ($75K spot, $100K strike, 3M, 50% vol)
+2. **ImpliedVol** — backs out implied vol from a market price
+3. **PnL Attribution** — decomposes PnL across delta, gamma, vega, theta, and residual
+
+Each sheet already has the `WEBSERVICE` and `FILTERXML` formulas wired up. Start DeskPricer and the cells populate automatically.
+
+---
+
 ## Single-Option Row Pattern
 
 Assume columns:
