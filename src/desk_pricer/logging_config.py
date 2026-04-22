@@ -15,7 +15,7 @@ def _default_log_dir() -> Path:
         return Path(env_dir)
     if sys.platform == "win32":
         return Path(r"C:\ProgramData\DeskPricer\logs")
-    return Path.home() / ".local" / "share" / "desk-pricer" / "logs"
+    return Path.home() / ".local" / "share" / "deskpricer" / "logs"
 
 
 def get_log_file() -> Path:

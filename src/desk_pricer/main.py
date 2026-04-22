@@ -7,6 +7,7 @@ import sys
 import uvicorn
 
 from desk_pricer.app import create_app
+from desk_pricer.logging_config import get_log_file
 
 app = create_app()
 
@@ -40,6 +41,11 @@ def main(argv: list[str] | None = None) -> None:
         port = args.port
     else:
         port = int(os.environ.get("DESK_PRICER_PORT", "8765"))
+
+    log_file = get_log_file()
+    print(f"DeskPricer starting on http://{args.host}:{port}", file=sys.stderr)
+    print(f"Logs written to: {log_file}", file=sys.stderr)
+    print(f"Change log path with: DESK_PRICER_LOG_DIR=<path>", file=sys.stderr)
 
     uvicorn.run(
         "desk_pricer.main:app",
