@@ -277,9 +277,20 @@ pytest tests -v
 
 ---
 
-## Concurrency Note
+## Design Decisions
 
-QuantLib uses process-global state (`Settings.instance().evaluationDate`). In v1.0, all pricing work is serialized through an `asyncio.Lock` and the service runs with `workers=1`. This guarantees correctness at the cost of throughput.
+### Why all requests are serialized (`asyncio.Lock`)
+
+QuantLib's Python bindings rely on a single process-global `Settings.instance()` object. There is no supported way to create isolated per-request QuantLib contexts in the Python API. Holding an `asyncio.Lock` around every pricing call guarantees that concurrent requests never corrupt each other's evaluation date or global state. The tradeoff is lower throughput for portfolio requests, which is acceptable for a desk-pricing tool where correctness matters more than concurrency. A future refactor could explore a `ProcessPoolExecutor` to parallelize work across separate Python processes.
+
+### Why PnL attribution uses GET with many query params
+
+Excel's `WEBSERVICE` function only supports HTTP GET. Since the primary user of this service is Excel, the `GET /v1/pnl_attribution` endpoint is designed specifically for `WEBSERVICE` compatibility. Programmatic clients that need a cleaner JSON body can use `POST /v1/portfolio/greeks` today; a `POST` alternative for PnL attribution may be added in a future release.
+
+### Log directory and structured logging
+
+- **Log path**: `DESK_PRICER_LOG_DIR` env var overrides the default (`C:\ProgramData\DeskPricer\logs` on Windows, `~/.local/share/desk-pricer/logs` elsewhere).
+- **Format**: Uses Python's stdlib `logging` module with a custom JSON formatter and `RotatingFileHandler` (10 MB rotation, 5 backups). This replaces the earlier hand-rolled `open()` approach.
 
 ---
 

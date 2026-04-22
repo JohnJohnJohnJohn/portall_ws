@@ -135,3 +135,6 @@ Thumbs.db
 
 # Project specific
 *.egg-info/
+
+# Excel lock files
+~$*.xlsx

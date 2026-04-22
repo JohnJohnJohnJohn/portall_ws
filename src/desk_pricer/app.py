@@ -1,11 +1,9 @@
 """FastAPI application factory and routes."""
 
 import asyncio
-import json
 import sys
 import time
-from datetime import date, datetime, timezone
-from pathlib import Path
+from datetime import date
 
 import QuantLib as ql
 from fastapi import FastAPI, Request
@@ -22,6 +20,7 @@ from desk_pricer.errors import (
     http_exception_handler,
     validation_exception_handler,
 )
+from desk_pricer.logging_config import setup_logging
 from desk_pricer.pricing.conventions import ql_date_from_iso
 from desk_pricer.pricing.engine import price_vanilla
 from desk_pricer.pricing.cross_greeks import compute_cross_greeks
@@ -46,32 +45,7 @@ _PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.versi
 
 _START_TIME = time.monotonic()
 
-_DEFAULT_LOG_DIR = Path(r"C:\ProgramData\DeskPricer\logs")
-_LOG_FILE = _DEFAULT_LOG_DIR / "pricer.log"
-
-
-def _ensure_log_dir() -> None:
-    try:
-        _DEFAULT_LOG_DIR.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
-
-
-def _log_request(method: str, path: str, query: str, duration_ms: float, status: int) -> None:
-    _ensure_log_dir()
-    entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "method": method,
-        "path": path,
-        "query": query[:200],
-        "duration_ms": round(duration_ms, 3),
-        "status": status,
-    }
-    try:
-        with open(_LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-    except Exception as exc:
-        print(f"[desk-pricer] logging failed: {exc}", file=sys.stderr)
+_REQUEST_LOGGER = setup_logging()
 
 
 def create_app() -> FastAPI:
@@ -87,12 +61,15 @@ def create_app() -> FastAPI:
         start = time.perf_counter()
         response = await call_next(request)
         duration_ms = (time.perf_counter() - start) * 1000
-        _log_request(
-            request.method,
-            request.url.path,
-            request.url.query,
-            duration_ms,
-            response.status_code,
+        _REQUEST_LOGGER.info(
+            "request",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "query": request.url.query[:200],
+                "duration_ms": round(duration_ms, 3),
+                "status": response.status_code,
+            },
         )
         return response
 
