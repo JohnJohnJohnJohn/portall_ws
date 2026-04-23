@@ -123,6 +123,7 @@ async def run_greeks(
             bump_vol_abs=params.bump_vol_abs,
             bump_rate_abs=params.bump_rate_abs,
             calendar_name=params.calendar,
+            theta_convention=params.theta_convention,
         )
     meta = _meta(params.engine, valuation_date)
     inputs: dict[str, Any] = {
@@ -139,6 +140,8 @@ async def run_greeks(
         inputs["steps"] = params.steps
     if params.calendar != DEFAULT_CALENDAR:
         inputs["calendar"] = params.calendar
+    if params.theta_convention != "pnl":
+        inputs["theta_convention"] = params.theta_convention
     _add_non_default_bumps(inputs, params)
     return meta, inputs, result.model_dump()
 
@@ -226,6 +229,7 @@ async def run_portfolio(
                 bump_vol_abs=leg.bump_vol_abs,
                 bump_rate_abs=leg.bump_rate_abs,
                 calendar_name=leg.calendar,
+                theta_convention=leg.theta_convention,
             )
             if not math.isfinite(result.price):
                 raise InvalidInputError(
@@ -277,10 +281,12 @@ async def run_pnl_attribution(
         valuation_date_t_minus_1 = date.today()
         valuation_date_t = date.today()
         trading_days = 1
+        calendar_days = 1
     elif valuation_date_t_minus_1 is not None and valuation_date_t is not None:
         ql_start = ql_date_from_iso(valuation_date_t_minus_1)
         ql_end = ql_date_from_iso(valuation_date_t)
         trading_days = count_business_days(ql_start, ql_end, ql_calendar)
+        calendar_days = max((valuation_date_t - valuation_date_t_minus_1).days, 1)
     else:
         raise InvalidInputError(
             "Provide both valuation_date_t_minus_1 and valuation_date_t, or omit both",
@@ -291,7 +297,8 @@ async def run_pnl_attribution(
     state_t = _market_state(params, "_t")
     async with with_evaluation_date(valuation_date_t_minus_1):
         greeks_t_minus_1 = price_vanilla_fn(
-            **_pnl_pv_kwargs(state_t_m1, params, valuation_date_t_minus_1)
+            theta_convention=params.theta_convention,
+            **_pnl_pv_kwargs(state_t_m1, params, valuation_date_t_minus_1),
         )
         if params.cross_greeks:
             vanna_t_m1, volga_t_m1 = compute_cross_greeks_fn(
@@ -300,7 +307,10 @@ async def run_pnl_attribution(
                 )
             )
     async with with_evaluation_date(valuation_date_t):
-        greeks_t = price_vanilla_fn(**_pnl_pv_kwargs(state_t, params, valuation_date_t))
+        greeks_t = price_vanilla_fn(
+            theta_convention=params.theta_convention,
+            **_pnl_pv_kwargs(state_t, params, valuation_date_t),
+        )
         if params.cross_greeks and method == "average":
             vanna_t, volga_t = compute_cross_greeks_fn(
                 **_pnl_cg_kwargs(state_t, params, valuation_date_t, greeks_t.price)
@@ -316,7 +326,8 @@ async def run_pnl_attribution(
     else:
         vega_pnl = greeks_t_minus_1.vega * delta_v_points
         rho_pnl = greeks_t_minus_1.rho * delta_r_points
-    theta_pnl = greeks_t_minus_1.theta * trading_days
+    theta_days = calendar_days if params.theta_time_unit == "calendar_day" else trading_days
+    theta_pnl = greeks_t_minus_1.theta * theta_days
     vanna_pnl_per_unit = 0.0
     volga_pnl_per_unit = 0.0
     if params.cross_greeks:
@@ -359,7 +370,10 @@ async def run_pnl_attribution(
         "valuation_date_t": valuation_date_t.isoformat(),
         "method": method,
         "trading_days": trading_days,
+        "calendar_days": calendar_days,
     }
+    if params.theta_time_unit != "business_day":
+        meta["theta_time_unit"] = params.theta_time_unit
     inputs: dict[str, Any] = {
         "s_t_minus_1": params.s_t_minus_1,
         "s_t": params.s_t,
@@ -385,4 +399,8 @@ async def run_pnl_attribution(
     _add_non_default_bumps(inputs, params)
     if params.cross_greeks:
         inputs["cross_greeks"] = True
+    if params.theta_convention != "pnl":
+        inputs["theta_convention"] = params.theta_convention
+    if params.theta_time_unit != "business_day":
+        inputs["theta_time_unit"] = params.theta_time_unit
     return meta, inputs, outputs

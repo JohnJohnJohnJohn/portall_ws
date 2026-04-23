@@ -35,9 +35,12 @@ from typing import Literal
 
 import QuantLib as ql
 
+import logging
+
 from deskpricer.errors import InvalidInputError
 
 MIN_T_YEARS = 1.0 / 365.0
+_MAX_EXPIRY_T_DISCREPANCY = 0.20
 DEFAULT_STEPS = 500
 DEFAULT_BUMP_SPOT_REL = 0.01
 DEFAULT_BUMP_VOL_ABS = 0.001
@@ -91,12 +94,31 @@ def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> q
             field="t",
         ) from exc
     # Roll to next business day if the landed date is a holiday/weekend.
+    # Following is used (not ModifiedFollowing or Preceding) because option
+    # expiries must never land earlier than the contractual date; rolling
+    # backward over a holiday would shorten the option's life.
     expiry = calendar.adjust(expiry, ql.Following)
     if expiry.year() > 2199:
         raise InvalidInputError(
             f"Expiry date ({expiry}) exceeds QuantLib maximum supported date (2199-12-31)",
             field="t",
         )
+    # Compute and log the actual year fraction discrepancy caused by rounding
+    # and business-day adjustment.
+    day_count = default_day_count()
+    effective_t = day_count.yearFraction(valuation_date, expiry)
+    if t > 0:
+        discrepancy = abs(effective_t - t) / t
+        if discrepancy > _MAX_EXPIRY_T_DISCREPANCY:
+            logging.getLogger("deskpricer").warning(
+                "expiry_from_t discrepancy %.1f%%: input t=%.6f, effective t=%.6f, "
+                "n_cal_days=%d, rolled_expiry=%s",
+                discrepancy * 100,
+                t,
+                effective_t,
+                n_cal_days,
+                expiry,
+            )
     return expiry
 
 

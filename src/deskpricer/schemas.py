@@ -17,6 +17,7 @@ from deskpricer.pricing.conventions import (
 
 EngineLiteral = Literal["analytic", "binomial_crr", "binomial_jr"]
 CalendarLiteral = Literal["hong_kong", "us_nyse", "us_settlement", "united_kingdom", "null"]
+ThetaConvention = Literal["pnl", "decay"]
 
 
 class _EngineDefaultsMixin(BaseModel):
@@ -46,8 +47,12 @@ class _VanillaOptionCoreBase(_EngineDefaultsMixin, BaseModel):
         allow_inf_nan=False,
         description=f"Time to expiry in years ({DAY_COUNT}); values < {MIN_T_YEARS} are floored to 1 day",
     )
-    r: float = Field(allow_inf_nan=False, description="Continuously compounded risk-free rate")
-    q: float = Field(allow_inf_nan=False, description="Continuously compounded dividend yield")
+    r: float = Field(
+        ge=-1.0, le=5.0, allow_inf_nan=False, description="Continuously compounded risk-free rate"
+    )
+    q: float = Field(
+        ge=-1.0, le=5.0, allow_inf_nan=False, description="Continuously compounded dividend yield"
+    )
     type: Literal["call", "put"] = Field(description="Option type")
     style: Literal["european", "american"] = Field(description="Option style")
     engine: EngineLiteral | None = Field(default=None, description="Pricing engine")
@@ -55,6 +60,11 @@ class _VanillaOptionCoreBase(_EngineDefaultsMixin, BaseModel):
     calendar: CalendarLiteral = Field(
         default=DEFAULT_CALENDAR,
         description="QuantLib calendar identifier for holiday schedule and theta business-day counting",
+    )
+    theta_convention: ThetaConvention = Field(
+        default="pnl",
+        description="Theta sign convention: 'pnl' (negative for long-option decay) "
+        "or 'decay' (positive decay, matching Bloomberg DM<GO>)",
     )
 
 
@@ -119,9 +129,9 @@ class GreeksOutput(BaseModel):
     gamma: float
     vega: float
     theta: float = Field(
-        description="P&L impact of one business day passing. Negative for typical "
-        "long options (decay). Sign is opposite of Bloomberg DM<GO> "
-        "convention where theta is reported as positive decay.",
+        description="P&L impact of one business day passing under the requested "
+        "theta_convention. 'pnl' (default): negative for typical long options. "
+        "'decay': positive decay, matching Bloomberg DM<GO>.",
     )
     rho: float
     charm: float
@@ -159,10 +169,10 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, _BumpParamsMixin, BaseModel
         allow_inf_nan=False,
         description=f"Time to expiry in years ({DAY_COUNT}); values < {MIN_T_YEARS} are floored to 1 day",
     )
-    r_t_minus_1: float = Field(allow_inf_nan=False)
-    r_t: float = Field(allow_inf_nan=False)
-    q_t_minus_1: float = Field(allow_inf_nan=False)
-    q_t: float = Field(allow_inf_nan=False)
+    r_t_minus_1: float = Field(ge=-1.0, le=5.0, allow_inf_nan=False)
+    r_t: float = Field(ge=-1.0, le=5.0, allow_inf_nan=False)
+    q_t_minus_1: float = Field(ge=-1.0, le=5.0, allow_inf_nan=False)
+    q_t: float = Field(ge=-1.0, le=5.0, allow_inf_nan=False)
     v_t_minus_1: float = Field(gt=0, allow_inf_nan=False)
     v_t: float = Field(gt=0, allow_inf_nan=False)
     type: Literal["call", "put"]
@@ -174,6 +184,16 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, _BumpParamsMixin, BaseModel
     valuation_date_t: date | None = Field(default=None)
     method: Literal["backward", "average"] = Field(default="backward")
     cross_greeks: bool = Field(default=False)
+    theta_convention: ThetaConvention = Field(
+        default="pnl",
+        description="Theta sign convention: 'pnl' (negative for long-option decay) "
+        "or 'decay' (positive decay, matching Bloomberg DM<GO>)",
+    )
+    theta_time_unit: Literal["business_day", "calendar_day"] = Field(
+        default="business_day",
+        description="Time unit for theta scaling in PnL attribution: 'business_day' "
+        "(default) or 'calendar_day' (includes weekends/holidays)",
+    )
     calendar: CalendarLiteral = Field(
         default=DEFAULT_CALENDAR,
         description="QuantLib calendar identifier for holiday schedule and theta business-day counting",

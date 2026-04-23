@@ -51,6 +51,7 @@ def price_european(
     option_type: str,
     valuation_date: date,
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
+    theta_convention: str = "pnl",
 ) -> GreeksOutput:
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
@@ -113,6 +114,9 @@ def price_european(
         else:
             intrinsic = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
             theta = intrinsic - price
+
+    if theta_convention == "decay":
+        theta = -theta
 
     return GreeksOutput(
         price=price,

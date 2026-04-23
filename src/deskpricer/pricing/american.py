@@ -78,6 +78,7 @@ def price_american(
     bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
     bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
+    theta_convention: str = "pnl",
 ) -> GreeksOutput:
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
@@ -164,6 +165,9 @@ def price_american(
         charm = delta_t1 - delta
     else:
         charm = 0.0
+
+    if theta_convention == "decay":
+        theta = -theta
 
     return GreeksOutput(
         price=price,

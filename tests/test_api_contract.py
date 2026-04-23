@@ -4,6 +4,7 @@ import datetime
 import math
 import xml.etree.ElementTree as ET
 
+import pytest
 import QuantLib as ql
 from fastapi.testclient import TestClient
 
@@ -538,6 +539,25 @@ class TestGreeksEdgeCases:
         inputs = resp.json()["greeks"]["inputs"]
         assert "calendar" not in inputs
 
+    @pytest.mark.parametrize("field", ["r", "q"])
+    @pytest.mark.parametrize("value", [-1.01, 5.01])
+    def test_rate_and_dividend_bounds(self, client: TestClient, field, value):
+        """r and q must lie within [-1.0, 5.0] to reject nonsensical inputs."""
+        params = {
+            "s": 100,
+            "k": 100,
+            "t": 0.25,
+            "r": 0.05,
+            "q": 0,
+            "v": 0.20,
+            "type": "call",
+            "style": "european",
+            field: value,
+        }
+        resp = client.get("/v1/greeks", params=params, headers={"Accept": "application/json"})
+        assert resp.status_code == 422
+        assert resp.json()["error"]["code"] == "INVALID_INPUT"
+
 
 class TestPortfolioEdgeCases:
     def test_portfolio_empty_rejected(self, client: TestClient):
@@ -634,6 +654,20 @@ class TestDateBoundaries:
         assert expiry.dayOfMonth() == 1
         assert expiry.month() == 1
         assert expiry.year() == 2027
+
+    def test_expiry_from_t_logs_warning_on_large_discrepancy(self, caplog):
+        """A 1.5-day input rounded to 2 days produces >20% discrepancy and should warn."""
+        import logging
+
+        import QuantLib as ql
+
+        from deskpricer.pricing.conventions import expiry_from_t
+
+        today = ql.Date(20, 4, 2026)
+        t = 1.5 / 365.0  # 1.5 calendar days → rounds to 2 days = 33% error
+        with caplog.at_level(logging.WARNING, logger="deskpricer"):
+            expiry_from_t(today, t, ql.NullCalendar())
+        assert any("discrepancy" in r.message for r in caplog.records)
 
 
 class TestCatchallHandler:

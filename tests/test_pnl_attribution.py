@@ -203,6 +203,27 @@ class TestPnLAttribution:
         assert resp.status_code == 200
         meta = resp.json()["pnl_attribution"]["meta"]
         assert meta["trading_days"] == 1
+        assert meta["calendar_days"] == 3
+
+    def test_theta_time_unit_calendar_day(self, client: TestClient):
+        """Over a long weekend, calendar_day scaling should give 3x the theta_pnl."""
+        params = self._base_params(
+            valuation_date_t_minus_1="2026-04-17",
+            valuation_date_t="2026-04-20",
+        )
+        resp_bd = self._get(client, params, json_format=True)
+        assert resp_bd.status_code == 200
+        theta_pnl_bd = resp_bd.json()["pnl_attribution"]["outputs"]["theta_pnl"]
+
+        params_cd = {**params, "theta_time_unit": "calendar_day"}
+        resp_cd = self._get(client, params_cd, json_format=True)
+        assert resp_cd.status_code == 200
+        data_cd = resp_cd.json()["pnl_attribution"]
+        theta_pnl_cd = data_cd["outputs"]["theta_pnl"]
+
+        assert theta_pnl_cd == pytest.approx(theta_pnl_bd * 3, abs=1e-7)
+        assert data_cd["meta"]["theta_time_unit"] == "calendar_day"
+        assert data_cd["inputs"]["theta_time_unit"] == "calendar_day"
 
     def test_explicit_dates_crosses_holiday(self, client: TestClient):
         """Apr 28 -> May 6 crosses Labour Day; HK holiday is excluded."""
@@ -388,3 +409,34 @@ class TestPnLAttribution:
         # Same dates → count_business_days still returns 1, so theta_pnl is non-zero
         assert data["actual_pnl"] == pytest.approx(0.0, abs=1e-10)
         assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)
+
+    def test_cross_greeks_vol_bump_capped_warning(self, client: TestClient, caplog):
+        """Low vol triggers the v*0.5 cap in cross-greeks; a warning must be emitted."""
+        import logging
+
+        params = {
+            "s_t_minus_1": 100.0,
+            "s_t": 100.0,
+            "k": 100.0,
+            "t_t_minus_1": 0.25,
+            "t_t": 0.25,
+            "r_t_minus_1": 0.05,
+            "r_t": 0.05,
+            "q_t_minus_1": 0.0,
+            "q_t": 0.0,
+            # v = 0.0015, bump_vol_abs defaults to 0.001 → cap to 0.00075
+            "v_t_minus_1": 0.0015,
+            "v_t": 0.0015,
+            "type": "call",
+            "style": "european",
+            "cross_greeks": True,
+            "method": "backward",
+            "valuation_date_t_minus_1": "2026-04-19",
+            "valuation_date_t": "2026-04-20",
+        }
+        with caplog.at_level(logging.WARNING, logger="deskpricer"):
+            resp = client.get(
+                "/v1/pnl_attribution", params=params, headers={"Accept": "application/json"}
+            )
+        assert resp.status_code == 200
+        assert any("auto-capped" in r.message for r in caplog.records)

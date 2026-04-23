@@ -236,6 +236,47 @@ class TestPnLExplain:
         assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)
 
 
+class TestCrossGreeksBSMConsistency:
+    def test_vanna_and_volga_match_bsm_closed_form(self):
+        """Numerical cross-greeks must agree with BSM closed-form within 2%."""
+        import math
+
+        from scipy.stats import norm
+
+        from deskpricer.pricing.cross_greeks import compute_cross_greeks
+        from deskpricer.pricing.european import price_european
+
+        s, k, t, r, q, v = 100.0, 100.0, 0.25, 0.05, 0.0, 0.20
+        val_date = datetime.date(2026, 4, 20)
+        base = price_european(s, k, t, r, q, v, "call", val_date)
+
+        vanna_num, volga_num = compute_cross_greeks(
+            base_price=base.price,
+            s=s,
+            k=k,
+            t=t,
+            r=r,
+            q=q,
+            v=v,
+            option_type="call",
+            style="european",
+            engine="analytic",
+            valuation_date=val_date,
+        )
+
+        d1 = (math.log(s / k) + (r - q + 0.5 * v * v) * t) / (v * math.sqrt(t))
+        d2 = d1 - v * math.sqrt(t)
+        nd1 = norm.pdf(d1)
+
+        # BSM vanna per $1 per 1% vol point
+        vanna_bsm = -nd1 * d2 / v * 0.01
+        # BSM volga per (1%)^2
+        volga_bsm = s * nd1 * math.sqrt(t) * d1 * d2 / v * 0.0001
+
+        assert vanna_num == pytest.approx(vanna_bsm, rel=0.02)
+        assert volga_num == pytest.approx(volga_bsm, rel=0.02)
+
+
 class TestPortfolioAggregation:
     def test_aggregate_equals_sum_of_legs(self, client: TestClient):
         """Portfolio aggregate must equal sum(qty * leg_greek) for each Greek."""
