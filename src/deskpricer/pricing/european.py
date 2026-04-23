@@ -17,6 +17,29 @@ from deskpricer.pricing.conventions import (
 from deskpricer.schemas import GreeksOutput
 
 
+def _reprice_at_date(
+    spot_handle: ql.QuoteHandle,
+    payoff: ql.PlainVanillaPayoff,
+    exercise: ql.Exercise,
+    target_date: ql.Date,
+    calendar: ql.Calendar,
+    r: float,
+    q: float,
+    v: float,
+    day_count: ql.DayCounter,
+) -> ql.VanillaOption:
+    """Build a European option repriced at ``target_date`` (for theta/charm)."""
+    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(target_date, q, day_count))
+    rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(target_date, r, day_count))
+    vol_ts = ql.BlackVolTermStructureHandle(
+        ql.BlackConstantVol(target_date, calendar, v, day_count)
+    )
+    process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
+    option = ql.VanillaOption(payoff, exercise)
+    option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
+    return option
+
+
 def price_european(
     s: float,
     k: float,
@@ -72,22 +95,10 @@ def price_european(
     else:
         if expiry_date > one_bd_forward:
             try:
-                div_ts_t1 = ql.YieldTermStructureHandle(
-                    ql.FlatForward(one_bd_forward, q, day_count)
+                option_t1 = _reprice_at_date(
+                    spot_handle, payoff, exercise, one_bd_forward, calendar, r, q, v, day_count
                 )
-                rf_ts_t1 = ql.YieldTermStructureHandle(
-                    ql.FlatForward(one_bd_forward, r, day_count)
-                )
-                vol_ts_t1 = ql.BlackVolTermStructureHandle(
-                    ql.BlackConstantVol(one_bd_forward, calendar, v, day_count)
-                )
-                process_t1 = ql.BlackScholesMertonProcess(
-                    spot_handle, div_ts_t1, rf_ts_t1, vol_ts_t1
-                )
-                option_t1 = ql.VanillaOption(payoff, exercise)
-                option_t1.setPricingEngine(ql.AnalyticEuropeanEngine(process_t1))
-                price_t1 = float(option_t1.NPV())
-                theta = price_t1 - price
+                theta = float(option_t1.NPV()) - price
             except RuntimeError as exc:
                 raise InvalidInputError("Theta calculation failed for the given inputs") from exc
         else:
@@ -97,31 +108,14 @@ def price_european(
     # Charm: ∂delta/∂t per trading day (forward difference, 1 business day)
     # When the option has <= 1 business day left, fall back to charm = 0.
     charm = 0.0
-    try:
-        one_bd_forward = next_business_day(ql_date, calendar)
-    except RuntimeError:
-        pass
-    else:
-        if expiry_date > one_bd_forward:
-            try:
-                div_ts_t1 = ql.YieldTermStructureHandle(
-                    ql.FlatForward(one_bd_forward, q, day_count)
-                )
-                rf_ts_t1 = ql.YieldTermStructureHandle(
-                    ql.FlatForward(one_bd_forward, r, day_count)
-                )
-                vol_ts_t1 = ql.BlackVolTermStructureHandle(
-                    ql.BlackConstantVol(one_bd_forward, calendar, v, day_count)
-                )
-                process_t1 = ql.BlackScholesMertonProcess(
-                    spot_handle, div_ts_t1, rf_ts_t1, vol_ts_t1
-                )
-                option_t1 = ql.VanillaOption(payoff, exercise)
-                option_t1.setPricingEngine(ql.AnalyticEuropeanEngine(process_t1))
-                delta_t1 = float(option_t1.delta())
-                charm = delta_t1 - delta
-            except RuntimeError as exc:
-                raise InvalidInputError("Charm calculation failed for the given inputs") from exc
+    if expiry_date > one_bd_forward:
+        try:
+            option_t1 = _reprice_at_date(
+                spot_handle, payoff, exercise, one_bd_forward, calendar, r, q, v, day_count
+            )
+            charm = float(option_t1.delta()) - delta
+        except RuntimeError as exc:
+            raise InvalidInputError("Charm calculation failed for the given inputs") from exc
 
     return GreeksOutput(
         price=price,
