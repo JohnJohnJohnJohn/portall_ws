@@ -193,6 +193,28 @@ class TestPnLAttribution:
         assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-6)
         assert data["residual_pnl"] == pytest.approx(0, abs=1e-6)
 
+    def test_explicit_dates_long_weekend(self, client: TestClient):
+        """Fri -> Mon spans only 1 trading day (Sat/Sun excluded)."""
+        params = self._base_params(
+            valuation_date_t_minus_1="2026-04-17",
+            valuation_date_t="2026-04-20",
+        )
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        meta = resp.json()["pnl_attribution"]["meta"]
+        assert meta["trading_days"] == 1
+
+    def test_explicit_dates_crosses_holiday(self, client: TestClient):
+        """Apr 28 -> May 6 crosses Labour Day; HK holiday is excluded."""
+        params = self._base_params(
+            valuation_date_t_minus_1="2026-04-28",
+            valuation_date_t="2026-05-06",
+        )
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        meta = resp.json()["pnl_attribution"]["meta"]
+        assert meta["trading_days"] == 5
+
     def test_only_one_date(self, client: TestClient):
         """Providing only one date should fail."""
         params = self._base_params()

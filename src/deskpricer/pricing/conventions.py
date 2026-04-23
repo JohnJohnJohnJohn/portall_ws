@@ -10,7 +10,8 @@ Numerical conventions
   forward-looking P&L figure: theta < 0 for a typical long option because
   the position decays as time passes.  Sign is opposite of Bloomberg
   DM<GO>, which reports theta as positive decay.
-  PnL attribution: theta_pnl = theta * count_business_days(t_minus_1, t, calendar).
+  PnL attribution: theta_pnl = theta * trading_days, where trading_days is the
+  elapsed business-day hold period (not a DTE-proxy).
 - Greeks bump semantics:
   - Relative spot bump (e.g., 1% of spot).
   - Absolute vol bump (e.g., 0.001 = 0.1 vol points).

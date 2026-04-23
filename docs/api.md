@@ -279,6 +279,8 @@ Solve for implied volatility given an observed market price.
 
 Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and residual.
 
+> **Valuation dates**: If both `valuation_date_t_minus_1` and `valuation_date_t` are omitted, both default to today and `trading_days` is set to 1. Provide explicit dates for accurate theta PnL across multi-day holds.
+
 #### Query Parameters
 
 | Name | Type | Required | Description |
