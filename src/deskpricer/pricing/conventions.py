@@ -16,11 +16,16 @@ Numerical conventions
   - Relative spot bump (e.g., 1% of spot).
   - Absolute vol bump (e.g., 0.001 = 0.1 vol points).
   - Absolute rate bump (e.g., 0.001 = 0.1% rate points).
-- Zero-DTE handling: ``t < 1/365`` is floored to 1 trading day.
+- Zero-DTE handling: ``t < 1/365`` is floored to 1 day.
   This prevents QuantLib singularities at t → 0.  0-DTE is an intentionally
   supported workflow; callers are expected to supply live market data (spot
   and IV) that already reflects intraday decay as expiry approaches, so the
   floored t is not a source of meaningful pricing error.
+- Expiry conversion: ``t`` (years, ACT/365) is converted to calendar days via
+  ``round(t * 365)`` with a hard floor of 1.  The landed date is then rolled
+  to the next business day using the chosen calendar (``ql.Following``).
+  This ensures the effective ACT/365 year fraction seen by QuantLib matches
+  the caller's input ``t``.
 - Default calendar: Hong Kong (`ql.HongKong()`).
 - Supported calendars: hong_kong, us_nyse, us_settlement, united_kingdom, null.
 """
@@ -76,15 +81,17 @@ def default_day_count() -> ql.DayCounter:
 def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> ql.Date:
     if t < 0:
         raise InvalidInputError("time to expiry must be non-negative", field="t")
-    # Convert years to business days (252 per year) with a hard floor of 1.
-    n = max(1, round(t * 252))
+    # Convert years to calendar days (ACT/365) with a hard floor of 1.
+    n_cal_days = max(1, round(t * 365))
     try:
-        expiry = calendar.advance(valuation_date, n, ql.Days)
+        expiry = valuation_date + ql.Period(n_cal_days, ql.Days)
     except RuntimeError as exc:
         raise InvalidInputError(
             "Expiry date exceeds QuantLib maximum supported date (2199-12-31)",
             field="t",
         ) from exc
+    # Roll to next business day if the landed date is a holiday/weekend.
+    expiry = calendar.adjust(expiry, ql.Following)
     if expiry.year() > 2199:
         raise InvalidInputError(
             f"Expiry date ({expiry}) exceeds QuantLib maximum supported date (2199-12-31)",

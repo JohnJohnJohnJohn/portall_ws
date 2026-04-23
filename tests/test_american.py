@@ -78,7 +78,7 @@ class TestAmericanPut:
         assert resp.status_code == 200
         price = resp.json()["greeks"]["outputs"]["price"]
         # QuantLib CRR DEFAULT_STEPS-step converges to ~4.283 for these params
-        assert abs(price - 4.2475) < 0.01
+        assert abs(price - 4.3049) < 0.01
 
     def test_american_put_ge_european_put(self, client: TestClient):
         """American put price should be >= European put price with same params."""

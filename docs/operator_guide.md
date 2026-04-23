@@ -64,7 +64,7 @@ DeskPricer writes structured JSON logs to a rotating file.
 
 **Symptom**: `t=0` returns a small positive price and non-zero Greeks instead of collapsing to intrinsic.
 
-**Explanation**: DeskPricer floors `t < 1/365` to 1 trading day to prevent QuantLib from crashing on zero-day options. This is intentional. If you need true intrinsic-only valuation, subtract the 1-day time value manually or set `t` to a very small positive number and accept the floor.
+**Explanation**: DeskPricer floors `t < 1/365` to 1 day to prevent QuantLib from crashing on zero-day options. This is intentional. If you need true intrinsic-only valuation, subtract the 1-day time value manually or set `t` to a very small positive number and accept the floor.
 
 ### Engine/style mismatches
 
