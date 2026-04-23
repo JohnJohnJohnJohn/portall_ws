@@ -294,8 +294,12 @@ class TestImpliedVol:
             # Return a dummy IV on the retry
             return 0.5
 
+        def _fake_npv(self):
+            return 5.0
+
         monkeypatch = __import__("pytest").MonkeyPatch()
         monkeypatch.setattr(ql.VanillaOption, "impliedVolatility", _fake_implied_vol)
+        monkeypatch.setattr(ql.VanillaOption, "NPV", _fake_npv)
         try:
             with caplog.at_level(logging.WARNING, logger="deskpricer"):
                 result = iv_mod.compute_implied_vol(
@@ -349,6 +353,35 @@ class TestImpliedVol:
             assert len(calls) == 2
             assert calls[0] == (1e-6, 5.0)
             assert calls[1] == (1e-8, 10.0)
+        finally:
+            monkeypatch.undo()
+
+    def test_impliedvol_reprice_tolerance_failure(self, client: TestClient):
+        """If solved IV does not reproduce target_price within 10*accuracy, reject."""
+        import QuantLib as ql
+        import deskpricer.pricing.implied_vol as iv_mod
+
+        def _fake_implied_vol(self, target, process, accuracy, max_iter, min_vol, max_vol):
+            # Return a very low vol so repriced NPV is far from target
+            return 0.001
+
+        monkeypatch = __import__("pytest").MonkeyPatch()
+        monkeypatch.setattr(ql.VanillaOption, "impliedVolatility", _fake_implied_vol)
+        try:
+            with __import__("pytest").raises(iv_mod.InvalidInputError) as exc_info:
+                iv_mod.compute_implied_vol(
+                    s=100,
+                    k=100,
+                    t=0.25,
+                    r=0.05,
+                    q=0,
+                    target_price=5.0,
+                    option_type="call",
+                    style="european",
+                    engine="analytic",
+                    valuation_date=__import__("datetime").date(2026, 4, 20),
+                )
+            assert "deviates from target price" in str(exc_info.value)
         finally:
             monkeypatch.undo()
 
@@ -460,6 +493,44 @@ class TestPortfolio:
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
+
+    def test_portfolio_different_spot_rejected(self, client: TestClient):
+        """Portfolio legs with different spot prices should be rejected."""
+        payload = {
+            "legs": [
+                {
+                    "id": "L1",
+                    "qty": 1,
+                    "s": 100,
+                    "k": 100,
+                    "t": 0.25,
+                    "r": 0.05,
+                    "q": 0,
+                    "v": 0.20,
+                    "type": "call",
+                    "style": "european",
+                },
+                {
+                    "id": "L2",
+                    "qty": 1,
+                    "s": 105,
+                    "k": 100,
+                    "t": 0.25,
+                    "r": 0.05,
+                    "q": 0,
+                    "v": 0.20,
+                    "type": "put",
+                    "style": "european",
+                },
+            ]
+        }
+        resp = client.post(
+            "/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"}
+        )
+        assert resp.status_code == 422
+        data = resp.json()["error"]
+        assert data["code"] == "INVALID_INPUT"
+        assert "same underlying" in data["message"].lower()
 
 
 class TestVersionJSON:

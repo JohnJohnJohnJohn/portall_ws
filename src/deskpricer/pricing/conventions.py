@@ -10,8 +10,12 @@ Numerical conventions
   forward-looking P&L figure: theta < 0 for a typical long option because
   the position decays as time passes.  Sign is opposite of Bloomberg
   DM<GO>, which reports theta as positive decay.
+  Worked example: a long call with theta = -0.05 loses approximately $0.05
+  in value for each business day that passes, all else equal.
   PnL attribution: theta_pnl = theta * trading_days, where trading_days is the
   elapsed business-day hold period (not a DTE-proxy).
+- Charm inherits the same forward-difference, forward-looking convention as
+  theta: it is the change in delta per one business day passing.
 - Greeks bump semantics:
   - Relative spot bump (e.g., 1% of spot).
   - Absolute vol bump (e.g., 0.001 = 0.1 vol points).
@@ -21,21 +25,24 @@ Numerical conventions
   supported workflow; callers are expected to supply live market data (spot
   and IV) that already reflects intraday decay as expiry approaches, so the
   floored t is not a source of meaningful pricing error.
-- Expiry conversion: ``t`` (years, ACT/365) is converted to calendar days via
-  ``round(t * 365)`` with a hard floor of 1.  The landed date is then rolled
-  to the next business day using the chosen calendar (``ql.Following``).
-  This ensures the effective ACT/365 year fraction seen by QuantLib matches
-  the caller's input ``t``.
+- Expiry conversion: ``t`` (years, ACT/365) is the sole expiry input.
+  The pricer intentionally does not accept an explicit expiry date.
+  Callers are expected to derive ``t`` from a real, pre-validated
+  business-day expiry date (e.g., ``t = (expiry_date - today).days / 365``).
+  The ``ql.Following`` business-day roll is a safety guard only; it is not
+  expected to trigger in normal usage because callers should ensure the
+  implied expiry date is already a business day.  If the roll does trigger,
+  the effective ``t`` seen by QuantLib will be slightly longer than the
+  input ``t``, which is documented and accepted behaviour.
 - Default calendar: Hong Kong (`ql.HongKong()`).
 - Supported calendars: hong_kong, us_nyse, us_settlement, united_kingdom, null.
 """
 
+import logging
 from datetime import date
 from typing import Literal
 
 import QuantLib as ql
-
-import logging
 
 from deskpricer.errors import InvalidInputError
 
@@ -82,6 +89,23 @@ def default_day_count() -> ql.DayCounter:
 
 
 def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> ql.Date:
+    """Convert a time-to-expiry ``t`` (ACT/365 years) into a QuantLib Date.
+
+    ``t`` is the sole expiry interface; the pricer does **not** accept an
+    explicit expiry date.  Callers must derive ``t`` from a real, pre-validated
+    business-day expiry (e.g. ``(expiry_date - today).days / 365``).  The
+    conversion uses ``round(t * 365)`` calendar days with a floor of 1, then
+    rolls the landed date to the next business day using ``ql.Following``.  The
+    roll is a safety guard only; it is not expected to trigger in normal
+    usage because callers should ensure the implied expiry is already a
+    business day.  If it does trigger, the effective ``t`` seen by QuantLib
+    will be slightly longer than the input ``t``, which is documented and
+    accepted behaviour.
+
+    A warning is logged if the discrepancy between input ``t`` and the
+    effective ACT/365 year fraction exceeds 20 %.
+    """
+
     if t < 0:
         raise InvalidInputError("time to expiry must be non-negative", field="t")
     # Convert years to calendar days (ACT/365) with a hard floor of 1.
@@ -133,7 +157,10 @@ def next_business_day(date: ql.Date, calendar: ql.Calendar) -> ql.Date:
 def count_business_days(start: ql.Date, end: ql.Date, calendar: ql.Calendar) -> int:
     """Count the number of business days in ``[start, end)`` using ``calendar``.
 
-    Returns 1 minimum so zero-day moves still produce a finite theta_pnl.
+    Returns **at least 1** so that a same-day repricing still reflects one
+    full business day of theta decay.  This means ``theta_pnl`` is never
+    zero even when ``start == end``; callers who want zero theta on a
+    non-trading day must handle that logic themselves.
     """
     count = 0
     d = start

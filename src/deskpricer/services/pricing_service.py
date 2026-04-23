@@ -231,11 +231,6 @@ async def run_portfolio(
                 calendar_name=leg.calendar,
                 theta_convention=leg.theta_convention,
             )
-            if not math.isfinite(result.price):
-                raise InvalidInputError(
-                    f"Pricing produced non-finite price for leg {leg.id}",
-                    field="price",
-                )
             row = {
                 "id": leg.id,
                 "engine": leg.engine,

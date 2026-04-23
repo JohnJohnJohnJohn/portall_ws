@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import sys
 import time
 
 from fastapi import FastAPI, Request
@@ -53,8 +54,6 @@ def create_app() -> FastAPI:
                     },
                 )
             except OSError as exc:
-                import sys
-
                 try:
                     sys.stderr.write(f"[DeskPricer] request logging failed: {exc}\n")
                 except OSError:

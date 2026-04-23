@@ -39,15 +39,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
 
-    if args.port is not None:
-        port = args.port
-    else:
-        raw_port = os.environ.get("DESKPRICER_PORT", "8765")
-        try:
-            port = int(raw_port)
-        except ValueError:
-            print(f"ERROR: DESKPRICER_PORT must be an integer, got: {raw_port}", file=sys.stderr)
-            sys.exit(1)
+    raw = args.port if args.port is not None else os.environ.get("DESKPRICER_PORT", "8765")
+    try:
+        port = int(raw)
+    except ValueError:
+        print(f"ERROR: DESKPRICER_PORT must be an integer, got: {raw}", file=sys.stderr)
+        sys.exit(1)
 
     if not (1 <= port <= 65535):
         print(f"ERROR: port must be between 1 and 65535, got: {port}", file=sys.stderr)

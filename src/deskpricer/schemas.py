@@ -1,11 +1,23 @@
-"""Pydantic request/response models."""
+"""Pydantic request/response models.
 
+Unit-basis convention
+---------------------
+All pricing outputs from /greeks, /impliedvol, and /pnl are on a per-unit
+basis (qty = 1).  The pricer prices one contract at a time and does not
+model position sizing.  Quantity scaling is the caller's responsibility.
+In the /portfolio endpoint, ``qty`` is a consumer-side scaling factor
+applied only to the ``aggregate`` response block; each element of the
+``legs`` array contains unscaled unit Greeks.
+"""
+
+import math
 from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from deskpricer.pricing.conventions import (
+    CalendarLiteral,
     DAY_COUNT,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
@@ -16,7 +28,6 @@ from deskpricer.pricing.conventions import (
 )
 
 EngineLiteral = Literal["analytic", "binomial_crr", "binomial_jr"]
-CalendarLiteral = Literal["hong_kong", "us_nyse", "us_settlement", "united_kingdom", "null"]
 ThetaConvention = Literal["pnl", "decay"]
 
 
@@ -107,7 +118,12 @@ class GreeksRequest(_VanillaOptionBase):
 class LegInput(_VanillaOptionBase):
     id: str = Field(min_length=1, max_length=32)
     qty: float = Field(
-        allow_inf_nan=False, ge=-1e12, le=1e12, description="Quantity (negative for short)"
+        allow_inf_nan=False,
+        ge=-1e12,
+        le=1e12,
+        description="Consumer-side scaling factor for portfolio aggregation. "
+        "Per-leg outputs in the portfolio response are unit Greeks (unscaled); "
+        "only the aggregate block reflects qty-weighted sums.",
     )
 
 
@@ -122,19 +138,43 @@ class PortfolioRequest(BaseModel):
             raise ValueError("leg ids must be unique within a portfolio")
         return self
 
+    @model_validator(mode="after")
+    def check_same_underlying(self):
+        spots = [leg.s for leg in self.legs]
+        first = spots[0]
+        for s in spots[1:]:
+            if not math.isclose(s, first, rel_tol=1e-6):
+                raise ValueError(
+                    "All legs must reference the same underlying spot price. "
+                    "Aggregate Greeks across different underlyings are not financially meaningful."
+                )
+        return self
+
 
 class GreeksOutput(BaseModel):
+    """Per-unit option price and sensitivities (qty = 1 basis).
+
+    All fields represent the value or sensitivity of a single option
+    contract.  Position-level scaling is the caller's responsibility.
+    """
+
     price: float
     delta: float
     gamma: float
     vega: float
     theta: float = Field(
-        description="P&L impact of one business day passing under the requested "
-        "theta_convention. 'pnl' (default): negative for typical long options. "
-        "'decay': positive decay, matching Bloomberg DM<GO>.",
+        description="P&L impact of one business day passing (forward-looking). "
+        "Negative for a typical long option because the position loses value "
+        "as time passes.  This is the opposite sign of Bloomberg DM<GO>, "
+        "which reports theta as a positive decay figure.  Usage: "
+        "theta_pnl ≈ theta × number_of_trading_days_elapsed.",
     )
     rho: float
-    charm: float
+    charm: float = Field(
+        description="Change in delta per one business day passing "
+        "(forward-looking, inherits the same next-business-day revalue "
+        "convention as theta).",
+    )
 
 
 class ImpliedVolRequest(_VanillaOptionCoreBase):

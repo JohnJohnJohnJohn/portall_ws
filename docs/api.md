@@ -52,7 +52,7 @@ Price a single vanilla option and return Greeks.
 |------|------|----------|-------------|
 | `s` | float > 0 | Yes | Spot price |
 | `k` | float > 0 | Yes | Strike |
-| `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 day |
+| `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 day. The pricer does **not** accept an explicit expiry date; callers must derive `t` from a real, pre-validated business-day expiry (e.g. `(expiry_date - today).days / 365`). |
 | `r` | float | Yes | Continuously compounded risk-free rate |
 | `q` | float | Yes | Continuously compounded dividend yield |
 | `v` | float > 0 | Yes | Black volatility (decimal) |
@@ -72,6 +72,15 @@ Price a single vanilla option and return Greeks.
 - `style=american` → `binomial_crr` with 500 steps (Cox-Ross-Rubinstein)
 
 > **American early exercise**: American options are priced with early-exercise permitted from the valuation date onward.  This matches the standard convention for listed equity options.
+>
+> **Bloomberg DM<GO> sign convention comparison**:
+>
+> | Field | DeskPricer | Bloomberg DM<GO> | Notes |
+> |-------|-----------|------------------|-------|
+> | `theta` | Negative for long decay | Positive decay figure | DeskPricer follows forward P&L sign; Bloomberg shows absolute decay |
+> | `charm` | Change in delta per day passing | Same sign convention | Both use next-business-day forward difference |
+>
+> Worked example: a long ATM call with `theta = -0.05` means the position is expected to lose approximately $0.05 in value for each business day that passes, all else equal.  The equivalent Bloomberg line would read `5.00` (displayed as positive decay).
 
 #### Greek Conventions
 
@@ -80,11 +89,13 @@ Price a single vanilla option and return Greeks.
 | `delta` | ∂V/∂S | absolute |
 | `gamma` | ∂²V/∂S² | absolute |
 | `vega` | ∂V/∂σ | per **1% vol point** (standard market convention) |
-| `theta` | ∂V/∂t | per **trading day** (next-BD revalue − today's price). Negative for a decaying long option. |
+| `theta` | ∂V/∂t | per **trading day** (next-BD revalue − today's price). Negative for a decaying long option. Sign is opposite to Bloomberg DM<GO>, which reports theta as positive decay. |
 | `rho` | ∂V/∂r | per **1% rate point** (standard market convention) |
-| `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **trading day** (delta next business day − delta today per the chosen calendar)
+| `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **trading day** (delta next business day − delta today per the chosen calendar). Inherits the same forward-looking convention as theta.
 
 > **Rho scope**: `rho` measures sensitivity to the **risk-free rate** (`r`) only.  DeskPricer does not return a dividend-yield rho (`rho_q`).
+>
+> **Unit-basis note**: All values in `<outputs>` are **per unit** (qty = 1).  The pricer prices one contract at a time and does not model position sizing.  Quantity scaling is the caller's responsibility.
 
 #### Response (XML)
 
@@ -121,6 +132,8 @@ Price a single vanilla option and return Greeks.
 ### `POST /v1/portfolio/greeks`
 
 Bulk endpoint for book-level aggregation.
+
+> **Same-underlying requirement**: All legs must reference the same underlying spot price.  A portfolio with legs whose spot prices differ by more than `1e-6` relative tolerance will be rejected with `422 UNSUPPORTED_COMBINATION`.
 
 #### Request Body (JSON)
 
@@ -179,6 +192,8 @@ Bulk endpoint for book-level aggregation.
 ```
 
 Aggregate = Σ qty × per-leg Greek (including price).
+
+> **Unit-basis note**: Each element in `legs` returns **per-unit** Greeks (unscaled).  Only the `aggregate` block reflects `qty`-weighted sums.
 
 #### Response (XML)
 
@@ -367,6 +382,8 @@ When `cross_greeks=true`, the PnL attribution adds two second-order terms that c
 ```
 
 > **Per-unit outputs**: All PnL buckets (`delta_pnl`, `gamma_pnl`, `vega_pnl`, `theta_pnl`, `rho_pnl`, `vanna_pnl`, `volga_pnl`, `actual_pnl`, `residual_pnl`) are **per unit**.  The `qty` parameter is accepted for API compatibility but is ignored in calculations.  Position-level scaling is the caller's responsibility.
+>
+> **Same-day repricing**: When both valuation dates are omitted or identical, `trading_days` is set to **1 minimum** (not 0).  This ensures `theta_pnl` reflects one full business day of decay even on a same-day repricing.
 
 ---
 

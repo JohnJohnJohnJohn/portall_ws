@@ -30,8 +30,8 @@ class JSONFormatter(logging.Formatter):
                 "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 "level": record.levelname,
                 "logger": record.name,
-                "pathname": getattr(record, "pathname", None),
-                "lineno": getattr(record, "lineno", None),
+                "pathname": record.pathname,
+                "lineno": record.lineno,
             }
             # Extra fields injected by callers (method, path, query, duration_ms, status)
             for key in ("method", "path", "query", "duration_ms", "status"):
@@ -94,7 +94,6 @@ class _SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
                     self.stream.close()
                 except OSError:
                     pass
-                self.stream = None  # type: ignore[assignment]
             self.stream = self._open()
 
 

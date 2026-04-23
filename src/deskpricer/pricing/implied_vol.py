@@ -150,4 +150,14 @@ def compute_implied_vol(
     if not math.isfinite(implied_vol) or not math.isfinite(npv_at_iv):
         raise InvalidInputError("Solver returned non-finite implied volatility", field="price")
 
+    # Tree engines have discretisation error; use a relaxed tolerance.
+    tolerance_multiplier = 10 if engine_cls is not None else 50
+    if abs(npv_at_iv - target_price) > tolerance_multiplier * accuracy:
+        raise InvalidInputError(
+            f"Solved IV reproduces NPV {npv_at_iv:.6f} which deviates from target price "
+            f"{target_price:.6f} by more than tolerance {tolerance_multiplier * accuracy:.6f}. "
+            "The solver may have converged to a local minimum or the inputs are ill-conditioned.",
+            field="price",
+        )
+
     return ImpliedVolOutput(implied_vol=float(implied_vol), npv_at_iv=npv_at_iv)

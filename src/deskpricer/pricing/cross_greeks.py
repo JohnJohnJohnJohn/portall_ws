@@ -76,11 +76,6 @@ def compute_cross_greeks(
             "Vol bump underflowed to zero for cross-greeks; use larger vol or bump_vol_abs",
             field="bump_vol_abs",
         )
-    if v <= effective_bump_vol:
-        raise InvalidInputError(
-            "volatility must be greater than effective bump for cross-greeks computation",
-            field="v",
-        )
 
     ds = s * bump_spot_rel
     if ds <= 0.0 or not math.isfinite(ds):
@@ -89,11 +84,6 @@ def compute_cross_greeks(
             field="bump_spot_rel",
         )
     dv_points = effective_bump_vol * 100.0
-    if dv_points <= 0.0 or not math.isfinite(dv_points):
-        raise InvalidInputError(
-            "Vol bump underflowed to zero for cross-greeks; use larger bump_vol_abs",
-            field="bump_vol_abs",
-        )
 
     def _price(spot: float, vol: float):
         return price_vanilla(

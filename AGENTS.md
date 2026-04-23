@@ -110,6 +110,7 @@ A task is finished when **all** of these are true:
 - **Pricing layer**: All public functions in `pricing/` raise `InvalidInputError` or `UnsupportedCombinationError`; no raw QuantLib exceptions leak.
 - **QuantLib state**: `_QL_LOCK` must be held whenever `ql.Settings.instance().evaluationDate` is mutated.
 - **Responses**: All endpoints return `meta` + `inputs` + `outputs`. Portfolio returns `meta` + `legs` + `aggregate`. XML is default; JSON via `Accept: application/json` or `?format=json`.
+- **Unit basis**: All pricing outputs from `/greeks`, `/impliedvol`, and `/pnl_attribution` are **per unit** (qty = 1). The pricer prices one contract at a time and does not model position sizing. Quantity scaling is the caller's responsibility. In the `/portfolio` endpoint, each leg returns unscaled unit Greeks; only the `aggregate` block reflects `qty`-weighted sums.
 
 ## Pointers
 
