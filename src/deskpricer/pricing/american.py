@@ -12,11 +12,12 @@ from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
-)
-from deskpricer.pricing.conventions import (
-    default_calendar,
+    DEFAULT_CALENDAR,
+    CalendarLiteral,
     default_day_count,
     expiry_from_t,
+    get_calendar,
+    next_business_day,
     ql_date_from_iso,
 )
 from deskpricer.schemas import GreeksOutput
@@ -33,11 +34,11 @@ def _npv(
     expiry_date: ql.Date,
     steps: int,
     engine_type: str,
+    calendar: ql.Calendar,
 ) -> float:
     if steps < 1:
         raise InvalidInputError("steps must be positive", field="steps")
 
-    calendar = default_calendar()
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
@@ -76,6 +77,7 @@ def price_american(
     bump_spot_rel: float = DEFAULT_BUMP_SPOT_REL,
     bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
     bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
+    calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
 ) -> GreeksOutput:
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
@@ -94,8 +96,9 @@ def price_american(
 
     ql_date = ql_date_from_iso(valuation_date)
     expiry_date = expiry_from_t(ql_date, t)
+    calendar = get_calendar(calendar_name)
 
-    price = _npv(s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
+    price = _npv(s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
 
     # Delta & Gamma via central differences on spot
     h_s = bump_spot_rel * s
@@ -104,8 +107,8 @@ def price_american(
             "Spot bump underflowed to zero; use larger spot or bump_spot_rel",
             field="bump_spot_rel",
         )
-    price_up_s = _npv(s + h_s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
-    price_down_s = _npv(s - h_s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
+    price_up_s = _npv(s + h_s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    price_down_s = _npv(s - h_s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
     delta = (price_up_s - price_down_s) / (2.0 * h_s)
     gamma = (price_up_s - 2.0 * price + price_down_s) / (h_s * h_s)
 
@@ -117,38 +120,38 @@ def price_american(
             "Vol bump underflowed to zero; use larger vol or bump_vol_abs",
             field="bump_vol_abs",
         )
-    price_up_v = _npv(s, k, r, q, v + h_v, option_type, ql_date, expiry_date, steps, engine_type)
-    price_down_v = _npv(s, k, r, q, v - h_v, option_type, ql_date, expiry_date, steps, engine_type)
+    price_up_v = _npv(s, k, r, q, v + h_v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    price_down_v = _npv(s, k, r, q, v - h_v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
     vega = (price_up_v - price_down_v) / (2.0 * h_v) / 100.0
 
     # Rho via central difference on rate
     # Divide by 100 to report standard market convention (per 1%)
     h_r = bump_rate_abs
-    price_up_r = _npv(s, k, r + h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
-    price_down_r = _npv(s, k, r - h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type)
+    price_up_r = _npv(s, k, r + h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    price_down_r = _npv(s, k, r - h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
     rho = (price_up_r - price_down_r) / (2.0 * h_r) / 100.0
 
-    # Theta via one-day-forward revalue
-    # When the option has <= 1 day left, forward revalue hits expiry;
-    # fallback to intrinsic value for the overnight price
+    # Theta via next-business-day revalue
+    # When the option has <= 1 business day left, forward revalue hits expiry;
+    # fallback to intrinsic value for the next-business-day price
     try:
-        tomorrow = ql_date + 1
+        next_bd = next_business_day(ql_date, calendar)
     except RuntimeError as exc:
         raise InvalidInputError("Valuation date too close to maximum supported date") from exc
-    if expiry_date > tomorrow:
-        price_tomorrow = _npv(s, k, r, q, v, option_type, tomorrow, expiry_date, steps, engine_type)
+    if expiry_date > next_bd:
+        price_next_bd = _npv(s, k, r, q, v, option_type, next_bd, expiry_date, steps, engine_type, calendar)
     else:
         # At expiry the option is worth its intrinsic value
-        price_tomorrow = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
-    theta = price_tomorrow - price
+        price_next_bd = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
+    theta = price_next_bd - price
 
-    # Charm: ∂delta/∂t per calendar day (forward difference)
-    if expiry_date > tomorrow:
+    # Charm: ∂delta/∂t per trading day (forward difference, 1 business day)
+    if expiry_date > next_bd:
         price_up_s_t1 = _npv(
-            s + h_s, k, r, q, v, option_type, tomorrow, expiry_date, steps, engine_type
+            s + h_s, k, r, q, v, option_type, next_bd, expiry_date, steps, engine_type, calendar
         )
         price_down_s_t1 = _npv(
-            s - h_s, k, r, q, v, option_type, tomorrow, expiry_date, steps, engine_type
+            s - h_s, k, r, q, v, option_type, next_bd, expiry_date, steps, engine_type, calendar
         )
         delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
         charm = delta_t1 - delta

@@ -76,23 +76,28 @@ class TestPnLAttribution:
         assert abs(data["vega_pnl"]) > abs(data["theta_pnl"])
 
     def test_theta_pnl_one_day(self, client: TestClient):
-        """One calendar day passes, all market data identical.
-        Actual PnL should be approximately theta * 1 day."""
+        """One calendar day passes (Sun->Mon = 1 trading day), all market data identical.
+        Actual PnL should be approximately theta * trading_days."""
         params = self._base_params(
             t_t=0.25 - MIN_T_YEARS,
         )
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
         data = resp.json()["pnl_attribution"]["outputs"]
+        meta = resp.json()["pnl_attribution"]["meta"]
 
         assert data["delta_pnl"] == pytest.approx(0, abs=1e-10)
         assert data["gamma_pnl"] == pytest.approx(0, abs=1e-10)
         assert data["vega_pnl"] == pytest.approx(0, abs=1e-10)
         assert data["rho_pnl"] == pytest.approx(0, abs=1e-10)
 
+        assert meta["trading_days"] == 1
         assert data["theta_pnl"] < 0
-        assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-3)
-        assert data["residual_pnl"] == pytest.approx(0, abs=1e-3)
+        assert data["actual_pnl"] < 0
+        # European theta is annual/252; actual 1-calendar-day decay is annual/365.
+        # Allow ~50% relative tolerance for this convention mismatch.
+        assert abs(data["actual_pnl"] - data["theta_pnl"]) < 0.02
+        assert abs(data["residual_pnl"]) < 0.02
 
     def test_method_average_vega(self, client: TestClient):
         """Average vega should differ from backward vega when vol and spot both move."""
@@ -175,15 +180,19 @@ class TestPnLAttribution:
         assert data["theta_pnl"] == pytest.approx(0, abs=1e-10)
 
     def test_omit_both_dates_diff_t(self, client: TestClient):
-        """Omitting both dates with 1-day t decay: theta_pnl ≈ theta * 1 day."""
+        """Omitting both dates with 1-day t decay: theta_pnl ≈ theta * trading_days."""
         params = self._base_params(t_t=0.25 - MIN_T_YEARS)
         del params["valuation_date_t_minus_1"]
         del params["valuation_date_t"]
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
         data = resp.json()["pnl_attribution"]["outputs"]
+        meta = resp.json()["pnl_attribution"]["meta"]
+        assert meta["trading_days"] == 1
         assert data["theta_pnl"] < 0
-        assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-3)
+        assert data["actual_pnl"] < 0
+        # See test_theta_pnl_one_day for tolerance rationale
+        assert abs(data["actual_pnl"] - data["theta_pnl"]) < 0.02
 
     def test_only_one_date(self, client: TestClient):
         """Providing only one date should fail."""
@@ -332,6 +341,20 @@ class TestPnLAttribution:
         else:
             req = PnLAttributionGETRequest(**base, v_t_minus_1=v_t_minus_1, v_t=v_t)
             assert req.v_t_minus_1 == v_t_minus_1
+
+    def test_calendar_field_accepted(self, client: TestClient):
+        """Specifying calendar=us_nyse should be accepted and echoed back in non-default inputs."""
+        params = self._base_params(calendar="us_nyse")
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        inputs = resp.json()["pnl_attribution"]["inputs"]
+        assert inputs.get("calendar") == "us_nyse"
+
+    def test_invalid_calendar_rejected(self, client: TestClient):
+        """Invalid calendar string should fail validation."""
+        params = self._base_params(calendar="mars_exchange")
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 422
 
     def test_cross_greeks_zero_moves(self, client: TestClient):
         """cross_greeks=true with zero spot move and zero vol move should yield zero cross PnL."""

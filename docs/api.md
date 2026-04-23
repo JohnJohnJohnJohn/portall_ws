@@ -36,7 +36,7 @@ Version metadata.
 **Response (XML):**
 ```xml
 <version>
-  <service>2.2.0</service>
+  <service>2.4.0</service>
   <quantlib>1.42.1</quantlib>
   <python>3.12.7</python>
 </version>
@@ -60,6 +60,7 @@ Price a single vanilla option and return Greeks.
 | `style` | `european` / `american` | Yes | Option style |
 | `engine` | enum | No | `analytic`, `binomial_crr`, `binomial_jr`. Default: `analytic` for European, `binomial_crr` for American |
 | `steps` | int (10–5000) | No | Tree steps. Default: 400 |
+| `calendar` | enum | No | `hong_kong`, `us_nyse`, `us_settlement`, `united_kingdom`, `null`. Default: `hong_kong` |
 | `valuation_date` | ISO date | No | Defaults to today |
 | `bump_spot_rel` | float | No | Relative spot bump for bump-and-revalue Greeks. Default: 0.01 |
 | `bump_vol_abs` | float | No | Absolute vol bump. Default: 0.001 |
@@ -77,16 +78,16 @@ Price a single vanilla option and return Greeks.
 | `delta` | ∂V/∂S | absolute |
 | `gamma` | ∂²V/∂S² | absolute |
 | `vega` | ∂V/∂σ | per **1% vol point** (standard market convention) |
-| `theta` | ∂V/∂t | per **calendar day** (annual theta / 365) |
+| `theta` | ∂V/∂t | per **trading day** (annual theta / 252 using the chosen calendar) |
 | `rho` | ∂V/∂r | per **1% rate point** (standard market convention) |
-| `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **calendar day** (delta tomorrow − delta today)
+| `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **trading day** (delta next business day − delta today per the chosen calendar)
 
 #### Response (XML)
 
 ```xml
 <greeks>
   <meta>
-    <service_version>2.2.0</service_version>
+    <service_version>2.4.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -106,7 +107,7 @@ Price a single vanilla option and return Greeks.
     <delta>0.374319</delta>
     <gamma>0.034621</gamma>
     <vega>0.187806</vega>
-    <theta>-0.026009</theta>
+    <theta>-0.037672</theta>
     <rho>0.085719</rho>
     <charm>-0.001205</charm>
   </outputs>
@@ -133,7 +134,8 @@ Bulk endpoint for book-level aggregation.
       "q": 0.012,
       "v": 0.22,
       "type": "call",
-      "style": "european"
+      "style": "european",
+      "calendar": "hong_kong"
     }
   ]
 }
@@ -144,7 +146,7 @@ Bulk endpoint for book-level aggregation.
 ```json
 {
   "meta": {
-    "service_version": "2.2.0",
+    "service_version": "2.4.0",
     "quantlib_version": "1.42.1"
   },
   "legs": [
@@ -155,7 +157,7 @@ Bulk endpoint for book-level aggregation.
       "delta": 0.374319,
       "gamma": 0.034621,
       "vega": 0.187806,
-      "theta": -0.026009,
+      "theta": -0.037672,
       "rho": 0.085719,
       "charm": -0.001205
     }
@@ -178,7 +180,7 @@ Aggregate = Σ qty × per-leg Greek.
 ```xml
 <portfolio>
   <meta>
-    <service_version>2.2.0</service_version>
+    <service_version>2.4.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <valuation_date>2026-04-22</valuation_date>
   </meta>
@@ -199,9 +201,9 @@ Aggregate = Σ qty × per-leg Greek.
     <delta>3.74319</delta>
     <gamma>0.34621</gamma>
     <vega>1.87806</vega>
-    <theta>-0.26009</theta>
+    <theta>-0.37532</theta>
     <rho>0.85719</rho>
-    <charm>-0.01205</charm>
+    <charm>-0.01189</charm>
   </aggregate>
 </portfolio>
 ```
@@ -229,13 +231,14 @@ Solve for implied volatility given an observed market price.
 | `valuation_date` | ISO date | No | Defaults to today |
 | `accuracy` | float | No | Brent solver accuracy. Default: `1e-4` |
 | `max_iterations` | int | No | Max solver iterations. Default: `1000` |
+| `calendar` | enum | No | `hong_kong`, `us_nyse`, `us_settlement`, `united_kingdom`, `null`. Default: `hong_kong` |
 
 #### Response (XML)
 
 ```xml
 <impliedvol>
   <meta>
-    <service_version>2.2.0</service_version>
+    <service_version>2.4.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -303,11 +306,12 @@ Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and resi
 ```xml
 <pnl_attribution>
   <meta>
-    <service_version>2.2.0</service_version>
+    <service_version>2.4.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <valuation_date_t_minus_1>2026-04-19</valuation_date_t_minus_1>
     <valuation_date_t>2026-04-20</valuation_date_t>
     <method>backward</method>
+    <trading_days>1</trading_days>
   </meta>
   <inputs>
     <s_t_minus_1>100.0</s_t_minus_1>
@@ -328,17 +332,17 @@ Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and resi
   </inputs>
   <outputs>
     <price_t_minus_1>2.288743</price_t_minus_1>
-    <price_t>3.448643</price_t>
+    <price_t>3.448862</price_t>
     <actual_pnl>11.601</actual_pnl>
     <delta_pnl>7.125</delta_pnl>
     <gamma_pnl>0.744</gamma_pnl>
     <vega_pnl>3.710</vega_pnl>
-    <theta_pnl>-0.230</theta_pnl>
+    <theta_pnl>-0.333</theta_pnl>
     <rho_pnl>0.0</rho_pnl>
     <vanna_pnl>0.343</vanna_pnl>
     <volga_pnl>0.031</volga_pnl>
-    <explained_pnl>11.724</explained_pnl>
-    <residual_pnl>-0.123</residual_pnl>
+    <explained_pnl>11.621</explained_pnl>
+    <residual_pnl>-0.020</residual_pnl>
   </outputs>
 </pnl_attribution>
 ```

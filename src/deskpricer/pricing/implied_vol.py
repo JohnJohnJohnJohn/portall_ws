@@ -7,13 +7,13 @@ import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError, UnsupportedCombinationError
 from deskpricer.pricing.conventions import (
+    DEFAULT_CALENDAR,
     DEFAULT_STEPS,
     MIN_T_YEARS,
-)
-from deskpricer.pricing.conventions import (
-    default_calendar,
+    CalendarLiteral,
     default_day_count,
     expiry_from_t,
+    get_calendar,
     ql_date_from_iso,
 )
 from deskpricer.pricing.engine import ENGINE_MAP
@@ -34,6 +34,7 @@ def compute_implied_vol(
     steps: int = DEFAULT_STEPS,
     accuracy: float = 1e-4,
     max_iterations: int = 1000,
+    calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
 ) -> ImpliedVolOutput:
     """Solve for implied volatility given an observed market price."""
     if not math.isfinite(t):
@@ -41,7 +42,7 @@ def compute_implied_vol(
     effective_t = max(t, MIN_T_YEARS)
     ql_date = ql_date_from_iso(valuation_date)
     expiry_date = expiry_from_t(ql_date, effective_t)
-    calendar = default_calendar()
+    calendar = get_calendar(calendar_name)
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))

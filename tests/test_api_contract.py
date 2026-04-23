@@ -438,6 +438,26 @@ class TestGreeksEdgeCases:
         assert data["price"] > 0
         assert data["delta"] < 0  # put delta is negative
 
+    def test_calendar_field_non_default_echoed(self, client: TestClient):
+        """calendar=us_nyse should appear in inputs; default hong_kong should not."""
+        resp = client.get(
+            "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=0.20&type=call&style=european&calendar=us_nyse",
+            headers={"Accept": "application/json"},
+        )
+        assert resp.status_code == 200
+        inputs = resp.json()["greeks"]["inputs"]
+        assert inputs.get("calendar") == "us_nyse"
+
+    def test_calendar_default_not_echoed(self, client: TestClient):
+        """Default calendar=hong_kong should not appear in inputs."""
+        resp = client.get(
+            "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=0.20&type=call&style=european",
+            headers={"Accept": "application/json"},
+        )
+        assert resp.status_code == 200
+        inputs = resp.json()["greeks"]["inputs"]
+        assert "calendar" not in inputs
+
 
 class TestPortfolioEdgeCases:
     def test_portfolio_empty_rejected(self, client: TestClient):

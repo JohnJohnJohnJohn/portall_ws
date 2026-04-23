@@ -76,7 +76,7 @@ python scripts/build_executable.py
 
 A task is finished when **all** of these are true:
 
-1. `pytest tests -v` passes (82 tests).
+1. `pytest tests -v` passes (105 tests).
 2. `ruff check src tests` reports zero errors.
 3. `mypy src` reports zero errors.
 4. No new runtime dependencies were added without approval.
@@ -91,7 +91,7 @@ A task is finished when **all** of these are true:
 - Never modify `sample/` (the demo Excel workbook) without approval.
 - Never commit secrets, API keys, or hardcoded credentials.
 - Never run `/cleanup` in a loop. One invocation = one pass. If the user says "keep going until clean," reply with the tests/lint/typecheck status and stop.
-- Never change Greek conventions (vega/rho per 1%, theta/charm per calendar day) without approval.
+- Never change Greek conventions (vega/rho per 1%, theta/charm per trading day) without approval.
 - Never modify the XML/JSON response schema shape (meta/inputs/outputs) without approval.
 
 ### Ask first

@@ -6,9 +6,13 @@ import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (
-    default_calendar,
+    DEFAULT_CALENDAR,
+    TRADING_DAYS_PER_YEAR,
+    CalendarLiteral,
     default_day_count,
     expiry_from_t,
+    get_calendar,
+    next_business_day,
     ql_date_from_iso,
 )
 from deskpricer.schemas import GreeksOutput
@@ -23,6 +27,7 @@ def price_european(
     v: float,
     option_type: str,
     valuation_date: date,
+    calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
 ) -> GreeksOutput:
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
@@ -33,7 +38,7 @@ def price_european(
 
     ql_date = ql_date_from_iso(valuation_date)
     expiry_date = expiry_from_t(ql_date, t)
-    calendar = default_calendar()
+    calendar = get_calendar(calendar_name)
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
@@ -48,7 +53,7 @@ def price_european(
     option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
 
     # QuantLib Greeks conventions:
-    # theta() is per year; we convert to per calendar day
+    # theta() is per year; divide by TRADING_DAYS_PER_YEAR (252) to get per trading day
     # vega() and rho() are mathematical derivatives (per 1.00 unit);
     # we divide by 100 to report standard market convention (per 1%)
     try:
@@ -56,30 +61,29 @@ def price_european(
         delta = float(option.delta())
         gamma = float(option.gamma())
         vega = float(option.vega()) / 100.0
-        theta = float(option.theta()) / 365.0
+        theta = float(option.theta()) / TRADING_DAYS_PER_YEAR
         rho = float(option.rho()) / 100.0
     except RuntimeError as exc:
         raise InvalidInputError("Pricing failed for the given inputs") from exc
 
-    # Charm: ∂delta/∂t per calendar day (forward difference, 1 day)
-    # When the option has <= 1 day left, QuantLib returns delta=0 for the expired
-    # option, which would give charm = -delta (wrong). Fallback to 0.
+    # Charm: ∂delta/∂t per trading day (forward difference, 1 business day)
+    # When the option has <= 1 business day left, fall back to charm = 0.
     charm = 0.0
     try:
-        one_day_forward = ql_date + 1
+        one_bd_forward = next_business_day(ql_date, calendar)
     except RuntimeError:
         pass
     else:
-        if expiry_date > one_day_forward:
+        if expiry_date > one_bd_forward:
             try:
                 div_ts_t1 = ql.YieldTermStructureHandle(
-                    ql.FlatForward(one_day_forward, q, day_count)
+                    ql.FlatForward(one_bd_forward, q, day_count)
                 )
                 rf_ts_t1 = ql.YieldTermStructureHandle(
-                    ql.FlatForward(one_day_forward, r, day_count)
+                    ql.FlatForward(one_bd_forward, r, day_count)
                 )
                 vol_ts_t1 = ql.BlackVolTermStructureHandle(
-                    ql.BlackConstantVol(one_day_forward, calendar, v, day_count)
+                    ql.BlackConstantVol(one_bd_forward, calendar, v, day_count)
                 )
                 process_t1 = ql.BlackScholesMertonProcess(
                     spot_handle, div_ts_t1, rf_ts_t1, vol_ts_t1

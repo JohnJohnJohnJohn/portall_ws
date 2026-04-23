@@ -13,7 +13,11 @@ from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_CALENDAR,
     DEFAULT_STEPS,
+    count_business_days,
+    get_calendar,
+    ql_date_from_iso,
 )
 from deskpricer.pricing.cross_greeks import compute_cross_greeks as _compute_cross_greeks
 from deskpricer.pricing.engine import price_vanilla as _price_vanilla
@@ -85,6 +89,7 @@ def _pnl_pv_kwargs(
         "bump_spot_rel": params.bump_spot_rel,
         "bump_vol_abs": params.bump_vol_abs,
         "bump_rate_abs": params.bump_rate_abs,
+        "calendar_name": params.calendar,
     }
 
 
@@ -121,6 +126,7 @@ async def run_greeks(
             bump_spot_rel=params.bump_spot_rel,
             bump_vol_abs=params.bump_vol_abs,
             bump_rate_abs=params.bump_rate_abs,
+            calendar_name=params.calendar,
         )
     meta = _meta(params.engine, valuation_date)
     inputs: dict[str, Any] = {
@@ -135,6 +141,8 @@ async def run_greeks(
     }
     if params.steps != DEFAULT_STEPS:
         inputs["steps"] = params.steps
+    if params.calendar != DEFAULT_CALENDAR:
+        inputs["calendar"] = params.calendar
     _add_non_default_bumps(inputs, params)
     return meta, inputs, result.model_dump()
 
@@ -162,9 +170,10 @@ async def run_impliedvol(
             steps=params.steps,
             accuracy=params.accuracy,
             max_iterations=params.max_iterations,
+            calendar_name=params.calendar,
         )
     meta = _meta(params.engine, valuation_date)
-    inputs = {
+    inputs: dict[str, Any] = {
         "s": params.s,
         "k": params.k,
         "t": params.t,
@@ -176,6 +185,8 @@ async def run_impliedvol(
     }
     if params.steps != DEFAULT_STEPS:
         inputs["steps"] = params.steps
+    if params.calendar != DEFAULT_CALENDAR:
+        inputs["calendar"] = params.calendar
     if params.accuracy != 1e-4:
         inputs["accuracy"] = params.accuracy
     if params.max_iterations != 1000:
@@ -217,6 +228,7 @@ async def run_portfolio(
                 bump_spot_rel=leg.bump_spot_rel,
                 bump_vol_abs=leg.bump_vol_abs,
                 bump_rate_abs=leg.bump_rate_abs,
+                calendar_name=leg.calendar,
             )
             if not math.isfinite(result.price):
                 raise InvalidInputError(
@@ -263,15 +275,20 @@ async def run_pnl_attribution(
     valuation_date_t_minus_1 = params.valuation_date_t_minus_1
     valuation_date_t = params.valuation_date_t
     method = params.method
+    ql_calendar = get_calendar(params.calendar)
     if valuation_date_t_minus_1 is None and valuation_date_t is None:
         valuation_date = date.today()
         valuation_date_t_minus_1 = valuation_date
         valuation_date_t = valuation_date
         days_t_m1 = max(1, math.floor(params.t_t_minus_1 * 365 + 0.5))
         days_t = max(1, math.floor(params.t_t * 365 + 0.5))
-        calendar_days = max(0, days_t_m1 - days_t)
+        ql_start = ql_date_from_iso(valuation_date) + days_t
+        ql_end = ql_date_from_iso(valuation_date) + days_t_m1
+        trading_days = count_business_days(ql_start, ql_end, ql_calendar) if ql_end > ql_start else 0
     elif valuation_date_t_minus_1 is not None and valuation_date_t is not None:
-        calendar_days = (valuation_date_t - valuation_date_t_minus_1).days
+        ql_start = ql_date_from_iso(valuation_date_t_minus_1)
+        ql_end = ql_date_from_iso(valuation_date_t)
+        trading_days = count_business_days(ql_start, ql_end, ql_calendar) if ql_end > ql_start else 0
     else:
         raise InvalidInputError(
             "Provide both valuation_date_t_minus_1 and valuation_date_t, or omit both",
@@ -307,7 +324,7 @@ async def run_pnl_attribution(
     else:
         vega_pnl = greeks_t_minus_1.vega * delta_v_points
         rho_pnl = greeks_t_minus_1.rho * delta_r_points
-    theta_pnl = greeks_t_minus_1.theta * calendar_days
+    theta_pnl = greeks_t_minus_1.theta * trading_days
     vanna_pnl_per_unit = 0.0
     volga_pnl_per_unit = 0.0
     if params.cross_greeks:
@@ -350,6 +367,7 @@ async def run_pnl_attribution(
         "valuation_date_t_minus_1": valuation_date_t_minus_1.isoformat(),
         "valuation_date_t": valuation_date_t.isoformat(),
         "method": method,
+        "trading_days": trading_days,
     }
     inputs: dict[str, Any] = {
         "s_t_minus_1": params.s_t_minus_1,
@@ -370,6 +388,8 @@ async def run_pnl_attribution(
         inputs["qty"] = params.qty
     if params.steps != DEFAULT_STEPS:
         inputs["steps"] = params.steps
+    if params.calendar != DEFAULT_CALENDAR:
+        inputs["calendar"] = params.calendar
     expected_engine = "analytic" if params.style == "european" else "binomial_crr"
     if params.engine != expected_engine:
         inputs["engine"] = params.engine

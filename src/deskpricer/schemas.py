@@ -10,11 +10,13 @@ from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_CALENDAR,
     DEFAULT_STEPS,
     MIN_T_YEARS,
 )
 
 EngineLiteral = Literal["analytic", "binomial_crr", "binomial_jr"]
+CalendarLiteral = Literal["hong_kong", "us_nyse", "us_settlement", "united_kingdom", "null"]
 
 
 class _EngineDefaultsMixin(BaseModel):
@@ -50,6 +52,10 @@ class _VanillaOptionCoreBase(_EngineDefaultsMixin, BaseModel):
     style: Literal["european", "american"] = Field(description="Option style")
     engine: EngineLiteral | None = Field(default=None, description="Pricing engine")
     steps: int = Field(default=DEFAULT_STEPS, ge=10, le=5000, description="Tree/FD steps")
+    calendar: CalendarLiteral = Field(
+        default=DEFAULT_CALENDAR,
+        description="QuantLib calendar identifier for holiday schedule and theta business-day counting",
+    )
 
 
 class _BumpParamsMixin(BaseModel):
@@ -164,6 +170,10 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, _BumpParamsMixin, BaseModel
     valuation_date_t: date | None = Field(default=None)
     method: Literal["backward", "average"] = Field(default="backward")
     cross_greeks: bool = Field(default=False)
+    calendar: CalendarLiteral = Field(
+        default=DEFAULT_CALENDAR,
+        description="QuantLib calendar identifier for holiday schedule and theta business-day counting",
+    )
 
     @model_validator(mode="after")
     def check_date_order(self):
