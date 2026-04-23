@@ -1,4 +1,4 @@
-# DeskPricer v2.2.0
+# DeskPricer v2.5.0
 
 Local HTTP pricing microservice for vanilla European and American equity options. Designed for Excel `WEBSERVICE` + `FILTERXML` integration — no VBA, no Bloomberg terminal calls inside the service.
 
@@ -32,7 +32,7 @@ Expected output for the curl call (XML):
 <?xml version="1.0" encoding="UTF-8"?>
 <greeks>
   <meta>
-    <service_version>2.2.0</service_version>
+    <service_version>2.5.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -52,7 +52,7 @@ Expected output for the curl call (XML):
     <delta>0.356244</delta>
     <gamma>0.037206</gamma>
     <vega>0.185519</vega>
-    <theta>-0.023001</theta>
+    <theta>-0.033315</theta>
     <rho>0.083111</rho>
     <charm>-0.001241</charm>
   </outputs>
@@ -175,7 +175,7 @@ Assume your sheet has:
 | Delta | `0.356244` |
 | Gamma | `0.037206` |
 | Vega  | `0.185519` |
-| Theta | `-0.023001` |
+| Theta | `-0.033315` |
 | Rho   | `0.083111` |
 | Charm | `-0.001241` |
 
@@ -243,17 +243,17 @@ Assume:
 | Bucket | Value |
 |--------|-------|
 | price_t_minus_1 | `2.288743` |
-| price_t | `3.448643` |
+| price_t | `3.448862` |
 | Actual PnL | `11.601` |
 | Delta PnL | `7.125` |
 | Gamma PnL | `0.744` |
 | Vega PnL | `3.710` |
-| Theta PnL | `-0.230` |
+| Theta PnL | `-0.333` |
 | Rho PnL | `0.0` |
 | Vanna PnL | `0.343` |
 | Volga PnL | `0.031` |
-| Explained PnL | `11.724` |
-| Residual | `-0.123` |
+| Explained PnL | `11.621` |
+| Residual | `-0.020` |
 
 > The `residual_pnl` captures higher-order effects and model differences between t-1 and t. Enable `cross_greeks=true` to include vanna and volga contributions.
 
@@ -274,9 +274,9 @@ See [`docs/api.md`](docs/api.md) for the full request/response schema.
 | Delta | absolute | Per $1 spot move |
 | Gamma | absolute | Per $1 spot move |
 | Vega | per **1 vol point** | i.e. decimal vol × 100 |
-| Theta | per **calendar day** | Annual theta / 365 |
+| Theta | per **trading day** | Annual theta / 252 (using the chosen calendar) |
 | Rho | per **1% rate point** | i.e. decimal rate × 100 |
-| Charm | per **calendar day** | ∂delta/∂t (delta tomorrow − delta today). Negative for a long call — delta decays toward expiry |
+| Charm | per **trading day** | ∂delta/∂t (delta next business day − delta today per the chosen calendar). Negative for a long call — delta decays toward expiry |
 
 ---
 

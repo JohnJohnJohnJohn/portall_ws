@@ -9,8 +9,10 @@ from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_CALENDAR,
     DEFAULT_STEPS,
     MIN_T_YEARS,
+    CalendarLiteral,
 )
 from deskpricer.pricing.european import price_european
 from deskpricer.schemas import EngineLiteral, GreeksOutput
@@ -36,6 +38,7 @@ def price_vanilla(
     bump_spot_rel: float = DEFAULT_BUMP_SPOT_REL,
     bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
     bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
+    calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
 ) -> GreeksOutput:
     if option_type not in ("call", "put"):
         raise UnsupportedCombinationError(
@@ -64,7 +67,7 @@ def price_vanilla(
                 f"European style only supports analytic engine; got {engine}",
                 field="engine",
             )
-        return price_european(s, k, effective_t, r, q, v, option_type, valuation_date)
+        return price_european(s, k, effective_t, r, q, v, option_type, valuation_date, calendar_name=calendar_name)
 
     if style == "american":
         if engine == "analytic":
@@ -92,6 +95,7 @@ def price_vanilla(
             bump_spot_rel=bump_spot_rel,
             bump_vol_abs=bump_vol_abs,
             bump_rate_abs=bump_rate_abs,
+            calendar_name=calendar_name,
         )
 
     raise UnsupportedCombinationError(f"Unknown style: {style}", field="style")

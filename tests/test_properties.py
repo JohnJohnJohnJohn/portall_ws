@@ -10,9 +10,9 @@ from hypothesis import strategies as st
 
 from deskpricer.pricing.conventions import (
     DEFAULT_STEPS,
-    default_calendar,
     default_day_count,
     expiry_from_t,
+    get_calendar,
     ql_date_from_iso,
 )
 
@@ -85,7 +85,7 @@ class TestAmericanPriceBounds:
         div_ts = ql.YieldTermStructureHandle(ql.FlatForward(today, q, default_day_count()))
         rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(today, r, default_day_count()))
         vol_ts = ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(today, default_calendar(), v, default_day_count())
+            ql.BlackConstantVol(today, get_calendar(), v, default_day_count())
         )
         process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
         payoff = ql.PlainVanillaPayoff(ql.Option.Put, k)

@@ -9,7 +9,9 @@ from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_CALENDAR,
     DEFAULT_STEPS,
+    CalendarLiteral,
 )
 from deskpricer.pricing.engine import price_vanilla
 from deskpricer.schemas import EngineLiteral
@@ -31,6 +33,7 @@ def compute_cross_greeks(
     bump_spot_rel: float = DEFAULT_BUMP_SPOT_REL,
     bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
     bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
+    calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
 ) -> tuple[float, float]:
     """Compute vanna and volga for a single market state.
 
@@ -81,6 +84,7 @@ def compute_cross_greeks(
             bump_spot_rel=bump_spot_rel,
             bump_vol_abs=bump_vol_abs,
             bump_rate_abs=bump_rate_abs,
+            calendar_name=calendar_name,
         )
 
     # --- Volga: V(S,σ+Δσ) - 2V(S,σ) + V(S,σ-Δσ) over (Δσ)² ---

@@ -4,16 +4,22 @@ Numerical conventions
 ---------------------
 - Vega is per **1 vol point** (1% absolute).
 - Rho is per **1 rate point** (1% absolute).
-- Theta is per **calendar day**.
+- Theta is per **trading day** (1 business day per the chosen calendar).
+  European analytic: QuantLib annual theta ÷ TRADING_DAYS_PER_YEAR (252).
+  American numerical: revalue at next business day; difference is per trading day.
+  PnL attribution: theta_pnl = theta * count_business_days(t_minus_1, t, calendar).
 - Greeks bump semantics:
   - Relative spot bump (e.g., 1% of spot).
   - Absolute vol bump (e.g., 0.001 = 0.1 vol points).
   - Absolute rate bump (e.g., 0.001 = 0.1% rate points).
-- Zero-DTE handling: ``t < 1/365`` is floored to 1 day.
+- Zero-DTE handling: ``t < 1/365`` is floored to 1 calendar day.
+- Default calendar: Hong Kong (`ql.HongKong()`).
+- Supported calendars: hong_kong, us_nyse, us_settlement, united_kingdom, null.
 """
 
 import math
 from datetime import date
+from typing import Literal
 
 import QuantLib as ql
 
@@ -25,6 +31,10 @@ DEFAULT_BUMP_SPOT_REL = 0.01
 DEFAULT_BUMP_VOL_ABS = 0.001
 DEFAULT_BUMP_RATE_ABS = 0.001
 DAY_COUNT = "ACT/365F"
+TRADING_DAYS_PER_YEAR = 252
+
+CalendarLiteral = Literal["hong_kong", "us_nyse", "us_settlement", "united_kingdom", "null"]
+DEFAULT_CALENDAR: CalendarLiteral = "hong_kong"
 
 
 def ql_date_from_iso(d: date) -> ql.Date:
@@ -36,8 +46,21 @@ def ql_date_from_iso(d: date) -> ql.Date:
     return ql.Date(d.day, d.month, d.year)
 
 
-def default_calendar() -> ql.Calendar:
-    return ql.UnitedStates(ql.UnitedStates.NYSE)
+_CALENDAR_MAP: dict[str, ql.Calendar] = {
+    "hong_kong": ql.HongKong(),
+    "us_nyse": ql.UnitedStates(ql.UnitedStates.NYSE),
+    "us_settlement": ql.UnitedStates(ql.UnitedStates.Settlement),
+    "united_kingdom": ql.UnitedKingdom(),
+    "null": ql.NullCalendar(),
+}
+
+
+def get_calendar(name: CalendarLiteral | None = None) -> ql.Calendar:
+    """Return a QuantLib Calendar by name. Defaults to Hong Kong."""
+    key = name or DEFAULT_CALENDAR
+    if key not in _CALENDAR_MAP:
+        raise InvalidInputError(f"Unknown calendar '{key}'", field="calendar")
+    return _CALENDAR_MAP[key]
 
 
 def default_day_count() -> ql.DayCounter:
@@ -62,3 +85,25 @@ def expiry_from_t(valuation_date: ql.Date, t: float) -> ql.Date:
             field="t",
         )
     return expiry
+
+
+def next_business_day(date: ql.Date, calendar: ql.Calendar) -> ql.Date:
+    """Return the next business day strictly after ``date`` according to ``calendar``."""
+    d = date + 1
+    while not calendar.isBusinessDay(d):
+        d += 1
+    return d
+
+
+def count_business_days(start: ql.Date, end: ql.Date, calendar: ql.Calendar) -> int:
+    """Count the number of business days in ``[start, end)`` using ``calendar``.
+
+    Returns 1 minimum so zero-day moves still produce a finite theta_pnl.
+    """
+    count = 0
+    d = start
+    while d < end:
+        if calendar.isBusinessDay(d):
+            count += 1
+        d += 1
+    return max(count, 1)

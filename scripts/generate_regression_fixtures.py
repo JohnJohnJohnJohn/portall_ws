@@ -18,25 +18,34 @@ FIXTURES_DIR = Path("tests/fixtures")
 
 def _price_leg(leg: dict) -> dict:
     """Price a single leg and return Greeks dict."""
+    import QuantLib as ql
+    from deskpricer.pricing.conventions import ql_date_from_iso
+
     engine = leg.get("engine")
     if engine is None:
         engine = "analytic" if leg["style"] == "european" else "binomial_crr"
-    result = price_vanilla(
-        s=leg["s"],
-        k=leg["k"],
-        t=leg["t"],
-        r=leg["r"],
-        q=leg["q"],
-        v=leg["v"],
-        option_type=leg["type"],
-        style=leg["style"],
-        engine=engine,
-        valuation_date=date.fromisoformat(leg.get("valuation_date", "2026-04-20")),
-        steps=leg.get("steps", 400),
-        bump_spot_rel=leg.get("bump_spot_rel", 0.01),
-        bump_vol_abs=leg.get("bump_vol_abs", 0.001),
-        bump_rate_abs=leg.get("bump_rate_abs", 0.001),
-    )
+    val_date = date.fromisoformat(leg.get("valuation_date", "2026-04-20"))
+    old_eval = ql.Settings.instance().evaluationDate
+    try:
+        ql.Settings.instance().evaluationDate = ql_date_from_iso(val_date)
+        result = price_vanilla(
+            s=leg["s"],
+            k=leg["k"],
+            t=leg["t"],
+            r=leg["r"],
+            q=leg["q"],
+            v=leg["v"],
+            option_type=leg["type"],
+            style=leg["style"],
+            engine=engine,
+            valuation_date=val_date,
+            steps=leg.get("steps", 400),
+            bump_spot_rel=leg.get("bump_spot_rel", 0.01),
+            bump_vol_abs=leg.get("bump_vol_abs", 0.001),
+            bump_rate_abs=leg.get("bump_rate_abs", 0.001),
+        )
+    finally:
+        ql.Settings.instance().evaluationDate = old_eval
     return result.model_dump()
 
 
