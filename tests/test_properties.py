@@ -320,3 +320,39 @@ class TestPortfolioAggregation:
         for greek in ["delta", "gamma", "vega", "theta", "rho", "charm"]:
             expected = sum(qtys[i] * legs[i][greek] for i in range(len(legs)))
             assert agg[greek] == pytest.approx(expected, abs=1e-6)
+
+
+class TestCountBusinessDays:
+    def test_same_day_returns_zero(self):
+        """count_business_days must return 0 when start == end."""
+        from deskpricer.pricing.conventions import count_business_days, get_calendar, ql_date_from_iso
+
+        d = ql_date_from_iso(__import__("datetime").date(2026, 4, 20))
+        cal = get_calendar("hong_kong")
+        assert count_business_days(d, d, cal) == 0
+
+    def test_pnl_attribution_same_day_still_one_day_theta(self, client: TestClient):
+        """PnL attribution floors trading_days to 1 at call site for same-day repricing."""
+        params = {
+            "s_t_minus_1": 100.0,
+            "s_t": 100.0,
+            "k": 100.0,
+            "t_t_minus_1": 0.25,
+            "t_t": 0.25,
+            "r_t_minus_1": 0.05,
+            "r_t": 0.05,
+            "q_t_minus_1": 0.0,
+            "q_t": 0.0,
+            "v_t_minus_1": 0.20,
+            "v_t": 0.20,
+            "type": "call",
+            "style": "european",
+            "valuation_date_t_minus_1": "2026-04-20",
+            "valuation_date_t": "2026-04-20",
+        }
+        resp = client.get("/v1/pnl_attribution", params=params, headers={"Accept": "application/json"})
+        assert resp.status_code == 200
+        meta = resp.json()["pnl_attribution"]["meta"]
+        assert meta["trading_days"] == 1
+        outputs = resp.json()["pnl_attribution"]["outputs"]
+        assert outputs["theta_pnl"] != 0.0

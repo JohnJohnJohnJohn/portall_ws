@@ -36,6 +36,14 @@ def _npv(
     engine_type: str,
     calendar: ql.Calendar,
 ) -> float:
+    """Return the NPV of an American option.
+
+    ``valuation_date`` is used as the earliest exercise date
+    (``ql.AmericanExercise(valuation_date, expiry_date)``), matching the
+    standard listed-equity convention of immediate exercise.  Callers who
+    need a T+1 earliest exercise date (e.g. options on futures) should pass
+    ``valuation_date + 1`` as the start parameter.
+    """
     if steps < 1:
         raise InvalidInputError("steps must be positive", field="steps")
 
@@ -80,6 +88,14 @@ def price_american(
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
     theta_convention: str = "pnl",
 ) -> GreeksOutput:
+    """Price an American option and return bump-and-revalue Greeks.
+
+    Early exercise is permitted from the valuation date onward
+    (``ql.AmericanExercise(valuation_date, expiry_date)``), matching the
+    standard listed-equity convention of immediate exercise.  Callers who
+    need a T+1 earliest exercise date (e.g. options on futures) should pass
+    ``valuation_date + 1`` as the start parameter.
+    """
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
     if k <= 0:
@@ -163,6 +179,7 @@ def price_american(
 
     if theta_convention == "decay":
         theta = -theta
+        charm = -charm
 
     return GreeksOutput(
         price=price,

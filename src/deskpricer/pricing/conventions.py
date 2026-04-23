@@ -14,6 +14,11 @@ Numerical conventions
   in value for each business day that passes, all else equal.
   PnL attribution: theta_pnl = theta * trading_days, where trading_days is the
   elapsed business-day hold period (not a DTE-proxy).
+  Note: European theta is intentionally computed via next-business-day
+  bump-and-revalue rather than QuantLib's analytic ``option.theta()``.
+  This guarantees a per-business-day P&L figure that is directly usable
+  in attribution and is consistent with the American theta convention,
+  rather than a continuous-time annualised sensitivity.
 - Charm inherits the same forward-difference, forward-looking convention as
   theta: it is the change in delta per one business day passing.
 - Greeks bump semantics:
@@ -157,10 +162,10 @@ def next_business_day(date: ql.Date, calendar: ql.Calendar) -> ql.Date:
 def count_business_days(start: ql.Date, end: ql.Date, calendar: ql.Calendar) -> int:
     """Count the number of business days in ``[start, end)`` using ``calendar``.
 
-    Returns **at least 1** so that a same-day repricing still reflects one
-    full business day of theta decay.  This means ``theta_pnl`` is never
-    zero even when ``start == end``; callers who want zero theta on a
-    non-trading day must handle that logic themselves.
+    Returns ``0`` when ``start == end``.  Callers that need a minimum of
+    one business day (e.g. intraday repricing that should still reflect
+    one day's decay) should apply ``max(count_business_days(...), 1)``
+    explicitly at the call site.
     """
     count = 0
     d = start
@@ -168,4 +173,4 @@ def count_business_days(start: ql.Date, end: ql.Date, calendar: ql.Calendar) -> 
         if calendar.isBusinessDay(d):
             count += 1
         d += 1
-    return max(count, 1)
+    return count

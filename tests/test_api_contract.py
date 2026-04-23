@@ -169,6 +169,31 @@ class TestGreeks:
         rhs = 100 * math.exp(-0.02 * t_actual) - 100 * math.exp(-0.05 * t_actual)
         assert abs(lhs - rhs) < 1e-6
 
+    def test_greeks_decay_convention_flips_charm_sign(self, client: TestClient):
+        """When theta_convention='decay', charm sign is flipped like theta."""
+        base = {
+            "s": 100,
+            "k": 100,
+            "t": 0.25,
+            "r": 0.05,
+            "q": 0,
+            "v": 0.20,
+            "type": "call",
+            "style": "european",
+        }
+        resp_pnl = client.get("/v1/greeks", params=base, headers={"Accept": "application/json"})
+        resp_decay = client.get(
+            "/v1/greeks",
+            params={**base, "theta_convention": "decay"},
+            headers={"Accept": "application/json"},
+        )
+        assert resp_pnl.status_code == 200
+        assert resp_decay.status_code == 200
+        pnl = resp_pnl.json()["greeks"]["outputs"]
+        decay = resp_decay.json()["greeks"]["outputs"]
+        assert decay["theta"] == pytest.approx(-pnl["theta"], abs=1e-10)
+        assert decay["charm"] == pytest.approx(-pnl["charm"], abs=1e-10)
+
 
 class TestImpliedVol:
     def test_impliedvol_european_roundtrip(self, client: TestClient):
@@ -385,6 +410,29 @@ class TestImpliedVol:
         finally:
             monkeypatch.undo()
 
+    def test_impliedvol_high_vol_warning(self, client: TestClient, caplog):
+        """Solved IV > 200%% should emit a WARNING-level log entry."""
+        import logging
+
+        import deskpricer.pricing.implied_vol as iv_mod
+
+        # Deep ITM call with very short expiry forces high IV
+        with caplog.at_level(logging.WARNING, logger="deskpricer"):
+            result = iv_mod.compute_implied_vol(
+                s=100,
+                k=200,
+                t=0.01,
+                r=0.05,
+                q=0,
+                target_price=0.5,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=__import__("datetime").date(2026, 4, 20),
+            )
+        assert result.implied_vol > 2.0
+        assert "exceeds 200%" in caplog.text
+
 
 class TestPortfolio:
     def test_portfolio_json_default(self, client: TestClient):
@@ -494,8 +542,10 @@ class TestPortfolio:
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
 
-    def test_portfolio_different_spot_rejected(self, client: TestClient):
-        """Portfolio legs with different spot prices should be rejected."""
+    def test_portfolio_divergent_spot_warning(self, client: TestClient, caplog):
+        """Portfolio legs with divergent spot prices (>5%) are accepted but warned."""
+        import logging
+
         payload = {
             "legs": [
                 {
@@ -513,7 +563,7 @@ class TestPortfolio:
                 {
                     "id": "L2",
                     "qty": 1,
-                    "s": 105,
+                    "s": 106,
                     "k": 100,
                     "t": 0.25,
                     "r": 0.05,
@@ -524,13 +574,12 @@ class TestPortfolio:
                 },
             ]
         }
-        resp = client.post(
-            "/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"}
-        )
-        assert resp.status_code == 422
-        data = resp.json()["error"]
-        assert data["code"] == "INVALID_INPUT"
-        assert "same underlying" in data["message"].lower()
+        with caplog.at_level(logging.WARNING, logger="deskpricer"):
+            resp = client.post(
+                "/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"}
+            )
+        assert resp.status_code == 200
+        assert "divergent spot" in caplog.text.lower()
 
 
 class TestVersionJSON:

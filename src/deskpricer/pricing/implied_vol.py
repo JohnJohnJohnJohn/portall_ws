@@ -150,6 +150,18 @@ def compute_implied_vol(
     if not math.isfinite(implied_vol) or not math.isfinite(npv_at_iv):
         raise InvalidInputError("Solver returned non-finite implied volatility", field="price")
 
+    if implied_vol > 2.0:
+        logging.getLogger("deskpricer").warning(
+            "Solved implied volatility %.2f%% exceeds 200%%. "
+            "Target price=%.4f, s=%.2f, k=%.2f, t=%.6f. "
+            "This usually indicates a data-quality issue.",
+            implied_vol * 100,
+            target_price,
+            s,
+            k,
+            t,
+        )
+
     # Tree engines have discretisation error; use a relaxed tolerance.
     tolerance_multiplier = 10 if engine_cls is not None else 50
     if abs(npv_at_iv - target_price) > tolerance_multiplier * accuracy:

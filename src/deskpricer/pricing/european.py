@@ -53,6 +53,15 @@ def price_european(
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
     theta_convention: str = "pnl",
 ) -> GreeksOutput:
+    """Price a European option and return Greeks.
+
+    Delta, gamma, vega and rho come from QuantLib's analytic closed-form
+    engine.  Theta and charm are computed via next-business-day
+    bump-and-revalue rather than ``option.theta()``.  This guarantees a
+    per-business-day P&L figure that is directly usable in attribution and
+    is consistent with the American theta convention, rather than a
+    continuous-time annualised sensitivity.
+    """
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
     if k <= 0:
@@ -117,6 +126,7 @@ def price_european(
 
     if theta_convention == "decay":
         theta = -theta
+        charm = -charm
 
     return GreeksOutput(
         price=price,

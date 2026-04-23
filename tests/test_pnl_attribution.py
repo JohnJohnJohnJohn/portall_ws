@@ -206,7 +206,8 @@ class TestPnLAttribution:
         assert meta["calendar_days"] == 3
 
     def test_theta_time_unit_calendar_day(self, client: TestClient):
-        """Over a long weekend, calendar_day scaling should give 3x the theta_pnl."""
+        """Calendar-day theta is converted from per-business-day rate (252/365)
+        before scaling by calendar days, preventing overstatement over weekends."""
         params = self._base_params(
             valuation_date_t_minus_1="2026-04-17",
             valuation_date_t="2026-04-20",
@@ -221,7 +222,9 @@ class TestPnLAttribution:
         data_cd = resp_cd.json()["pnl_attribution"]
         theta_pnl_cd = data_cd["outputs"]["theta_pnl"]
 
-        assert theta_pnl_cd == pytest.approx(theta_pnl_bd * 3, abs=1e-7)
+        # 1 trading day vs 3 calendar days; theta is scaled by 252/365 conversion
+        expected_ratio = (252.0 / 365.0) * 3
+        assert theta_pnl_cd == pytest.approx(theta_pnl_bd * expected_ratio, abs=1e-7)
         assert data_cd["meta"]["theta_time_unit"] == "calendar_day"
         assert data_cd["inputs"]["theta_time_unit"] == "calendar_day"
 

@@ -10,7 +10,6 @@ applied only to the ``aggregate`` response block; each element of the
 ``legs`` array contains unscaled unit Greeks.
 """
 
-import math
 from datetime import date
 from typing import Literal
 
@@ -128,8 +127,21 @@ class LegInput(_VanillaOptionBase):
 
 
 class PortfolioRequest(BaseModel):
+    """Portfolio-level Greek aggregation.
+
+    Legs may reference different underlying spot prices.  In that case the
+    ``aggregate`` block represents a first-order linear approximation across
+    independent positions; it is the caller's responsibility to interpret
+    the result sensibly.
+    """
+
     valuation_date: date | None = Field(default=None)
-    legs: list[LegInput] = Field(min_length=1, max_length=500)
+    legs: list[LegInput] = Field(
+        min_length=1,
+        max_length=500,
+        description="Individual legs.  Each leg may reference a different "
+        "underlying spot price; aggregate Greeks are a linear sum.",
+    )
 
     @model_validator(mode="after")
     def check_unique_ids(self):
@@ -139,15 +151,22 @@ class PortfolioRequest(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def check_same_underlying(self):
+    def check_spot_divergence(self):
+        import logging
+
         spots = [leg.s for leg in self.legs]
-        first = spots[0]
-        for s in spots[1:]:
-            if not math.isclose(s, first, rel_tol=1e-6):
-                raise ValueError(
-                    "All legs must reference the same underlying spot price. "
-                    "Aggregate Greeks across different underlyings are not financially meaningful."
-                )
+        if len(spots) > 1:
+            base = spots[0]
+            for s in spots[1:]:
+                if base > 0 and abs(s - base) / base > 0.05:
+                    logging.getLogger("deskpricer").warning(
+                        "Portfolio legs have divergent spot prices (%.2f vs %.2f). "
+                        "Aggregate Greeks represent a linear approximation across "
+                        "independent positions.",
+                        base,
+                        s,
+                    )
+                    break
         return self
 
 
@@ -173,7 +192,9 @@ class GreeksOutput(BaseModel):
     charm: float = Field(
         description="Change in delta per one business day passing "
         "(forward-looking, inherits the same next-business-day revalue "
-        "convention as theta).",
+        "convention as theta).  Sign follows ``theta_convention``: "
+        "negative under 'pnl' (delta decreases for a typical long option) "
+        "and positive under 'decay' (matching Bloomberg DM<GO>).",
     )
 
 
@@ -231,8 +252,11 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, _BumpParamsMixin, BaseModel
     )
     theta_time_unit: Literal["business_day", "calendar_day"] = Field(
         default="business_day",
-        description="Time unit for theta scaling in PnL attribution: 'business_day' "
-        "(default) or 'calendar_day' (includes weekends/holidays)",
+        description="Time unit for theta scaling in PnL attribution. 'business_day' "
+        "(default) uses the per-business-day theta rate directly. 'calendar_day' "
+        "converts the per-business-day theta to a per-calendar-day rate "
+        "(theta * 252/365) before multiplying by calendar days, preventing "
+        "overstatement of decay over weekends/holidays.",
     )
     calendar: CalendarLiteral = Field(
         default=DEFAULT_CALENDAR,

@@ -269,6 +269,8 @@ async def run_pnl_attribution(
         ql_start = ql_date_from_iso(valuation_date_t_minus_1)
         ql_end = ql_date_from_iso(valuation_date_t)
         trading_days = count_business_days(ql_start, ql_end, ql_calendar)
+        # Intraday repricing: still charge one full business day of theta decay
+        trading_days = max(trading_days, 1)
         calendar_days = max((valuation_date_t - valuation_date_t_minus_1).days, 1)
     else:
         raise InvalidInputError(
@@ -309,8 +311,13 @@ async def run_pnl_attribution(
     else:
         vega_pnl = greeks_t_minus_1.vega * delta_v_points
         rho_pnl = greeks_t_minus_1.rho * delta_r_points
-    theta_days = calendar_days if params.theta_time_unit == "calendar_day" else trading_days
-    theta_pnl = greeks_t_minus_1.theta * theta_days
+    if params.theta_time_unit == "calendar_day":
+        # Convert per-business-day theta to per-calendar-day rate (252/365)
+        # before multiplying by calendar days, preventing overstatement
+        # of decay over weekends/holidays.
+        theta_pnl = greeks_t_minus_1.theta * (252.0 / 365.0) * calendar_days
+    else:
+        theta_pnl = greeks_t_minus_1.theta * trading_days
     vanna_pnl_per_unit = 0.0
     volga_pnl_per_unit = 0.0
     if params.cross_greeks:
