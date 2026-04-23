@@ -78,7 +78,7 @@ Price a single vanilla option and return Greeks.
 | `delta` | ∂V/∂S | absolute |
 | `gamma` | ∂²V/∂S² | absolute |
 | `vega` | ∂V/∂σ | per **1% vol point** (standard market convention) |
-| `theta` | ∂V/∂t | per **trading day** (annual theta / 252 using the chosen calendar) |
+| `theta` | ∂V/∂t | per **trading day** (next-BD revalue − today's price). Negative for a decaying long option. |
 | `rho` | ∂V/∂r | per **1% rate point** (standard market convention) |
 | `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **trading day** (delta next business day − delta today per the chosen calendar)
 

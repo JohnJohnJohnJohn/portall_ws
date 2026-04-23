@@ -59,7 +59,10 @@ def price_vanilla(
             )
     if t < 0:
         raise UnsupportedCombinationError("time to expiry must be non-negative", field="t")
-    # Floor t to 1 day to avoid QuantLib zero-day collapse
+    # Floor t to 1 calendar day to avoid QuantLib singularities at t → 0.
+    # 0-DTE is an intentionally supported workflow; callers supply live market
+    # data (spot and IV) that already reflects intraday decay, so the floor
+    # does not introduce meaningful pricing error.
     effective_t = max(t, MIN_T_YEARS)
     if style == "european":
         if engine != "analytic":

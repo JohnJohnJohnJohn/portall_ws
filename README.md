@@ -274,7 +274,7 @@ See [`docs/api.md`](docs/api.md) for the full request/response schema.
 | Delta | absolute | Per $1 spot move |
 | Gamma | absolute | Per $1 spot move |
 | Vega | per **1 vol point** | i.e. decimal vol × 100 |
-| Theta | per **trading day** | Annual theta / 252 (using the chosen calendar) |
+| Theta | per **trading day** | Forward P&L of one business day passing (next-BD revalue − today's price). Negative for a decaying long option. |
 | Rho | per **1% rate point** | i.e. decimal rate × 100 |
 | Charm | per **trading day** | ∂delta/∂t (delta next business day − delta today per the chosen calendar). Negative for a long call — delta decays toward expiry |
 

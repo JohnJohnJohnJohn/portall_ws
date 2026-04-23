@@ -7,7 +7,6 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (
     DEFAULT_CALENDAR,
-    TRADING_DAYS_PER_YEAR,
     CalendarLiteral,
     default_day_count,
     expiry_from_t,
@@ -52,8 +51,6 @@ def price_european(
     option = ql.VanillaOption(payoff, exercise)
     option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
 
-    # QuantLib Greeks conventions:
-    # theta() is per year; divide by TRADING_DAYS_PER_YEAR (252) to get per trading day
     # vega() and rho() are mathematical derivatives (per 1.00 unit);
     # we divide by 100 to report standard market convention (per 1%)
     try:
@@ -61,10 +58,41 @@ def price_european(
         delta = float(option.delta())
         gamma = float(option.gamma())
         vega = float(option.vega()) / 100.0
-        theta = float(option.theta()) / TRADING_DAYS_PER_YEAR
         rho = float(option.rho()) / 100.0
     except RuntimeError as exc:
         raise InvalidInputError("Pricing failed for the given inputs") from exc
+
+    # Theta: P&L impact of one business day passing (forward-looking, negative for a long option).
+    # Revalue at the next business day and subtract today's price.
+    # When the option has <= 1 business day left, fallback to intrinsic value.
+    try:
+        one_bd_forward = next_business_day(ql_date, calendar)
+    except RuntimeError:
+        theta = 0.0
+    else:
+        if expiry_date > one_bd_forward:
+            try:
+                div_ts_t1 = ql.YieldTermStructureHandle(
+                    ql.FlatForward(one_bd_forward, q, day_count)
+                )
+                rf_ts_t1 = ql.YieldTermStructureHandle(
+                    ql.FlatForward(one_bd_forward, r, day_count)
+                )
+                vol_ts_t1 = ql.BlackVolTermStructureHandle(
+                    ql.BlackConstantVol(one_bd_forward, calendar, v, day_count)
+                )
+                process_t1 = ql.BlackScholesMertonProcess(
+                    spot_handle, div_ts_t1, rf_ts_t1, vol_ts_t1
+                )
+                option_t1 = ql.VanillaOption(payoff, exercise)
+                option_t1.setPricingEngine(ql.AnalyticEuropeanEngine(process_t1))
+                price_t1 = float(option_t1.NPV())
+                theta = price_t1 - price
+            except RuntimeError as exc:
+                raise InvalidInputError("Theta calculation failed for the given inputs") from exc
+        else:
+            intrinsic = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
+            theta = intrinsic - price
 
     # Charm: ∂delta/∂t per trading day (forward difference, 1 business day)
     # When the option has <= 1 business day left, fall back to charm = 0.

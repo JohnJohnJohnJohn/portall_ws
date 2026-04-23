@@ -342,20 +342,19 @@ async def run_pnl_attribution(
         + volga_pnl_per_unit
     )
     residual_pnl = actual_pnl - explained_pnl
-    qty = params.qty
     outputs: dict[str, Any] = {
         "price_t_minus_1": greeks_t_minus_1.price,
         "price_t": greeks_t.price,
-        "actual_pnl": qty * actual_pnl,
-        "delta_pnl": qty * delta_pnl,
-        "gamma_pnl": qty * gamma_pnl,
-        "vega_pnl": qty * vega_pnl,
-        "theta_pnl": qty * theta_pnl,
-        "rho_pnl": qty * rho_pnl,
-        "vanna_pnl": qty * vanna_pnl_per_unit,
-        "volga_pnl": qty * volga_pnl_per_unit,
-        "explained_pnl": qty * explained_pnl,
-        "residual_pnl": qty * residual_pnl,
+        "actual_pnl": actual_pnl,
+        "delta_pnl": delta_pnl,
+        "gamma_pnl": gamma_pnl,
+        "vega_pnl": vega_pnl,
+        "theta_pnl": theta_pnl,
+        "rho_pnl": rho_pnl,
+        "vanna_pnl": vanna_pnl_per_unit,
+        "volga_pnl": volga_pnl_per_unit,
+        "explained_pnl": explained_pnl,
+        "residual_pnl": residual_pnl,
     }
     meta = {
         "service_version": service_version,
@@ -380,8 +379,6 @@ async def run_pnl_attribution(
         "type": params.type,
         "style": params.style,
     }
-    if not math.isclose(params.qty, 1.0, rel_tol=1e-12):
-        inputs["qty"] = params.qty
     if params.steps != DEFAULT_STEPS:
         inputs["steps"] = params.steps
     if params.calendar != DEFAULT_CALENDAR:

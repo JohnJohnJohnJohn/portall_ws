@@ -5,14 +5,20 @@ Numerical conventions
 - Vega is per **1 vol point** (1% absolute).
 - Rho is per **1 rate point** (1% absolute).
 - Theta is per **trading day** (1 business day per the chosen calendar).
-  European analytic: QuantLib annual theta ÷ TRADING_DAYS_PER_YEAR (252).
-  American numerical: revalue at next business day; difference is per trading day.
+  Both European and American styles compute theta by revaluing the option
+  at the next business day and subtracting today's price.  This is a
+  forward-looking P&L figure: theta < 0 for a typical long option because
+  the position decays as time passes.
   PnL attribution: theta_pnl = theta * count_business_days(t_minus_1, t, calendar).
 - Greeks bump semantics:
   - Relative spot bump (e.g., 1% of spot).
   - Absolute vol bump (e.g., 0.001 = 0.1 vol points).
   - Absolute rate bump (e.g., 0.001 = 0.1% rate points).
 - Zero-DTE handling: ``t < 1/365`` is floored to 1 calendar day.
+  This prevents QuantLib singularities at t → 0.  0-DTE is an intentionally
+  supported workflow; callers are expected to supply live market data (spot
+  and IV) that already reflects intraday decay as expiry approaches, so the
+  floored t is not a source of meaningful pricing error.
 - Default calendar: Hong Kong (`ql.HongKong()`).
 - Supported calendars: hong_kong, us_nyse, us_settlement, united_kingdom, null.
 """
@@ -31,7 +37,6 @@ DEFAULT_BUMP_SPOT_REL = 0.01
 DEFAULT_BUMP_VOL_ABS = 0.001
 DEFAULT_BUMP_RATE_ABS = 0.001
 DAY_COUNT = "ACT/365F"
-TRADING_DAYS_PER_YEAR = 252
 
 CalendarLiteral = Literal["hong_kong", "us_nyse", "us_settlement", "united_kingdom", "null"]
 DEFAULT_CALENDAR: CalendarLiteral = "hong_kong"

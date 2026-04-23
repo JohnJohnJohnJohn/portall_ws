@@ -77,7 +77,7 @@ class TestPnLAttribution:
 
     def test_theta_pnl_one_day(self, client: TestClient):
         """One calendar day passes (Sun->Mon = 1 trading day), all market data identical.
-        Actual PnL should be approximately theta * trading_days."""
+        Actual PnL should match theta * trading_days exactly under unified next-BD revalue."""
         params = self._base_params(
             t_t=0.25 - MIN_T_YEARS,
         )
@@ -94,10 +94,8 @@ class TestPnLAttribution:
         assert meta["trading_days"] == 1
         assert data["theta_pnl"] < 0
         assert data["actual_pnl"] < 0
-        # European theta is annual/252; actual 1-calendar-day decay is annual/365.
-        # Allow ~50% relative tolerance for this convention mismatch.
-        assert abs(data["actual_pnl"] - data["theta_pnl"]) < 0.02
-        assert abs(data["residual_pnl"]) < 0.02
+        assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-6)
+        assert data["residual_pnl"] == pytest.approx(0, abs=1e-6)
 
     def test_method_average_vega(self, client: TestClient):
         """Average vega should differ from backward vega when vol and spot both move."""
@@ -118,18 +116,22 @@ class TestPnLAttribution:
         assert data_a["theta_pnl"] == data_b["theta_pnl"]
         assert data_a["vega_pnl"] != data_b["vega_pnl"]
 
-    def test_qty_scaling(self, client: TestClient):
-        """Qty=10 should scale all PnL buckets by 10x."""
-        params_single = self._base_params(s_t=102, qty=1)
-        params_ten = self._base_params(s_t=102, qty=10)
+    def test_qty_ignored(self, client: TestClient):
+        """qty is ignored in PnL attribution; outputs are per-unit."""
+        params_1 = self._base_params(s_t=102, qty=1)
+        params_10 = self._base_params(s_t=102, qty=10)
+        params_neg = self._base_params(s_t=102, qty=-1)
 
-        resp_1 = self._get(client, params_single, json_format=True)
-        resp_10 = self._get(client, params_ten, json_format=True)
+        resp_1 = self._get(client, params_1, json_format=True)
+        resp_10 = self._get(client, params_10, json_format=True)
+        resp_neg = self._get(client, params_neg, json_format=True)
         assert resp_1.status_code == 200
         assert resp_10.status_code == 200
+        assert resp_neg.status_code == 200
 
         data_1 = resp_1.json()["pnl_attribution"]["outputs"]
         data_10 = resp_10.json()["pnl_attribution"]["outputs"]
+        data_neg = resp_neg.json()["pnl_attribution"]["outputs"]
 
         for bucket in [
             "actual_pnl",
@@ -140,19 +142,11 @@ class TestPnLAttribution:
             "rho_pnl",
             "vanna_pnl",
             "volga_pnl",
+            "explained_pnl",
+            "residual_pnl",
         ]:
-            assert data_10[bucket] == pytest.approx(10 * data_1[bucket], abs=1e-7)
-
-    def test_short_position_negative_qty(self, client: TestClient):
-        """Short position flips the sign of all PnL buckets."""
-        params = self._base_params(s_t=102, qty=-1)
-        resp = self._get(client, params, json_format=True)
-        assert resp.status_code == 200
-        data = resp.json()["pnl_attribution"]["outputs"]
-
-        assert data["actual_pnl"] < 0
-        assert data["delta_pnl"] < 0
-        assert data["theta_pnl"] > 0  # short call collects time decay
+            assert data_10[bucket] == pytest.approx(data_1[bucket], abs=1e-10)
+            assert data_neg[bucket] == pytest.approx(data_1[bucket], abs=1e-10)
 
     def test_xml_response(self, client: TestClient):
         """Default response should be valid XML."""
@@ -180,7 +174,7 @@ class TestPnLAttribution:
         assert data["theta_pnl"] == pytest.approx(0, abs=1e-10)
 
     def test_omit_both_dates_diff_t(self, client: TestClient):
-        """Omitting both dates with 1-day t decay: theta_pnl ≈ theta * trading_days."""
+        """Omitting both dates with 1-day t decay: theta_pnl = theta * trading_days."""
         params = self._base_params(t_t=0.25 - MIN_T_YEARS)
         del params["valuation_date_t_minus_1"]
         del params["valuation_date_t"]
@@ -191,8 +185,8 @@ class TestPnLAttribution:
         assert meta["trading_days"] == 1
         assert data["theta_pnl"] < 0
         assert data["actual_pnl"] < 0
-        # See test_theta_pnl_one_day for tolerance rationale
-        assert abs(data["actual_pnl"] - data["theta_pnl"]) < 0.02
+        assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-6)
+        assert data["residual_pnl"] == pytest.approx(0, abs=1e-6)
 
     def test_only_one_date(self, client: TestClient):
         """Providing only one date should fail."""
@@ -251,7 +245,7 @@ class TestPnLAttribution:
             "v_t": 0.4,
             "type": "call",
             "style": "american",
-            "qty": -100000,
+            "qty": 1,
             "method": "backward",
             "cross_greeks": True,
         }
@@ -263,31 +257,6 @@ class TestPnLAttribution:
         # With cross-greeks, residual should be < 50% of actual
         # (without it, residual was ~190% for this trade)
         assert residual < 0.5 * actual
-
-    def test_qty_scaling_with_cross_greeks(self, client: TestClient):
-        """Qty=10 should scale all PnL buckets by 10x including cross-greeks."""
-        params_single = self._base_params(s_t=102, v_t=0.22, qty=1, cross_greeks=True)
-        params_ten = self._base_params(s_t=102, v_t=0.22, qty=10, cross_greeks=True)
-
-        resp_1 = self._get(client, params_single, json_format=True)
-        resp_10 = self._get(client, params_ten, json_format=True)
-        assert resp_1.status_code == 200
-        assert resp_10.status_code == 200
-
-        data_1 = resp_1.json()["pnl_attribution"]["outputs"]
-        data_10 = resp_10.json()["pnl_attribution"]["outputs"]
-
-        for bucket in [
-            "actual_pnl",
-            "delta_pnl",
-            "gamma_pnl",
-            "vega_pnl",
-            "theta_pnl",
-            "rho_pnl",
-            "vanna_pnl",
-            "volga_pnl",
-        ]:
-            assert data_10[bucket] == pytest.approx(10 * data_1[bucket], abs=1e-7)
 
     def test_small_vol_t_rejected(self, client: TestClient):
         """Extremely low vol causes QuantLib to fail; pricing layer returns 400."""

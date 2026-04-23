@@ -131,9 +131,9 @@ def price_american(
     price_down_r = _npv(s, k, r - h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
     rho = (price_up_r - price_down_r) / (2.0 * h_r) / 100.0
 
-    # Theta via next-business-day revalue
-    # When the option has <= 1 business day left, forward revalue hits expiry;
-    # fallback to intrinsic value for the next-business-day price
+    # Theta: P&L impact of one business day passing (forward-looking, negative for a long option).
+    # Revalue at the next business day and subtract today's price.
+    # When the option has <= 1 business day left, fallback to intrinsic value.
     try:
         next_bd = next_business_day(ql_date, calendar)
     except RuntimeError as exc:
