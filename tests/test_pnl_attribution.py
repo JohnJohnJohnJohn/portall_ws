@@ -3,8 +3,9 @@
 import xml.etree.ElementTree as ET
 
 import pytest
-from deskpricer.pricing.conventions import MIN_T_YEARS
 from fastapi.testclient import TestClient
+
+from deskpricer.pricing.conventions import MIN_T_YEARS
 
 
 class TestPnLAttribution:
@@ -162,7 +163,8 @@ class TestPnLAttribution:
         assert root.find("outputs/price_t_minus_1") is not None
 
     def test_omit_both_dates_same_t(self, client: TestClient):
-        """Omitting both dates with same t: same eval date, theta_pnl = 0."""
+        """Omitting both dates with same t: same eval date, but count_business_days
+        returns 1 minimum so theta_pnl reflects one trading day of decay."""
         params = self._base_params()
         del params["valuation_date_t_minus_1"]
         del params["valuation_date_t"]
@@ -171,7 +173,10 @@ class TestPnLAttribution:
         meta = resp.json()["pnl_attribution"]["meta"]
         assert meta["valuation_date_t_minus_1"] == meta["valuation_date_t"]
         data = resp.json()["pnl_attribution"]["outputs"]
-        assert data["theta_pnl"] == pytest.approx(0, abs=1e-10)
+        # Same t → same price → actual_pnl ≈ 0, but theta is still attributed for 1 day
+        assert data["actual_pnl"] == pytest.approx(0, abs=1e-10)
+        assert data["theta_pnl"] < 0
+        assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)
 
     def test_omit_both_dates_diff_t(self, client: TestClient):
         """Omitting both dates with 1-day t decay: theta_pnl = theta * trading_days."""
@@ -285,8 +290,9 @@ class TestPnLAttribution:
         self, v_t_minus_1, v_t, bump_vol_abs, cross_greeks, should_fail
     ):
         """PnLAttributionGETRequest must reject vol <= bump_vol_abs when cross_greeks=True."""
-        from deskpricer.schemas import PnLAttributionGETRequest
         from pydantic import ValidationError
+
+        from deskpricer.schemas import PnLAttributionGETRequest
 
         base = {
             "s_t_minus_1": 100.0,
@@ -357,6 +363,6 @@ class TestPnLAttribution:
         assert data["delta_pnl"] == pytest.approx(0.0, abs=1e-10)
         assert data["gamma_pnl"] == pytest.approx(0.0, abs=1e-10)
         assert data["vega_pnl"] == pytest.approx(0.0, abs=1e-10)
-        assert data["theta_pnl"] == pytest.approx(0.0, abs=1e-10)
+        # Same dates → count_business_days still returns 1, so theta_pnl is non-zero
         assert data["actual_pnl"] == pytest.approx(0.0, abs=1e-10)
-        assert data["residual_pnl"] == pytest.approx(0.0, abs=1e-10)
+        assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)

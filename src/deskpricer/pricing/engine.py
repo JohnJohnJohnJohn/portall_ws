@@ -59,7 +59,7 @@ def price_vanilla(
             )
     if t < 0:
         raise UnsupportedCombinationError("time to expiry must be non-negative", field="t")
-    # Floor t to 1 calendar day to avoid QuantLib singularities at t → 0.
+    # Floor t to 1 trading day to avoid QuantLib singularities at t → 0.
     # 0-DTE is an intentionally supported workflow; callers supply live market
     # data (spot and IV) that already reflects intraday decay, so the floor
     # does not introduce meaningful pricing error.
@@ -70,7 +70,9 @@ def price_vanilla(
                 f"European style only supports analytic engine; got {engine}",
                 field="engine",
             )
-        return price_european(s, k, effective_t, r, q, v, option_type, valuation_date, calendar_name=calendar_name)
+        return price_european(
+            s, k, effective_t, r, q, v, option_type, valuation_date, calendar_name=calendar_name
+        )
 
     if style == "american":
         if engine == "analytic":

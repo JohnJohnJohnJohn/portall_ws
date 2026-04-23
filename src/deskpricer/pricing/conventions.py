@@ -14,7 +14,7 @@ Numerical conventions
   - Relative spot bump (e.g., 1% of spot).
   - Absolute vol bump (e.g., 0.001 = 0.1 vol points).
   - Absolute rate bump (e.g., 0.001 = 0.1% rate points).
-- Zero-DTE handling: ``t < 1/365`` is floored to 1 calendar day.
+- Zero-DTE handling: ``t < 1/365`` is floored to 1 trading day.
   This prevents QuantLib singularities at t → 0.  0-DTE is an intentionally
   supported workflow; callers are expected to supply live market data (spot
   and IV) that already reflects intraday decay as expiry approaches, so the
@@ -23,7 +23,6 @@ Numerical conventions
 - Supported calendars: hong_kong, us_nyse, us_settlement, united_kingdom, null.
 """
 
-import math
 from datetime import date
 from typing import Literal
 
@@ -32,7 +31,7 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError
 
 MIN_T_YEARS = 1.0 / 365.0
-DEFAULT_STEPS = 400
+DEFAULT_STEPS = 500
 DEFAULT_BUMP_SPOT_REL = 0.01
 DEFAULT_BUMP_VOL_ABS = 0.001
 DEFAULT_BUMP_RATE_ABS = 0.001
@@ -72,13 +71,13 @@ def default_day_count() -> ql.DayCounter:
     return ql.Actual365Fixed()
 
 
-def expiry_from_t(valuation_date: ql.Date, t: float) -> ql.Date:
+def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> ql.Date:
     if t < 0:
         raise InvalidInputError("time to expiry must be non-negative", field="t")
-    # Round-half-up to avoid Python's banker's rounding bias
-    days = max(1, math.floor(t * 365 + 0.5))
+    # Convert years to business days (252 per year) with a hard floor of 1.
+    n = max(1, round(t * 252))
     try:
-        expiry = valuation_date + days
+        expiry = calendar.advance(valuation_date, n, ql.Days)
     except RuntimeError as exc:
         raise InvalidInputError(
             "Expiry date exceeds QuantLib maximum supported date (2199-12-31)",

@@ -34,6 +34,7 @@ class TestLogging:
         """_SafeRotatingFileHandler must survive an OSError during rollover (e.g. Windows lock)."""
         import logging
         import logging.handlers
+
         from deskpricer.logging_config import _SafeRotatingFileHandler
 
         log_file = tmp_path / "test.log"

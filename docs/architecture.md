@@ -55,8 +55,8 @@ app.py              schemas.py          pricing/engine.py     responses.py      
 
 1. **`_QL_LOCK` must be held** whenever `ql.Settings.instance().evaluationDate` is read or written. The lock is acquired in the service layer (`services/pricing_service.py`), not inside pricing functions.
 2. **Engine/style mapping is rigid**: European → `analytic` only. American → `binomial_crr` or `binomial_jr` only. Any other combination raises `UnsupportedCombinationError` (422).
-3. **`t < 1/365` is floored to 1 calendar day** in `expiry_from_t`. This prevents QuantLib from collapsing on zero-day options.
-4. **Vega and rho are per 1% point**; **theta and charm are per calendar day**.
+3. **`t < 1/365` is floored to 1 trading day** in `expiry_from_t`. This prevents QuantLib from collapsing on zero-day options.
+4. **Vega and rho are per 1% point**; **theta and charm are per trading day**.
 5. **All numeric outputs are finite** before serialization. `_clean_value` converts non-finite floats to `None` as a last-ditch guard.
 6. **XML responses are sanitized** for illegal characters (control chars, surrogates, non-characters) before `xmltodict.unparse`.
 7. **Log rollover failures are swallowed** on Windows (antivirus file locks). The `_SafeRotatingFileHandler` cooldowns for 60s and reopens the stream.

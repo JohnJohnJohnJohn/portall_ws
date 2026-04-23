@@ -1,9 +1,8 @@
 """American option pricing via BinomialVanillaEngine with bump-and-revalue Greeks."""
 
-from datetime import date
-
 import logging
 import math
+from datetime import date
 
 import QuantLib as ql
 
@@ -13,6 +12,7 @@ from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
     DEFAULT_CALENDAR,
+    MIN_T_YEARS,
     CalendarLiteral,
     default_day_count,
     expiry_from_t,
@@ -95,8 +95,9 @@ def price_american(
         raise InvalidInputError("bump_spot_rel must be < 1.0", field="bump_spot_rel")
 
     ql_date = ql_date_from_iso(valuation_date)
-    expiry_date = expiry_from_t(ql_date, t)
+    effective_t = max(t, MIN_T_YEARS)
     calendar = get_calendar(calendar_name)
+    expiry_date = expiry_from_t(ql_date, effective_t, calendar)
 
     price = _npv(s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
 
@@ -107,8 +108,9 @@ def price_american(
             "Spot bump underflowed to zero; use larger spot or bump_spot_rel",
             field="bump_spot_rel",
         )
-    price_up_s = _npv(s + h_s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
-    price_down_s = _npv(s - h_s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    _common = (option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    price_up_s = _npv(s + h_s, k, r, q, v, *_common)
+    price_down_s = _npv(s - h_s, k, r, q, v, *_common)
     delta = (price_up_s - price_down_s) / (2.0 * h_s)
     gamma = (price_up_s - 2.0 * price + price_down_s) / (h_s * h_s)
 
@@ -120,15 +122,15 @@ def price_american(
             "Vol bump underflowed to zero; use larger vol or bump_vol_abs",
             field="bump_vol_abs",
         )
-    price_up_v = _npv(s, k, r, q, v + h_v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
-    price_down_v = _npv(s, k, r, q, v - h_v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    price_up_v = _npv(s, k, r, q, v + h_v, *_common)
+    price_down_v = _npv(s, k, r, q, v - h_v, *_common)
     vega = (price_up_v - price_down_v) / (2.0 * h_v) / 100.0
 
     # Rho via central difference on rate
     # Divide by 100 to report standard market convention (per 1%)
     h_r = bump_rate_abs
-    price_up_r = _npv(s, k, r + h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
-    price_down_r = _npv(s, k, r - h_r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    price_up_r = _npv(s, k, r + h_r, q, v, *_common)
+    price_down_r = _npv(s, k, r - h_r, q, v, *_common)
     rho = (price_up_r - price_down_r) / (2.0 * h_r) / 100.0
 
     # Theta: P&L impact of one business day passing (forward-looking, negative for a long option).
@@ -139,7 +141,8 @@ def price_american(
     except RuntimeError as exc:
         raise InvalidInputError("Valuation date too close to maximum supported date") from exc
     if expiry_date > next_bd:
-        price_next_bd = _npv(s, k, r, q, v, option_type, next_bd, expiry_date, steps, engine_type, calendar)
+        _common_t1 = (option_type, next_bd, expiry_date, steps, engine_type, calendar)
+        price_next_bd = _npv(s, k, r, q, v, *_common_t1)
     else:
         # At expiry the option is worth its intrinsic value
         price_next_bd = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
@@ -147,12 +150,8 @@ def price_american(
 
     # Charm: ∂delta/∂t per trading day (forward difference, 1 business day)
     if expiry_date > next_bd:
-        price_up_s_t1 = _npv(
-            s + h_s, k, r, q, v, option_type, next_bd, expiry_date, steps, engine_type, calendar
-        )
-        price_down_s_t1 = _npv(
-            s - h_s, k, r, q, v, option_type, next_bd, expiry_date, steps, engine_type, calendar
-        )
+        price_up_s_t1 = _npv(s + h_s, k, r, q, v, *_common_t1)
+        price_down_s_t1 = _npv(s - h_s, k, r, q, v, *_common_t1)
         delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
         charm = delta_t1 - delta
     else:

@@ -19,15 +19,25 @@ def bsm_price(s, k, t, r, q, v, option_type):
 class TestHullReference:
     def test_hull_example_european_call(self, client: TestClient):
         """Hull 8e Example 15.6: S=42, K=40, r=0.10, q=0, sigma=0.20, T=0.5.
-        Because QuantLib uses calendar dates, the exact year fraction will
-        differ slightly from 0.5. We compare against the BSM price using the
-        same rounded days (182) => T=182/365.
+        Because expiry_from_t uses trading days (252/year), the exact year
+        fraction differs from 0.5.  We compare against the BSM price using the
+        same calendar-advanced expiry.
         """
+        import datetime
+
+        from deskpricer.pricing.conventions import (
+            default_day_count,
+            expiry_from_t,
+            get_calendar,
+            ql_date_from_iso,
+        )
+
         s, k, r, q, v = 42.0, 40.0, 0.10, 0.0, 0.20
         t_input = 0.5
-        # Our conventions use round-half-up, not banker's rounding
-        days = math.floor(t_input * 365 + 0.5)
-        t_actual = days / 365.0
+        valuation_date = ql_date_from_iso(datetime.date(2026, 4, 20))
+        calendar = get_calendar()
+        expiry = expiry_from_t(valuation_date, t_input, calendar)
+        t_actual = default_day_count().yearFraction(valuation_date, expiry)
         expected = bsm_price(s, k, t_actual, r, q, v, "call")
 
         resp = client.get(

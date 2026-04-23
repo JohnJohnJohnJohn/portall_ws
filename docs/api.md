@@ -52,14 +52,14 @@ Price a single vanilla option and return Greeks.
 |------|------|----------|-------------|
 | `s` | float > 0 | Yes | Spot price |
 | `k` | float > 0 | Yes | Strike |
-| `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 calendar day |
+| `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 trading day |
 | `r` | float | Yes | Continuously compounded risk-free rate |
 | `q` | float | Yes | Continuously compounded dividend yield |
 | `v` | float > 0 | Yes | Black volatility (decimal) |
 | `type` | `call` / `put` | Yes | Option type |
 | `style` | `european` / `american` | Yes | Option style |
 | `engine` | enum | No | `analytic`, `binomial_crr`, `binomial_jr`. Default: `analytic` for European, `binomial_crr` for American |
-| `steps` | int (10–5000) | No | Tree steps. Default: 400 |
+| `steps` | int (10–5000) | No | Tree steps. Default: 500 |
 | `calendar` | enum | No | `hong_kong`, `us_nyse`, `us_settlement`, `united_kingdom`, `null`. Default: `hong_kong` |
 | `valuation_date` | ISO date | No | Defaults to today |
 | `bump_spot_rel` | float | No | Relative spot bump for bump-and-revalue Greeks. Default: 0.01 |
@@ -69,7 +69,9 @@ Price a single vanilla option and return Greeks.
 #### Default Engine Selection
 
 - `style=european` → `analytic` (Black-Scholes-Merton closed form)
-- `style=american` → `binomial_crr` with 400 steps (Cox-Ross-Rubinstein)
+- `style=american` → `binomial_crr` with 500 steps (Cox-Ross-Rubinstein)
+
+> **American early exercise**: American options are priced with early-exercise permitted from the valuation date onward.  This matches the standard convention for listed equity options.
 
 #### Greek Conventions
 
@@ -81,6 +83,8 @@ Price a single vanilla option and return Greeks.
 | `theta` | ∂V/∂t | per **trading day** (next-BD revalue − today's price). Negative for a decaying long option. |
 | `rho` | ∂V/∂r | per **1% rate point** (standard market convention) |
 | `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **trading day** (delta next business day − delta today per the chosen calendar)
+
+> **Rho scope**: `rho` measures sensitivity to the **risk-free rate** (`r`) only.  DeskPricer does not return a dividend-yield rho (`rho_q`).
 
 #### Response (XML)
 
@@ -220,14 +224,14 @@ Solve for implied volatility given an observed market price.
 |------|------|----------|-------------|
 | `s` | float > 0 | Yes | Spot price |
 | `k` | float > 0 | Yes | Strike |
-| `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 calendar day |
+| `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 trading day |
 | `r` | float | Yes | Continuously compounded risk-free rate |
 | `q` | float | Yes | Continuously compounded dividend yield |
 | `price` | float > 0 | Yes | Observed market price of the option |
 | `type` | `call` / `put` | Yes | Option type |
 | `style` | `european` / `american` | Yes | Option style |
 | `engine` | enum | No | `analytic`, `binomial_crr`, `binomial_jr`. Default: `analytic` for European, `binomial_crr` for American |
-| `steps` | int (10–5000) | No | Tree steps. Default: 400 |
+| `steps` | int (10–5000) | No | Tree steps. Default: 500 |
 | `valuation_date` | ISO date | No | Defaults to today |
 | `accuracy` | float | No | Brent solver accuracy. Default: `1e-4` |
 | `max_iterations` | int | No | Max solver iterations. Default: `1000` |
@@ -280,8 +284,8 @@ Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and resi
 | `s_t_minus_1` | float > 0 | Yes | Spot at t-1 |
 | `s_t` | float > 0 | Yes | Spot at t |
 | `k` | float > 0 | Yes | Strike |
-| `t_t_minus_1` | float ≥ 0 | Yes | Time to expiry at t-1 (floored to 1 day) |
-| `t_t` | float ≥ 0 | Yes | Time to expiry at t (floored to 1 day) |
+| `t_t_minus_1` | float ≥ 0 | Yes | Time to expiry at t-1 (floored to 1 trading day) |
+| `t_t` | float ≥ 0 | Yes | Time to expiry at t (floored to 1 trading day) |
 | `r_t_minus_1` | float | Yes | Rate at t-1 |
 | `r_t` | float | Yes | Rate at t |
 | `q_t_minus_1` | float | Yes | Div yield at t-1 |
@@ -294,7 +298,18 @@ Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and resi
 | `method` | `backward` / `average` | No | Greeks averaging method. Default: `backward` |
 | `cross_greeks` | bool | No | Include vanna/volga. Default: `false` |
 | `engine` | enum | No | Pricing engine |
-| `steps` | int (10–5000) | No | Tree steps. Default: 400 |
+
+#### Cross-Greeks (`cross_greeks=true`)
+
+When `cross_greeks=true`, the PnL attribution adds two second-order terms that capture spot–vol interaction:
+
+| Bucket | Definition | When it matters |
+|--------|-----------|-----------------|
+| `vanna_pnl` | Vanna × ΔS × Δvol_points | Large simultaneous spot and vol moves (e.g. a rally with vol crush) |
+| `volga_pnl` | ½ × Volga × (Δvol_points)² | Large vol-of-vol moves |
+
+**Computation**: Vanna (∂²V/∂S∂σ) and volga (∂²V/∂σ²) are computed via uniform finite differences using the same bump conventions as the main Greeks (`bump_spot_rel=0.01`, `bump_vol_abs=0.001`).  `method=average` averages the cross-Greeks at t−1 and t; `method=backward` uses t−1 only.
+| `steps` | int (10–5000) | No | Tree steps. Default: 500 |
 | `valuation_date_t_minus_1` | ISO date | No | Defaults to today if both dates omitted |
 | `valuation_date_t` | ISO date | No | Defaults to today if both dates omitted |
 | `bump_spot_rel` | float | No | Relative spot bump. Default: 0.01 |
@@ -346,6 +361,8 @@ Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and resi
   </outputs>
 </pnl_attribution>
 ```
+
+> **Per-unit outputs**: All PnL buckets (`delta_pnl`, `gamma_pnl`, `vega_pnl`, `theta_pnl`, `rho_pnl`, `vanna_pnl`, `volga_pnl`, `actual_pnl`, `residual_pnl`) are **per unit**.  The `qty` parameter is accepted for API compatibility but is ignored in calculations.  Position-level scaling is the caller's responsibility.
 
 ---
 

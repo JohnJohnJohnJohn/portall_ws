@@ -41,8 +41,8 @@ def compute_implied_vol(
         raise InvalidInputError("time to expiry must be a finite number", field="t")
     effective_t = max(t, MIN_T_YEARS)
     ql_date = ql_date_from_iso(valuation_date)
-    expiry_date = expiry_from_t(ql_date, effective_t)
     calendar = get_calendar(calendar_name)
+    expiry_date = expiry_from_t(ql_date, effective_t, calendar)
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
@@ -106,7 +106,8 @@ def compute_implied_vol(
         msg = str(exc)
         if "root not bracketed" in msg.lower():
             raise InvalidInputError(
-                "Target price implies volatility outside solver bounds [1e-6, 5.0] or is outside arbitrage bounds",
+                "Target price implies volatility outside solver bounds [1e-6, 5.0] "
+                "or is outside arbitrage bounds",
                 field="price",
             ) from exc
         # Let unexpected QuantLib failures propagate as 500s

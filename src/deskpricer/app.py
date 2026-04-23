@@ -1,6 +1,7 @@
 """FastAPI application factory."""
 
 import time
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException

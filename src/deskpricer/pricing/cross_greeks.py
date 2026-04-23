@@ -1,8 +1,7 @@
 """Vanna and volga calculator via uniform finite differences."""
 
-from datetime import date
-
 import math
+from datetime import date
 
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (

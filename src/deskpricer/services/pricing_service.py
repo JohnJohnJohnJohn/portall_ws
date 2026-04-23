@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from typing import Any, Callable
 
+import QuantLib as ql
+
 from deskpricer import __version__ as service_version
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (
@@ -276,15 +278,16 @@ async def run_pnl_attribution(
         valuation_date = date.today()
         valuation_date_t_minus_1 = valuation_date
         valuation_date_t = valuation_date
-        days_t_m1 = max(1, math.floor(params.t_t_minus_1 * 365 + 0.5))
-        days_t = max(1, math.floor(params.t_t * 365 + 0.5))
-        ql_start = ql_date_from_iso(valuation_date) + days_t
-        ql_end = ql_date_from_iso(valuation_date) + days_t_m1
-        trading_days = count_business_days(ql_start, ql_end, ql_calendar) if ql_end > ql_start else 0
+        days_t_m1 = max(1, round(params.t_t_minus_1 * 252))
+        days_t = max(1, round(params.t_t * 252))
+        ql_val_date = ql_date_from_iso(valuation_date)
+        ql_start = ql_calendar.advance(ql_val_date, days_t, ql.Days)
+        ql_end = ql_calendar.advance(ql_val_date, days_t_m1, ql.Days)
+        trading_days = count_business_days(ql_start, ql_end, ql_calendar)
     elif valuation_date_t_minus_1 is not None and valuation_date_t is not None:
         ql_start = ql_date_from_iso(valuation_date_t_minus_1)
         ql_end = ql_date_from_iso(valuation_date_t)
-        trading_days = count_business_days(ql_start, ql_end, ql_calendar) if ql_end > ql_start else 0
+        trading_days = count_business_days(ql_start, ql_end, ql_calendar)
     else:
         raise InvalidInputError(
             "Provide both valuation_date_t_minus_1 and valuation_date_t, or omit both",

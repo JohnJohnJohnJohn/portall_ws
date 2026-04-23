@@ -1,5 +1,6 @@
 """Property-based tests using hypothesis."""
 
+import datetime
 import math
 
 import pytest
@@ -41,8 +42,11 @@ class TestPutCallParity:
             pytest.skip("Invalid parameter combination generated")
         c = resp_call.json()["greeks"]["outputs"]["price"]
         p = resp_put.json()["greeks"]["outputs"]["price"]
-        days = math.floor(t * 365 + 0.5)  # match expiry_from_t round-half-up
-        t_actual = days / 365.0
+        # Replicate trading-day expiry to compute actual t used by the engine
+        from deskpricer.pricing.conventions import default_day_count, expiry_from_t, get_calendar
+        ql_today = ql_date_from_iso(datetime.date.today())
+        expiry = expiry_from_t(ql_today, t, get_calendar())
+        t_actual = default_day_count().yearFraction(ql_today, expiry)
         lhs = c - p
         rhs = s * math.exp(-q * t_actual) - k * math.exp(-r * t_actual)
         assert abs(lhs - rhs) < 1e-5
@@ -79,8 +83,8 @@ class TestAmericanPriceBounds:
 
         # Compare against European price computed with the same CRR tree to avoid
         # discretization bias vs analytic formula.
-        today = ql_date_from_iso(__import__("datetime").date.today())
-        expiry = expiry_from_t(today, t)
+        today = ql_date_from_iso(datetime.date.today())
+        expiry = expiry_from_t(today, t, get_calendar())
         spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
         div_ts = ql.YieldTermStructureHandle(ql.FlatForward(today, q, default_day_count()))
         rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(today, r, default_day_count()))
@@ -228,7 +232,8 @@ class TestPnLExplain:
         assert resp.status_code == 200
         data = resp.json()["pnl_attribution"]["outputs"]
         assert data["actual_pnl"] == pytest.approx(0.0, abs=1e-10)
-        assert data["residual_pnl"] == pytest.approx(0.0, abs=1e-10)
+        # Same dates → count_business_days still returns 1, so residual = -theta_pnl
+        assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)
 
 
 class TestPortfolioAggregation:

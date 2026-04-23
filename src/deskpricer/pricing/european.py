@@ -7,6 +7,7 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (
     DEFAULT_CALENDAR,
+    MIN_T_YEARS,
     CalendarLiteral,
     default_day_count,
     expiry_from_t,
@@ -59,8 +60,9 @@ def price_european(
         raise InvalidInputError("volatility must be positive", field="v")
 
     ql_date = ql_date_from_iso(valuation_date)
-    expiry_date = expiry_from_t(ql_date, t)
+    effective_t = max(t, MIN_T_YEARS)
     calendar = get_calendar(calendar_name)
+    expiry_date = expiry_from_t(ql_date, effective_t, calendar)
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
@@ -85,13 +87,17 @@ def price_european(
     except RuntimeError as exc:
         raise InvalidInputError("Pricing failed for the given inputs") from exc
 
-    # Theta: P&L impact of one business day passing (forward-looking, negative for a long option).
-    # Revalue at the next business day and subtract today's price.
-    # When the option has <= 1 business day left, fallback to intrinsic value.
+    # Theta & Charm: next-business-day revalue.
+    # theta = price(next_bd) - price(today)  (negative for a typical long option).
+    # charm = delta(next_bd) - delta(today).
+    # When the option has <= 1 business day left, theta falls back to intrinsic - price
+    # and charm falls back to 0.0.
+    theta = 0.0
+    charm = 0.0
     try:
         one_bd_forward = next_business_day(ql_date, calendar)
     except RuntimeError:
-        theta = 0.0
+        pass  # Both theta and charm remain 0.0 (valuation date too close to max date)
     else:
         if expiry_date > one_bd_forward:
             try:
@@ -99,23 +105,14 @@ def price_european(
                     spot_handle, payoff, exercise, one_bd_forward, calendar, r, q, v, day_count
                 )
                 theta = float(option_t1.NPV()) - price
+                charm = float(option_t1.delta()) - delta
             except RuntimeError as exc:
-                raise InvalidInputError("Theta calculation failed for the given inputs") from exc
+                raise InvalidInputError(
+                    "Theta/charm calculation failed for the given inputs"
+                ) from exc
         else:
             intrinsic = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
             theta = intrinsic - price
-
-    # Charm: ∂delta/∂t per trading day (forward difference, 1 business day)
-    # When the option has <= 1 business day left, fall back to charm = 0.
-    charm = 0.0
-    if expiry_date > one_bd_forward:
-        try:
-            option_t1 = _reprice_at_date(
-                spot_handle, payoff, exercise, one_bd_forward, calendar, r, q, v, day_count
-            )
-            charm = float(option_t1.delta()) - delta
-        except RuntimeError as exc:
-            raise InvalidInputError("Charm calculation failed for the given inputs") from exc
 
     return GreeksOutput(
         price=price,

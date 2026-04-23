@@ -91,5 +91,5 @@ Then extract the solved vol:
 
 1. **Throttle refreshes** — `WEBSERVICE` recalculates on every sheet change. For large sheets, consider VBA to batch-fetch into a cache table.
 2. **Error handling** — wrap each `FILTERXML` in `IFERROR(...,"ERR")` so one bad row doesn't break the sheet.
-3. **American options** — add `&steps=400` to the URL if you want explicit control; otherwise the service defaults to 400-step CRR.
+3. **American options** — add `&steps=500` to the URL if you want explicit control; otherwise the service defaults to 500-step CRR.
 4. **No Bloomberg in formulas** — the service is pure analytic; all market data comes from your existing `BDP`/`BDH` cells.

@@ -1,10 +1,13 @@
 """API contract tests: XML/JSON toggling, error codes, schema validation."""
 
+import datetime
 import math
 import xml.etree.ElementTree as ET
 
-from deskpricer import __version__ as SERVICE_VERSION
+import QuantLib as ql
 from fastapi.testclient import TestClient
+
+from deskpricer import __version__ as SERVICE_VERSION
 
 
 class TestHealth:
@@ -154,10 +157,13 @@ class TestGreeks:
         assert resp_put.status_code == 200
         c = resp_call.json()["greeks"]["outputs"]["price"]
         p = resp_put.json()["greeks"]["outputs"]["price"]
-        # C - P = S*exp(-qT) - K*exp(-rT) using actual T from rounded days
+        # C - P = S*exp(-qT) - K*exp(-rT) using actual T from trading-day expiry
         lhs = c - p
-        days = math.floor(0.5 * 365 + 0.5)  # match expiry_from_t round-half-up
-        t_actual = days / 365.0
+        today = datetime.date.today()
+        ql_today = ql.Date(today.day, today.month, today.year)
+        from deskpricer.pricing.conventions import default_day_count, expiry_from_t, get_calendar
+        expiry = expiry_from_t(ql_today, 0.5, get_calendar())
+        t_actual = default_day_count().yearFraction(ql_today, expiry)
         rhs = 100 * math.exp(-0.02 * t_actual) - 100 * math.exp(-0.05 * t_actual)
         assert abs(lhs - rhs) < 1e-6
 
@@ -545,11 +551,12 @@ class TestDateBoundaries:
 
     def test_expiry_from_t_year_boundary(self):
         """expiry_from_t must correctly advance from Dec 31 into the next year."""
-        from deskpricer.pricing.conventions import MIN_T_YEARS, expiry_from_t
         import QuantLib as ql
 
+        from deskpricer.pricing.conventions import MIN_T_YEARS, expiry_from_t
+
         dec_31 = ql.Date(31, 12, 2026)
-        expiry = expiry_from_t(dec_31, MIN_T_YEARS)
+        expiry = expiry_from_t(dec_31, MIN_T_YEARS, ql.NullCalendar())
         assert expiry.dayOfMonth() == 1
         assert expiry.month() == 1
         assert expiry.year() == 2027
@@ -558,9 +565,10 @@ class TestDateBoundaries:
 class TestCatchallHandler:
     def test_catchall_500_handler(self, monkeypatch):
         """A generic Exception inside price_vanilla must hit the catchall handler and return 500."""
+        from fastapi.testclient import TestClient
+
         import deskpricer.services.pricing_service as svc
         from deskpricer.app import create_app
-        from fastapi.testclient import TestClient
 
         def _boom(*args, **kwargs):
             raise Exception("simulated internal explosion")

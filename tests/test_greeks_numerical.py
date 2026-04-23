@@ -1,7 +1,8 @@
 """Bump-and-revalue consistency tests for Greeks."""
 
-from deskpricer.pricing.conventions import DEFAULT_STEPS
 from fastapi.testclient import TestClient
+
+from deskpricer.pricing.conventions import DEFAULT_STEPS
 
 
 def fetch_greeks(client, **kwargs):

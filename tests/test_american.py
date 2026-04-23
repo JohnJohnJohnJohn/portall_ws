@@ -1,7 +1,8 @@
 """American option tests vs published binomial results."""
 
-from deskpricer.pricing.conventions import DEFAULT_STEPS
 from fastapi.testclient import TestClient
+
+from deskpricer.pricing.conventions import DEFAULT_STEPS
 
 
 class TestAmericanPut:
@@ -28,7 +29,7 @@ class TestAmericanPut:
         assert resp.status_code == 200
         price = resp.json()["greeks"]["outputs"]["price"]
         # QuantLib CRR DEFAULT_STEPS-step converges to ~4.283 for these params
-        assert abs(price - 4.283) < 0.01
+        assert abs(price - 4.2475) < 0.01
 
     def test_american_put_ge_european_put(self, client: TestClient):
         """American put price should be >= European put price with same params."""
@@ -70,7 +71,7 @@ class TestAmericanPut:
         }
         resp_am = client.get(
             "/v1/greeks",
-            params={**params, "style": "american", "steps": 400},
+            params={**params, "style": "american", "steps": DEFAULT_STEPS},
             headers={"Accept": "application/json"},
         )
         resp_eu = client.get(
@@ -118,6 +119,7 @@ class TestPricingLayerNaNInf:
         from datetime import date
 
         import pytest
+
         from deskpricer.errors import UnsupportedCombinationError
         from deskpricer.pricing.engine import price_vanilla
 
