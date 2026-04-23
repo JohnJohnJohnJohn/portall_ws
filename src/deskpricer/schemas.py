@@ -118,7 +118,11 @@ class GreeksOutput(BaseModel):
     delta: float
     gamma: float
     vega: float
-    theta: float
+    theta: float = Field(
+        description="P&L impact of one business day passing. Negative for typical "
+        "long options (decay). Sign is opposite of Bloomberg DM<GO> "
+        "convention where theta is reported as positive decay.",
+    )
     rho: float
     charm: float
 

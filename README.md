@@ -87,6 +87,19 @@ Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just
 
 ---
 
+## Conventions
+
+| Greek | Unit / Convention |
+|-------|-------------------|
+| `delta` | Absolute (∂V/∂S) |
+| `gamma` | Absolute (∂²V/∂S²) |
+| `vega` | Per **1% vol point** |
+| `theta` | Per **trading day**. Negative for typical long options (time decay). Sign is opposite of Bloomberg DM<GO>, which reports theta as positive decay. |
+| `rho` | Per **1% rate point** (risk-free rate only; no dividend-yield rho) |
+| `charm` | Per **trading day** (∂delta/∂t) |
+
+---
+
 ## Installation Options
 
 ### Standalone Executable (Recommended)

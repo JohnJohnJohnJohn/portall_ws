@@ -8,7 +8,8 @@ Numerical conventions
   Both European and American styles compute theta by revaluing the option
   at the next business day and subtracting today's price.  This is a
   forward-looking P&L figure: theta < 0 for a typical long option because
-  the position decays as time passes.
+  the position decays as time passes.  Sign is opposite of Bloomberg
+  DM<GO>, which reports theta as positive decay.
   PnL attribution: theta_pnl = theta * count_business_days(t_minus_1, t, calendar).
 - Greeks bump semantics:
   - Relative spot bump (e.g., 1% of spot).

@@ -12,6 +12,13 @@ def fetch_greeks(client, **kwargs):
 
 
 class TestEuropeanGreeks:
+    def test_theta_long_atm_call_negative(self, client: TestClient):
+        """Long ATM call with 30 DTE must have negative theta (time decay)."""
+        g = fetch_greeks(
+            client, s=100, k=100, t=30 / 365, r=0.05, q=0, v=0.20, type="call", style="european"
+        )
+        assert g["theta"] < 0
+
     def test_delta_call_positive(self, client: TestClient):
         g = fetch_greeks(
             client, s=100, k=100, t=0.5, r=0.05, q=0, v=0.20, type="call", style="european"
