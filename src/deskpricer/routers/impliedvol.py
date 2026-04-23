@@ -12,4 +12,6 @@ router = APIRouter()
 
 @router.get("/v1/impliedvol")
 async def impliedvol(request: Request):
-    return await handle_get_endpoint(request, ImpliedVolRequest, run_impliedvol, serialize_impliedvol)
+    return await handle_get_endpoint(
+        request, ImpliedVolRequest, run_impliedvol, serialize_impliedvol
+    )

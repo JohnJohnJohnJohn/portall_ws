@@ -163,6 +163,7 @@ class TestGreeks:
         today = datetime.date.today()
         ql_today = ql.Date(today.day, today.month, today.year)
         from deskpricer.pricing.conventions import default_day_count, expiry_from_t, get_calendar
+
         expiry = expiry_from_t(ql_today, 0.5, get_calendar())
         t_actual = default_day_count().yearFraction(ql_today, expiry)
         rhs = 100 * math.exp(-0.02 * t_actual) - 100 * math.exp(-0.05 * t_actual)

@@ -153,7 +153,7 @@ class TestAmericanPut:
     def test_american_charm_exactly_one_day(self, client: TestClient):
         """American charm at exactly 1 day to expiry must return 0.0 with no exception."""
         resp = client.get(
-            f"/v1/greeks?s=50&k=50&t={1/365}&r=0.05&q=0&v=0.40&type=put&style=american&steps=100",
+            f"/v1/greeks?s=50&k=50&t={1 / 365}&r=0.05&q=0&v=0.40&type=put&style=american&steps=100",
             headers={"Accept": "application/json"},
         )
         assert resp.status_code == 200

@@ -323,9 +323,9 @@ class TestPnLAttribution:
     @pytest.mark.parametrize(
         "v_t_minus_1, v_t, bump_vol_abs, cross_greeks, should_fail",
         [
-            (0.002, 0.002, 0.001, True, False),   # both > bump — valid
-            (0.001, 0.001, 0.001, True, True),    # v == bump — boundary rejection
-            (0.0005, 0.002, 0.001, True, True),   # v < bump — rejection
+            (0.002, 0.002, 0.001, True, False),  # both > bump — valid
+            (0.001, 0.001, 0.001, True, True),  # v == bump — boundary rejection
+            (0.0005, 0.002, 0.001, True, True),  # v < bump — rejection
             (0.001, 0.001, 0.001, False, False),  # cross_greeks=False — no check
         ],
     )
