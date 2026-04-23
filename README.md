@@ -1,4 +1,4 @@
-# DeskPricer v2.5.1
+# DeskPricer v2.7.0
 
 Local HTTP pricing microservice for vanilla European and American equity options. Designed for Excel `WEBSERVICE` + `FILTERXML` integration — no VBA, no Bloomberg terminal calls inside the service.
 
@@ -32,7 +32,7 @@ Expected output for the curl call (XML):
 <?xml version="1.0" encoding="UTF-8"?>
 <greeks>
   <meta>
-    <service_version>2.5.1</service_version>
+    <service_version>2.7.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -97,6 +97,10 @@ Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just
 | `theta` | Per **trading day**. Negative for typical long options (time decay). Sign is opposite of Bloomberg DM<GO>, which reports theta as positive decay. |
 | `rho` | Per **1% rate point** (risk-free rate only; no dividend-yield rho) |
 | `charm` | Per **trading day** (∂delta/∂t) |
+
+**Time to expiry (`t`)**: Supplied in years under ACT/365. Internally converted to calendar days (`round(t * 365)`) with a hard floor of 1 day, then rolled to the next business day using the chosen calendar (`hong_kong` by default).
+
+**PnL attribution**: `trading_days` represents the actual elapsed business-day hold period. If both valuation dates are omitted, `trading_days` defaults to 1. Provide explicit dates for multi-day hold accuracy.
 
 ---
 
