@@ -7,7 +7,6 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (
     DEFAULT_CALENDAR,
-    MIN_T_YEARS,
     CalendarLiteral,
     default_day_count,
     expiry_from_t,
@@ -70,9 +69,8 @@ def price_european(
         raise InvalidInputError("volatility must be positive", field="v")
 
     ql_date = ql_date_from_iso(valuation_date)
-    effective_t = max(t, MIN_T_YEARS)
     calendar = get_calendar(calendar_name)
-    expiry_date = expiry_from_t(ql_date, effective_t, calendar)
+    expiry_date = expiry_from_t(ql_date, t, calendar)
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
@@ -106,8 +104,8 @@ def price_european(
     charm = 0.0
     try:
         one_bd_forward = next_business_day(ql_date, calendar)
-    except RuntimeError:
-        pass  # Both theta and charm remain 0.0 (valuation date too close to max date)
+    except RuntimeError as exc:
+        raise InvalidInputError("Valuation date too close to maximum supported date") from exc
     else:
         if expiry_date > one_bd_forward:
             try:

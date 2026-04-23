@@ -303,7 +303,7 @@ class TestImpliedVol:
         assert root.find("code").text == "INVALID_INPUT"
         assert root.find("field") is not None
 
-    def test_impliedvol_retries_on_root_not_bracketed(self, client: TestClient, caplog):
+    def test_impliedvol_retries_on_root_not_bracketed(self, client: TestClient, caplog, monkeypatch):
         """On 'root not bracketed', solver retries with [1e-8, 10.0] before failing."""
         import logging
 
@@ -322,32 +322,28 @@ class TestImpliedVol:
         def _fake_npv(self):
             return 5.0
 
-        monkeypatch = __import__("pytest").MonkeyPatch()
         monkeypatch.setattr(ql.VanillaOption, "impliedVolatility", _fake_implied_vol)
         monkeypatch.setattr(ql.VanillaOption, "NPV", _fake_npv)
-        try:
-            with caplog.at_level(logging.WARNING, logger="deskpricer"):
-                result = iv_mod.compute_implied_vol(
-                    s=100,
-                    k=100,
-                    t=0.25,
-                    r=0.05,
-                    q=0,
-                    target_price=5.0,
-                    option_type="call",
-                    style="european",
-                    engine="analytic",
-                    valuation_date=__import__("datetime").date(2026, 4, 20),
-                )
-            assert result.implied_vol == 0.5
-            assert len(calls) == 2
-            assert calls[0] == (1e-6, 5.0)
-            assert calls[1] == (1e-8, 10.0)
-            assert "retrying with [1e-8, 10.0]" in caplog.text
-        finally:
-            monkeypatch.undo()
+        with caplog.at_level(logging.WARNING, logger="deskpricer"):
+            result = iv_mod.compute_implied_vol(
+                s=100,
+                k=100,
+                t=0.25,
+                r=0.05,
+                q=0,
+                target_price=5.0,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=__import__("datetime").date(2026, 4, 20),
+            )
+        assert result.implied_vol == 0.5
+        assert len(calls) == 2
+        assert calls[0] == (1e-6, 5.0)
+        assert calls[1] == (1e-8, 10.0)
+        assert "retrying with [1e-08, 10.0]" in caplog.text
 
-    def test_impliedvol_fails_after_retry(self, client: TestClient):
+    def test_impliedvol_fails_after_retry(self, client: TestClient, monkeypatch):
         """If widened bounds also fail, return 400 INVALID_INPUT."""
         import QuantLib as ql
         import deskpricer.pricing.implied_vol as iv_mod
@@ -358,30 +354,26 @@ class TestImpliedVol:
             calls.append((min_vol, max_vol))
             raise RuntimeError("root not bracketed")
 
-        monkeypatch = __import__("pytest").MonkeyPatch()
         monkeypatch.setattr(ql.VanillaOption, "impliedVolatility", _fake_implied_vol)
-        try:
-            with __import__("pytest").raises(iv_mod.InvalidInputError) as exc_info:
-                iv_mod.compute_implied_vol(
-                    s=100,
-                    k=100,
-                    t=0.25,
-                    r=0.05,
-                    q=0,
-                    target_price=5.0,
-                    option_type="call",
-                    style="european",
-                    engine="analytic",
-                    valuation_date=__import__("datetime").date(2026, 4, 20),
-                )
-            assert "outside solver bounds" in str(exc_info.value)
-            assert len(calls) == 2
-            assert calls[0] == (1e-6, 5.0)
-            assert calls[1] == (1e-8, 10.0)
-        finally:
-            monkeypatch.undo()
+        with __import__("pytest").raises(iv_mod.InvalidInputError) as exc_info:
+            iv_mod.compute_implied_vol(
+                s=100,
+                k=100,
+                t=0.25,
+                r=0.05,
+                q=0,
+                target_price=5.0,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=__import__("datetime").date(2026, 4, 20),
+            )
+        assert "outside solver bounds" in str(exc_info.value)
+        assert len(calls) == 2
+        assert calls[0] == (1e-6, 5.0)
+        assert calls[1] == (1e-8, 10.0)
 
-    def test_impliedvol_reprice_tolerance_failure(self, client: TestClient):
+    def test_impliedvol_reprice_tolerance_failure(self, client: TestClient, monkeypatch):
         """If solved IV does not reproduce target_price within 10*accuracy, reject."""
         import QuantLib as ql
         import deskpricer.pricing.implied_vol as iv_mod
@@ -390,25 +382,21 @@ class TestImpliedVol:
             # Return a very low vol so repriced NPV is far from target
             return 0.001
 
-        monkeypatch = __import__("pytest").MonkeyPatch()
         monkeypatch.setattr(ql.VanillaOption, "impliedVolatility", _fake_implied_vol)
-        try:
-            with __import__("pytest").raises(iv_mod.InvalidInputError) as exc_info:
-                iv_mod.compute_implied_vol(
-                    s=100,
-                    k=100,
-                    t=0.25,
-                    r=0.05,
-                    q=0,
-                    target_price=5.0,
-                    option_type="call",
-                    style="european",
-                    engine="analytic",
-                    valuation_date=__import__("datetime").date(2026, 4, 20),
-                )
-            assert "deviates from target" in str(exc_info.value)
-        finally:
-            monkeypatch.undo()
+        with __import__("pytest").raises(iv_mod.InvalidInputError) as exc_info:
+            iv_mod.compute_implied_vol(
+                s=100,
+                k=100,
+                t=0.25,
+                r=0.05,
+                q=0,
+                target_price=5.0,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=__import__("datetime").date(2026, 4, 20),
+            )
+        assert "deviates from target" in str(exc_info.value)
 
     def test_impliedvol_high_vol_warning(self, client: TestClient, caplog):
         """Solved IV > 200%% should emit a WARNING-level log entry."""
@@ -543,13 +531,14 @@ class TestPortfolio:
         assert resp.json()["error"]["code"] == "INVALID_INPUT"
 
     def test_portfolio_divergent_spot_warning(self, client: TestClient, caplog):
-        """Portfolio legs with divergent spot prices (>5%) are accepted but warned."""
+        """Portfolio legs with same underlying_id and divergent spot prices (>5%) are warned."""
         import logging
 
         payload = {
             "legs": [
                 {
                     "id": "L1",
+                    "underlying_id": "AAPL",
                     "qty": 1,
                     "s": 100,
                     "k": 100,
@@ -562,6 +551,7 @@ class TestPortfolio:
                 },
                 {
                     "id": "L2",
+                    "underlying_id": "AAPL",
                     "qty": 1,
                     "s": 106,
                     "k": 100,

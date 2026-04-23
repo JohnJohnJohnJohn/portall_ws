@@ -44,19 +44,27 @@ Numerical conventions
 """
 
 import logging
+import math
 from datetime import date
+from functools import lru_cache
 from typing import Literal
 
 import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
 
-MIN_T_YEARS = 1.0 / 365.0
-_MAX_EXPIRY_T_DISCREPANCY = 0.20
-DEFAULT_STEPS = 500
-DEFAULT_BUMP_SPOT_REL = 0.01
-DEFAULT_BUMP_VOL_ABS = 0.001
-DEFAULT_BUMP_RATE_ABS = 0.001
+from deskpricer.pricing.constants import (  # noqa: F401
+    ANNUAL_TRADING_DAYS,
+    CALENDAR_DAYS_PER_YEAR,
+    DEFAULT_BUMP_RATE_ABS,
+    DEFAULT_BUMP_SPOT_REL,
+    DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_STEPS,
+    MAX_EXPIRY_T_DISCREPANCY,
+    MIN_T_YEARS,
+    SPOT_DIVERGENCE_THRESHOLD,
+)
+
 DAY_COUNT = "ACT/365F"
 
 CalendarLiteral = Literal["hong_kong", "us_nyse", "us_settlement", "united_kingdom", "null"]
@@ -99,22 +107,22 @@ def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> q
     ``t`` is the sole expiry interface; the pricer does **not** accept an
     explicit expiry date.  Callers must derive ``t`` from a real, pre-validated
     business-day expiry (e.g. ``(expiry_date - today).days / 365``).  The
-    conversion uses ``round(t * 365)`` calendar days with a floor of 1, then
-    rolls the landed date to the next business day using ``ql.Following``.  The
-    roll is a safety guard only; it is not expected to trigger in normal
-    usage because callers should ensure the implied expiry is already a
-    business day.  If it does trigger, the effective ``t`` seen by QuantLib
-    will be slightly longer than the input ``t``, which is documented and
-    accepted behaviour.
+    conversion uses ``math.floor(t * 365 + 0.5)`` calendar days with a floor
+    of 1, then rolls the landed date to the next business day using
+    ``ql.Following``.  The roll is a safety guard only; it is not expected to
+    trigger in normal usage because callers should ensure the implied expiry is
+    already a business day.  If it does trigger, the effective ``t`` seen by
+    QuantLib will be slightly longer than the input ``t``, which is documented
+    and accepted behaviour.
 
     A warning is logged if the discrepancy between input ``t`` and the
-    effective ACT/365 year fraction exceeds 20 %.
+    effective ACT/365 year fraction exceeds 5 %.
     """
 
     if t < 0:
         raise InvalidInputError("time to expiry must be non-negative", field="t")
     # Convert years to calendar days (ACT/365) with a hard floor of 1.
-    n_cal_days = max(1, round(t * 365))
+    n_cal_days = max(1, math.floor(t * 365 + 0.5))
     try:
         expiry = valuation_date + ql.Period(n_cal_days, ql.Days)
     except RuntimeError as exc:
@@ -138,7 +146,7 @@ def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> q
     effective_t = day_count.yearFraction(valuation_date, expiry)
     if t > 0:
         discrepancy = abs(effective_t - t) / t
-        if discrepancy > _MAX_EXPIRY_T_DISCREPANCY:
+        if discrepancy > MAX_EXPIRY_T_DISCREPANCY:
             logging.getLogger("deskpricer").warning(
                 "expiry_from_t discrepancy %.1f%%: input t=%.6f, effective t=%.6f, "
                 "n_cal_days=%d, rolled_expiry=%s",
@@ -154,9 +162,25 @@ def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> q
 def next_business_day(date: ql.Date, calendar: ql.Calendar) -> ql.Date:
     """Return the next business day strictly after ``date`` according to ``calendar``."""
     d = date + 1
+    max_days = 30
+    days_checked = 0
     while not calendar.isBusinessDay(d):
         d += 1
+        days_checked += 1
+        if days_checked > max_days:
+            raise RuntimeError(
+                f"No business day found within {max_days} calendar days after {date}"
+            )
     return d
+
+
+@lru_cache(maxsize=128)
+def annual_business_days(calendar_name: CalendarLiteral, year: int) -> int:
+    """Return the number of business days in ``year`` according to ``calendar_name``."""
+    calendar = get_calendar(calendar_name)
+    start = ql.Date(1, 1, year)
+    end = ql.Date(31, 12, year) + 1
+    return count_business_days(start, end, calendar)
 
 
 def count_business_days(start: ql.Date, end: ql.Date, calendar: ql.Calendar) -> int:

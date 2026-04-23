@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 _GOLDEN = {
     "european_call_atm_7dte": {
-        "price": 1.152969,
+        "price": 1.152969,  # BSM(null) ref=1.152969 disc=0.000000
         "delta": 0.519329,
         "gamma": 0.143869,
         "vega": 0.055183,
@@ -14,7 +14,7 @@ _GOLDEN = {
         "charm": -0.001433,
     },
     "european_call_atm_30dte": {
-        "price": 2.493377,
+        "price": 2.493377,  # BSM(null) ref=2.493377 disc=0.000000
         "delta": 0.539964,
         "gamma": 0.069228,
         "vega": 0.113799,
@@ -23,7 +23,7 @@ _GOLDEN = {
         "charm": -0.00067,
     },
     "european_call_atm_90dte": {
-        "price": 4.607819,
+        "price": 4.607819,  # BSM(null) ref=4.579032 disc=0.028787
         "delta": 0.569366,
         "gamma": 0.039344,
         "vega": 0.196179,
@@ -32,7 +32,7 @@ _GOLDEN = {
         "charm": -0.000378,
     },
     "european_call_atm_365dte": {
-        "price": 10.450584,
+        "price": 10.450584,  # BSM(null) ref=10.450584 disc=0.000000
         "delta": 0.636831,
         "gamma": 0.018762,
         "vega": 0.37524,
@@ -41,7 +41,7 @@ _GOLDEN = {
         "charm": -0.00018,
     },
     "european_call_atm_7dte_holiday": {
-        "price": 1.152969,
+        "price": 1.152969,  # BSM(null) ref=1.152969 disc=0.000000
         "delta": 0.519329,
         "gamma": 0.143869,
         "vega": 0.055183,
@@ -50,7 +50,7 @@ _GOLDEN = {
         "charm": -0.001433,
     },
     "european_call_otm_7dte": {
-        "price": 0.000245,
+        "price": 0.000245,  # BSM(null) ref=0.000245 disc=0.000000
         "delta": 0.000346,
         "gamma": 0.000456,
         "vega": 0.000175,
@@ -59,7 +59,7 @@ _GOLDEN = {
         "charm": -0.000226,
     },
     "european_call_otm_30dte": {
-        "price": 0.14257,
+        "price": 0.14257,  # BSM(null) ref=0.142570 disc=0.000000
         "delta": 0.059155,
         "gamma": 0.020546,
         "vega": 0.033774,
@@ -68,7 +68,7 @@ _GOLDEN = {
         "charm": -0.003464,
     },
     "european_call_otm_90dte": {
-        "price": 1.186388,
+        "price": 1.186388,  # BSM(null) ref=1.167420 disc=0.018968
         "delta": 0.217798,
         "gamma": 0.029479,
         "vega": 0.146991,
@@ -77,7 +77,7 @@ _GOLDEN = {
         "charm": -0.001836,
     },
     "european_call_otm_365dte": {
-        "price": 6.040088,
+        "price": 6.040088,  # BSM(null) ref=6.040088 disc=0.000000
         "delta": 0.449648,
         "gamma": 0.019788,
         "vega": 0.39576,
@@ -86,7 +86,7 @@ _GOLDEN = {
         "charm": -0.000449,
     },
     "european_call_otm_7dte_holiday": {
-        "price": 0.000245,
+        "price": 0.000245,  # BSM(null) ref=0.000245 disc=0.000000
         "delta": 0.000346,
         "gamma": 0.000456,
         "vega": 0.000175,
@@ -95,7 +95,7 @@ _GOLDEN = {
         "charm": -0.000226,
     },
     "european_call_itm_7dte": {
-        "price": 10.086298,
+        "price": 10.086298,  # BSM(null) ref=10.086298 disc=0.000000
         "delta": 0.999942,
         "gamma": 8.6e-05,
         "vega": 3.3e-05,
@@ -104,7 +104,7 @@ _GOLDEN = {
         "charm": 4.2e-05,
     },
     "european_call_itm_30dte": {
-        "price": 10.427674,
+        "price": 10.427674,  # BSM(null) ref=10.427674 disc=0.000000
         "delta": 0.97368,
         "gamma": 0.010642,
         "vega": 0.017493,
@@ -113,7 +113,7 @@ _GOLDEN = {
         "charm": 0.001762,
     },
     "european_call_itm_90dte": {
-        "price": 11.664867,
+        "price": 11.664867,  # BSM(null) ref=11.643984 disc=0.020883
         "delta": 0.890616,
         "gamma": 0.018754,
         "vega": 0.093511,
@@ -122,7 +122,7 @@ _GOLDEN = {
         "charm": 0.000912,
     },
     "european_call_itm_365dte": {
-        "price": 16.699448,
+        "price": 16.699448,  # BSM(null) ref=16.699448 disc=0.000000
         "delta": 0.809703,
         "gamma": 0.013581,
         "vega": 0.271626,
@@ -131,7 +131,7 @@ _GOLDEN = {
         "charm": 6.6e-05,
     },
     "european_call_itm_7dte_holiday": {
-        "price": 10.086298,
+        "price": 10.086298,  # BSM(null) ref=10.086298 disc=0.000000
         "delta": 0.999942,
         "gamma": 8.6e-05,
         "vega": 3.3e-05,
@@ -140,7 +140,7 @@ _GOLDEN = {
         "charm": 4.2e-05,
     },
     "european_put_atm_7dte": {
-        "price": 1.057125,
+        "price": 1.057125,  # BSM(null) ref=1.057125 disc=0.000000
         "delta": -0.480671,
         "gamma": 0.143869,
         "vega": 0.055183,
@@ -149,7 +149,7 @@ _GOLDEN = {
         "charm": -0.001433,
     },
     "european_put_atm_30dte": {
-        "price": 2.083261,
+        "price": 2.083261,  # BSM(null) ref=2.083261 disc=0.000000
         "delta": -0.460036,
         "gamma": 0.069228,
         "vega": 0.113799,
@@ -158,7 +158,7 @@ _GOLDEN = {
         "charm": -0.00067,
     },
     "european_put_atm_90dte": {
-        "price": 3.368982,
+        "price": 3.368982,  # BSM(null) ref=3.353724 disc=0.015258
         "delta": -0.430634,
         "gamma": 0.039344,
         "vega": 0.196179,
@@ -167,7 +167,7 @@ _GOLDEN = {
         "charm": -0.000378,
     },
     "european_put_atm_365dte": {
-        "price": 5.573526,
+        "price": 5.573526,  # BSM(null) ref=5.573526 disc=0.000000
         "delta": -0.363169,
         "gamma": 0.018762,
         "vega": 0.37524,
@@ -176,7 +176,7 @@ _GOLDEN = {
         "charm": -0.00018,
     },
     "european_put_atm_7dte_holiday": {
-        "price": 1.057125,
+        "price": 1.057125,  # BSM(null) ref=1.057125 disc=0.000000
         "delta": -0.480671,
         "gamma": 0.143869,
         "vega": 0.055183,
@@ -185,7 +185,7 @@ _GOLDEN = {
         "charm": -0.001433,
     },
     "european_put_otm_7dte": {
-        "price": 9.894816,
+        "price": 9.894816,  # BSM(null) ref=9.894816 disc=0.000000
         "delta": -0.999654,
         "gamma": 0.000456,
         "vega": 0.000175,
@@ -194,7 +194,7 @@ _GOLDEN = {
         "charm": -0.000226,
     },
     "european_put_otm_30dte": {
-        "price": 9.691443,
+        "price": 9.691443,  # BSM(null) ref=9.691443 disc=0.000000
         "delta": -0.940845,
         "gamma": 0.020546,
         "vega": 0.033774,
@@ -203,7 +203,7 @@ _GOLDEN = {
         "charm": -0.003464,
     },
     "european_put_otm_90dte": {
-        "price": 9.823666,
+        "price": 9.823666,  # BSM(null) ref=9.819581 disc=0.004085
         "delta": -0.782202,
         "gamma": 0.029479,
         "vega": 0.146991,
@@ -212,7 +212,7 @@ _GOLDEN = {
         "charm": -0.001836,
     },
     "european_put_otm_365dte": {
-        "price": 10.675325,
+        "price": 10.675325,  # BSM(null) ref=10.675325 disc=0.000000
         "delta": -0.550352,
         "gamma": 0.019788,
         "vega": 0.39576,
@@ -221,7 +221,7 @@ _GOLDEN = {
         "charm": -0.000449,
     },
     "european_put_otm_7dte_holiday": {
-        "price": 9.894816,
+        "price": 9.894816,  # BSM(null) ref=9.894816 disc=0.000000
         "delta": -0.999654,
         "gamma": 0.000456,
         "vega": 0.000175,
@@ -230,7 +230,7 @@ _GOLDEN = {
         "charm": -0.000226,
     },
     "european_put_itm_7dte": {
-        "price": 3.8e-05,
+        "price": 3.8e-05,  # BSM(null) ref=0.000038 disc=0.000000
         "delta": -5.8e-05,
         "gamma": 8.6e-05,
         "vega": 3.3e-05,
@@ -239,7 +239,7 @@ _GOLDEN = {
         "charm": 4.2e-05,
     },
     "european_put_itm_30dte": {
-        "price": 0.05857,
+        "price": 0.05857,  # BSM(null) ref=0.058570 disc=0.000000
         "delta": -0.02632,
         "gamma": 0.010642,
         "vega": 0.017493,
@@ -248,7 +248,7 @@ _GOLDEN = {
         "charm": 0.001762,
     },
     "european_put_itm_90dte": {
-        "price": 0.549913,
+        "price": 0.549913,  # BSM(null) ref=0.541207 disc=0.008706
         "delta": -0.109384,
         "gamma": 0.018754,
         "vega": 0.093511,
@@ -257,7 +257,7 @@ _GOLDEN = {
         "charm": 0.000912,
     },
     "european_put_itm_365dte": {
-        "price": 2.310097,
+        "price": 2.310097,  # BSM(null) ref=2.310097 disc=0.000000
         "delta": -0.190297,
         "gamma": 0.013581,
         "vega": 0.271626,
@@ -266,7 +266,7 @@ _GOLDEN = {
         "charm": 6.6e-05,
     },
     "european_put_itm_7dte_holiday": {
-        "price": 3.8e-05,
+        "price": 3.8e-05,  # BSM(null) ref=0.000038 disc=0.000000
         "delta": -5.8e-05,
         "gamma": 8.6e-05,
         "vega": 3.3e-05,

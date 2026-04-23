@@ -5,6 +5,7 @@ import math
 from datetime import date
 
 from deskpricer.errors import InvalidInputError
+from deskpricer.pricing.constants import VOL_BUMP_CAP_FACTOR
 from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
@@ -39,10 +40,11 @@ def compute_cross_greeks(
 
     Unit conventions
     ----------------
-    Vanna is returned as ∂²V / ∂S ∂σ  per **$1** spot move per **1 vol-point**
-    (1% absolute).  Numerically this is computed via a 4-point central cross
-    difference and the ds factor in the denominator cancels the absolute bump
-    size, leaving a per-unit sensitivity.
+    Vanna is returned as ∂²V / ∂S ∂σ  per **1% relative move in spot** per
+    **1 vol-point** (1% absolute).  Numerically this is computed via a 4-point
+    central cross difference.  The spot bump ``ds`` is a relative bump
+    (``s * bump_spot_rel``), so the resulting vanna corresponds to a 1%
+    relative spot move, not a $1 absolute move.
 
     Volga is returned as ∂²V / ∂σ²  per **(1 vol-point)²**.  Numerically this
     is a standard central second difference on vol space, again with the bump
@@ -50,7 +52,7 @@ def compute_cross_greeks(
 
     Both denominators use the same vol-point unit system, so the two Greeks
     are dimensionally consistent when combined in a vanna-volga PnL expansion:
-        vanna_pnl = vanna * ΔS * Δσ_points
+        vanna_pnl = vanna * (ΔS / S * 100) * Δσ_points
         volga_pnl = 0.5 * volga * (Δσ_points)²
     """
 
@@ -61,9 +63,9 @@ def compute_cross_greeks(
     if bump_vol_abs <= 0:
         raise InvalidInputError("bump_vol_abs must be positive", field="bump_vol_abs")
 
-    # Cap the effective vol bump at v * 0.5 to prevent negative vol on v - h_v,
+    # Cap the effective vol bump at v * VOL_BUMP_CAP_FACTOR to prevent negative vol on v - h_v,
     # matching the cap already applied in american.py vega computation.
-    effective_bump_vol = min(bump_vol_abs, v * 0.5)
+    effective_bump_vol = min(bump_vol_abs, v * VOL_BUMP_CAP_FACTOR)
     if effective_bump_vol < bump_vol_abs:
         logging.getLogger("deskpricer").warning(
             "Cross-greeks vol bump auto-capped: bump_vol_abs=%.6f -> effective=%.6f (v=%.6f)",

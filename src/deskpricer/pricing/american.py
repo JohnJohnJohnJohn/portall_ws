@@ -7,12 +7,12 @@ from datetime import date
 import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
+from deskpricer.pricing.constants import VOL_BUMP_CAP_FACTOR
 from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
     DEFAULT_CALENDAR,
-    MIN_T_YEARS,
     CalendarLiteral,
     default_day_count,
     expiry_from_t,
@@ -112,9 +112,8 @@ def price_american(
         raise InvalidInputError("bump_spot_rel must be < 1.0", field="bump_spot_rel")
 
     ql_date = ql_date_from_iso(valuation_date)
-    effective_t = max(t, MIN_T_YEARS)
     calendar = get_calendar(calendar_name)
-    expiry_date = expiry_from_t(ql_date, effective_t, calendar)
+    expiry_date = expiry_from_t(ql_date, t, calendar)
 
     price = _npv(s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
 
@@ -133,8 +132,8 @@ def price_american(
 
     # Vega via central difference on vol
     # Divide by 100 to report standard market convention (per 1%)
-    # Cap h_v at v*0.5 to prevent negative vol on v - h_v; warn when capped.
-    h_v = min(bump_vol_abs, v * 0.5)
+    # Cap h_v at v*VOL_BUMP_CAP_FACTOR to prevent negative vol on v - h_v; warn when capped.
+    h_v = min(bump_vol_abs, v * VOL_BUMP_CAP_FACTOR)
     if h_v < bump_vol_abs:
         logging.getLogger("deskpricer").warning(
             "American vol bump auto-capped: bump_vol_abs=%.6f -> effective=%.6f (v=%.6f)",

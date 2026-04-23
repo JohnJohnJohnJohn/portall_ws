@@ -25,6 +25,7 @@ from deskpricer.pricing.conventions import (
     DEFAULT_CALENDAR,
     DEFAULT_STEPS,
     MIN_T_YEARS,
+    SPOT_DIVERGENCE_THRESHOLD,
 )
 
 EngineLiteral = Literal["analytic", "binomial_crr", "binomial_jr"]
@@ -117,6 +118,12 @@ class GreeksRequest(_VanillaOptionBase):
 
 class LegInput(_VanillaOptionBase):
     id: str = Field(min_length=1, max_length=32)
+    underlying_id: str | None = Field(
+        default=None,
+        max_length=32,
+        description="Optional underlying identifier. Used to group legs by "
+        "underlying for spot-divergence warnings.",
+    )
     qty: float = Field(
         allow_inf_nan=False,
         ge=-1e12,
@@ -152,16 +159,36 @@ class PortfolioRequest(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def check_theta_convention_consistency(self):
+        conventions = {leg.theta_convention for leg in self.legs}
+        if len(conventions) > 1:
+            items = ", ".join(
+                f"leg '{leg.id}' uses '{leg.theta_convention}'" for leg in self.legs
+            )
+            raise ValueError(
+                f"All legs in a portfolio must share the same theta_convention. Got: {items}."
+            )
+        return self
+
+    @model_validator(mode="after")
     def check_spot_divergence(self):
-        spots = [leg.s for leg in self.legs]
-        if len(spots) > 1:
+        from collections import defaultdict
+
+        groups: dict[str | None, list[float]] = defaultdict(list)
+        for leg in self.legs:
+            groups[leg.underlying_id].append(leg.s)
+
+        for uid, spots in groups.items():
+            if uid is None or len(spots) <= 1:
+                continue
             base = spots[0]
             for s in spots[1:]:
-                if base > 0 and abs(s - base) / base > 0.05:
+                if base > 0 and abs(s - base) / base > SPOT_DIVERGENCE_THRESHOLD:
                     logging.getLogger("deskpricer").warning(
-                        "Portfolio legs have divergent spot prices (%.2f vs %.2f). "
+                        "Portfolio legs for underlying '%s' have divergent spot prices (%.2f vs %.2f). "
                         "Aggregate Greeks represent a linear approximation across "
                         "independent positions.",
+                        uid,
                         base,
                         s,
                     )
@@ -254,7 +281,7 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, _BumpParamsMixin, BaseModel
         description="Time unit for theta scaling in PnL attribution. 'business_day' "
         "(default) uses the per-business-day theta rate directly. 'calendar_day' "
         "converts the per-business-day theta to a per-calendar-day rate "
-        "(theta * 252/365) before multiplying by calendar days, preventing "
+        "(theta * annual_business_days/365) before multiplying by calendar days, preventing "
         "overstatement of decay over weekends/holidays.",
     )
     calendar: CalendarLiteral = Field(

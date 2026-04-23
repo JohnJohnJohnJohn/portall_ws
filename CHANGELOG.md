@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.0.0 — 2026-04-23
+
+### Fixed
+- **Theta convention isolation** — `run_pnl_attribution` now internally forces `theta_convention="pnl"` before applying the PnL formula, preventing sign inversion when the caller requests `decay` convention.
+- **Portfolio theta consistency** — `PortfolioRequest` now rejects legs with mixed `theta_convention` values with HTTP 422.
+- **Calendar-day theta scaling** — PnL attribution with `theta_time_unit=calendar_day` now uses the fixed `252/365` ratio per `CONVENTIONS.md` §4, preventing overstatement of decay over weekends/holidays.
+
+### Added
+- `CONVENTIONS.md` — Central design-decision record for day counts, unit conventions, and numeric constants.
+- `src/deskpricer/pricing/constants.py` — Named constants for all financial numeric literals (bumps, IV solver bounds, tolerance multipliers, etc.).
+- `tests/test_financial_regression.py` — Independent BSM reference implementation and 16 cross-validation tests.
+
+### Changed
+- All hard-coded numeric literals in `pricing_service.py`, `implied_vol.py`, `american.py`, `cross_greeks.py`, and `schemas.py` replaced with named constants from `constants.py`.
+
 ## 2.7.0 — 2026-04-22
 
 ### Fixed

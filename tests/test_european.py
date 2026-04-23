@@ -42,23 +42,24 @@ class TestEuropeanCharmThreadSafety:
         assert result.charm == 0.0
         assert ql.Settings.instance().evaluationDate == original
 
-    def test_next_business_day_failure_does_not_cause_name_error(self, monkeypatch):
-        """If next_business_day raises, both theta and charm must be 0.0 — no NameError."""
+    def test_next_business_day_failure_raises_invalid_input(self, monkeypatch):
+        """If next_business_day raises, InvalidInputError is propagated."""
+        import pytest
+
         import deskpricer.pricing.european as eu
 
         def _boom(*args, **kwargs):
             raise RuntimeError("simulated max date overflow")
 
         monkeypatch.setattr(eu, "next_business_day", _boom)
-        result = price_european(
-            s=100.0,
-            k=100.0,
-            t=0.25,
-            r=0.05,
-            q=0.0,
-            v=0.20,
-            option_type="call",
-            valuation_date=date(2026, 4, 20),
-        )
-        assert result.theta == 0.0
-        assert result.charm == 0.0
+        with pytest.raises(eu.InvalidInputError):
+            price_european(
+                s=100.0,
+                k=100.0,
+                t=0.25,
+                r=0.05,
+                q=0.0,
+                v=0.20,
+                option_type="call",
+                valuation_date=date(2026, 4, 20),
+            )

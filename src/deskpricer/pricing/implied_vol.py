@@ -7,6 +7,16 @@ from datetime import date
 import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError, UnsupportedCombinationError
+from deskpricer.pricing.constants import (
+    IV_HIGH_VOL_WARNING_THRESHOLD,
+    IV_SEED_VOL,
+    IV_SOLVER_VOL_HI,
+    IV_SOLVER_VOL_HI_RETRY,
+    IV_SOLVER_VOL_LO,
+    IV_SOLVER_VOL_LO_RETRY,
+    IV_TOLERANCE_MULTIPLIER_ANALYTIC,
+    IV_TOLERANCE_MULTIPLIER_TREE,
+)
 from deskpricer.pricing.conventions import (
     DEFAULT_CALENDAR,
     DEFAULT_STEPS,
@@ -19,6 +29,11 @@ from deskpricer.pricing.conventions import (
 )
 from deskpricer.pricing.engine import ENGINE_MAP
 from deskpricer.schemas import EngineLiteral, ImpliedVolOutput
+
+assert IV_SOLVER_VOL_LO < IV_SOLVER_VOL_HI, "IV solver primary bounds must form a bracket"
+assert (
+    IV_SOLVER_VOL_LO_RETRY < IV_SOLVER_VOL_HI_RETRY
+), "IV solver retry bounds must form a bracket"
 
 
 def compute_implied_vol(
@@ -59,9 +74,8 @@ def compute_implied_vol(
     payoff = ql.PlainVanillaPayoff(ql.Option.Call if option_type == "call" else ql.Option.Put, k)
 
     # Seed vol surface for the solver
-    seed_vol = 0.20
     vol_ts = ql.BlackVolTermStructureHandle(
-        ql.BlackConstantVol(ql_date, calendar, seed_vol, day_count)
+        ql.BlackConstantVol(ql_date, calendar, IV_SEED_VOL, day_count)
     )
     process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
 
@@ -99,16 +113,43 @@ def compute_implied_vol(
     else:
         option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, steps))
 
+    # Pre-check no-arbitrage bounds before invoking solver
+    df_r = math.exp(-r * effective_t)
+    df_q = math.exp(-q * effective_t)
+    if option_type == "call":
+        lower_bound = max(0.0, s * df_q - k * df_r)
+        upper_bound = s * df_q
+    else:
+        lower_bound = max(0.0, k * df_r - s * df_q)
+        upper_bound = k * df_r
+
+    if target_price < lower_bound:
+        raise InvalidInputError(
+            f"Target price {target_price:.6f} is below the no-arbitrage lower bound "
+            f"{lower_bound:.6f} (S={s}, K={k}, r={r}, q={q}, T={effective_t})",
+            field="price",
+        )
+    if target_price > upper_bound:
+        raise InvalidInputError(
+            f"Target price {target_price:.6f} is above the no-arbitrage upper bound "
+            f"{upper_bound:.6f} (S={s}, K={k}, r={r}, q={q}, T={effective_t})",
+            field="price",
+        )
+
     try:
         implied_vol = option.impliedVolatility(
-            target_price, process, accuracy, max_iterations, 1e-6, 5.0
+            target_price, process, accuracy, max_iterations, IV_SOLVER_VOL_LO, IV_SOLVER_VOL_HI
         )
     except RuntimeError as exc:
         msg = str(exc)
         if "root not bracketed" in msg.lower():
             logging.getLogger("deskpricer").warning(
-                "IV solver root not bracketed with bounds [1e-6, 5.0]; "
-                "retrying with [1e-8, 10.0] for target_price=%.6f s=%.2f k=%.2f t=%.6f",
+                "IV solver root not bracketed with bounds [%.0e, %.1f]; "
+                "retrying with [%.0e, %.1f] for target_price=%.6f s=%.2f k=%.2f t=%.6f",
+                IV_SOLVER_VOL_LO,
+                IV_SOLVER_VOL_HI,
+                IV_SOLVER_VOL_LO_RETRY,
+                IV_SOLVER_VOL_HI_RETRY,
                 target_price,
                 s,
                 k,
@@ -116,11 +157,16 @@ def compute_implied_vol(
             )
             try:
                 implied_vol = option.impliedVolatility(
-                    target_price, process, accuracy, max_iterations, 1e-8, 10.0
+                    target_price,
+                    process,
+                    accuracy,
+                    max_iterations,
+                    IV_SOLVER_VOL_LO_RETRY,
+                    IV_SOLVER_VOL_HI_RETRY,
                 )
             except RuntimeError as exc2:
                 raise InvalidInputError(
-                    "Target price implies volatility outside solver bounds [1e-6, 5.0] "
+                    f"Target price implies volatility outside solver bounds [{IV_SOLVER_VOL_LO}, {IV_SOLVER_VOL_HI}] "
                     "or is outside arbitrage bounds",
                     field="price",
                 ) from exc2
@@ -150,20 +196,27 @@ def compute_implied_vol(
     if not math.isfinite(implied_vol) or not math.isfinite(npv_at_iv):
         raise InvalidInputError("Solver returned non-finite implied volatility", field="price")
 
-    if implied_vol > 2.0:
+    if implied_vol > IV_HIGH_VOL_WARNING_THRESHOLD:
         logging.getLogger("deskpricer").warning(
-            "Solved implied volatility %.2f%% exceeds 200%%. "
+            "Solved implied volatility %.2f%% exceeds %.0f%%. "
             "Target price=%.4f, s=%.2f, k=%.2f, t=%.6f. "
             "This usually indicates a data-quality issue.",
             implied_vol * 100,
+            IV_HIGH_VOL_WARNING_THRESHOLD * 100,
             target_price,
             s,
             k,
             t,
         )
 
-    # Tree engines have discretisation error; use a relaxed tolerance.
-    tolerance_multiplier = 10 if engine_cls is not None else 50
+    is_tree_engine = engine_cls is None
+    # Analytic engine: back-check tolerance should be tight.  A multiplier of 10
+    # keeps round-trip residuals within bounds while still rejecting genuine
+    # solver failures.  Tree engines have genuine discretisation error and need
+    # a relaxed tolerance.
+    tolerance_multiplier = (
+        IV_TOLERANCE_MULTIPLIER_TREE if is_tree_engine else IV_TOLERANCE_MULTIPLIER_ANALYTIC
+    )
     if abs(npv_at_iv - target_price) > tolerance_multiplier * accuracy:
         raise InvalidInputError(
             f"Solved NPV {npv_at_iv:.6f} deviates from target {target_price:.6f} "

@@ -206,8 +206,9 @@ class TestPnLAttribution:
         assert meta["calendar_days"] == 3
 
     def test_theta_time_unit_calendar_day(self, client: TestClient):
-        """Calendar-day theta is converted from per-business-day rate (252/365)
-        before scaling by calendar days, preventing overstatement over weekends."""
+        """Calendar-day theta is converted from per-business-day rate
+        (annual_business_days/365) before scaling by calendar days, preventing
+        overstatement over weekends."""
         params = self._base_params(
             valuation_date_t_minus_1="2026-04-17",
             valuation_date_t="2026-04-20",
@@ -222,7 +223,7 @@ class TestPnLAttribution:
         data_cd = resp_cd.json()["pnl_attribution"]
         theta_pnl_cd = data_cd["outputs"]["theta_pnl"]
 
-        # 1 trading day vs 3 calendar days; theta is scaled by 252/365 conversion
+        # 1 trading day vs 3 calendar days; theta is scaled by fixed 252/365 conversion
         expected_ratio = (252.0 / 365.0) * 3
         assert theta_pnl_cd == pytest.approx(theta_pnl_bd * expected_ratio, abs=1e-7)
         assert data_cd["meta"]["theta_time_unit"] == "calendar_day"
@@ -379,26 +380,7 @@ class TestPnLAttribution:
 
     def test_cross_greeks_zero_moves(self, client: TestClient):
         """cross_greeks=true with zero spot move and zero vol move should yield zero cross PnL."""
-        params = {
-            "s_t_minus_1": 100.0,
-            "s_t": 100.0,
-            "k": 100.0,
-            "t_t_minus_1": 0.25,
-            "t_t": 0.25,
-            "r_t_minus_1": 0.05,
-            "r_t": 0.05,
-            "q_t_minus_1": 0.0,
-            "q_t": 0.0,
-            "v_t_minus_1": 0.20,
-            "v_t": 0.20,
-            "type": "call",
-            "style": "european",
-            "qty": 1.0,
-            "cross_greeks": True,
-            "method": "backward",
-            "valuation_date_t_minus_1": "2026-04-19",
-            "valuation_date_t": "2026-04-19",
-        }
+        params = self._base_params(cross_greeks=True, valuation_date_t="2026-04-19")
         resp = client.get(
             "/v1/pnl_attribution", params=params, headers={"Accept": "application/json"}
         )
@@ -417,26 +399,7 @@ class TestPnLAttribution:
         """Low vol triggers the v*0.5 cap in cross-greeks; a warning must be emitted."""
         import logging
 
-        params = {
-            "s_t_minus_1": 100.0,
-            "s_t": 100.0,
-            "k": 100.0,
-            "t_t_minus_1": 0.25,
-            "t_t": 0.25,
-            "r_t_minus_1": 0.05,
-            "r_t": 0.05,
-            "q_t_minus_1": 0.0,
-            "q_t": 0.0,
-            # v = 0.0015, bump_vol_abs defaults to 0.001 → cap to 0.00075
-            "v_t_minus_1": 0.0015,
-            "v_t": 0.0015,
-            "type": "call",
-            "style": "european",
-            "cross_greeks": True,
-            "method": "backward",
-            "valuation_date_t_minus_1": "2026-04-19",
-            "valuation_date_t": "2026-04-20",
-        }
+        params = self._base_params(v_t_minus_1=0.0015, v_t=0.0015, cross_greeks=True)
         with caplog.at_level(logging.WARNING, logger="deskpricer"):
             resp = client.get(
                 "/v1/pnl_attribution", params=params, headers={"Accept": "application/json"}

@@ -43,8 +43,6 @@ class TestPutCallParity:
         c = resp_call.json()["greeks"]["outputs"]["price"]
         p = resp_put.json()["greeks"]["outputs"]["price"]
         # Replicate trading-day expiry to compute actual t used by the engine
-        from deskpricer.pricing.conventions import default_day_count, expiry_from_t, get_calendar
-
         ql_today = ql_date_from_iso(datetime.date.today())
         expiry = expiry_from_t(ql_today, t, get_calendar())
         t_actual = default_day_count().yearFraction(ql_today, expiry)
