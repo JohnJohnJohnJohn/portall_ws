@@ -356,8 +356,8 @@ class TestPortfolio:
         data = resp.json()
         legs = data["portfolio"]["legs"]
         agg = data["portfolio"]["aggregate"]
-        # Aggregate should equal 2*L1 - 1*L2
-        for greek in ["delta", "gamma", "vega", "theta", "rho", "charm"]:
+        # Aggregate should equal 2*L1 - 1*L2 (including price)
+        for greek in ["price", "delta", "gamma", "vega", "theta", "rho", "charm"]:
             expected = 2 * legs[0][greek] - 1 * legs[1][greek]
             assert abs(agg[greek] - expected) < 1e-6
 

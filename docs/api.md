@@ -167,6 +167,7 @@ Bulk endpoint for book-level aggregation.
     }
   ],
   "aggregate": {
+    "price": 26.67973,
     "delta": 3.74319,
     "gamma": 0.34621,
     "vega": 1.87806,
@@ -177,7 +178,7 @@ Bulk endpoint for book-level aggregation.
 }
 ```
 
-Aggregate = Σ qty × per-leg Greek.
+Aggregate = Σ qty × per-leg Greek (including price).
 
 #### Response (XML)
 
@@ -202,6 +203,7 @@ Aggregate = Σ qty × per-leg Greek.
     </leg>
   </legs>
   <aggregate>
+    <price>26.67973</price>
     <delta>3.74319</delta>
     <gamma>0.34621</gamma>
     <vega>1.87806</vega>

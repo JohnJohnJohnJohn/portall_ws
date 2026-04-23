@@ -201,6 +201,7 @@ async def run_portfolio(
     valuation_date = payload.valuation_date or date.today()
     legs_out: list[dict[str, Any]] = []
     aggregate: dict[str, float] = {
+        "price": 0.0,
         "delta": 0.0,
         "gamma": 0.0,
         "vega": 0.0,
