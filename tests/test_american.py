@@ -1,11 +1,60 @@
 """American option tests vs published binomial results."""
 
+import logging
+import math
+
 from fastapi.testclient import TestClient
 
 from deskpricer.pricing.conventions import DEFAULT_STEPS
 
 
 class TestAmericanPut:
+    def test_american_vol_bump_capped_warns(self, client: TestClient, caplog):
+        """When v*0.5 < bump_vol_abs, the cap triggers a logger.warning."""
+        with caplog.at_level(logging.WARNING, logger="deskpricer"):
+            resp = client.get(
+                "/v1/greeks",
+                params={
+                    "s": 100,
+                    "k": 100,
+                    "t": 0.25,
+                    "r": 0.05,
+                    "q": 0,
+                    "v": 0.01,
+                    "type": "call",
+                    "style": "american",
+                    "steps": DEFAULT_STEPS,
+                    "bump_vol_abs": 0.01,
+                },
+                headers={"Accept": "application/json"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()["greeks"]["outputs"]
+        assert math.isfinite(data["vega"])
+        assert "auto-capped" in caplog.text
+
+    def test_american_vol_bump_not_capped_no_warning(self, client: TestClient, caplog):
+        """Normal vol should not trigger the cap warning."""
+        with caplog.at_level(logging.WARNING, logger="deskpricer"):
+            resp = client.get(
+                "/v1/greeks",
+                params={
+                    "s": 100,
+                    "k": 100,
+                    "t": 0.25,
+                    "r": 0.05,
+                    "q": 0,
+                    "v": 0.20,
+                    "type": "call",
+                    "style": "american",
+                    "steps": DEFAULT_STEPS,
+                    "bump_vol_abs": 0.001,
+                },
+                headers={"Accept": "application/json"},
+            )
+        assert resp.status_code == 200
+        assert "auto-capped" not in caplog.text
+
     def test_haug_american_put(self, client: TestClient):
         """Haug Table benchmark: S=50, K=50, r=0.10, sigma=0.40, T=0.4167.
         Haug reference ~4.49 for American put (approximate due to tree discretization).

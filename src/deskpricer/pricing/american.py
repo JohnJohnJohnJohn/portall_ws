@@ -116,7 +116,15 @@ def price_american(
 
     # Vega via central difference on vol
     # Divide by 100 to report standard market convention (per 1%)
+    # Cap h_v at v*0.5 to prevent negative vol on v - h_v; warn when capped.
     h_v = min(bump_vol_abs, v * 0.5)
+    if h_v < bump_vol_abs:
+        logging.getLogger("deskpricer").warning(
+            "American vol bump auto-capped: bump_vol_abs=%.6f -> effective=%.6f (v=%.6f)",
+            bump_vol_abs,
+            h_v,
+            v,
+        )
     if h_v <= 0.0 or not math.isfinite(h_v):
         raise InvalidInputError(
             "Vol bump underflowed to zero; use larger vol or bump_vol_abs",
