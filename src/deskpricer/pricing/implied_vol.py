@@ -1,5 +1,6 @@
 """Implied volatility solver via QuantLib."""
 
+import logging
 import math
 from datetime import date
 
@@ -105,13 +106,27 @@ def compute_implied_vol(
     except RuntimeError as exc:
         msg = str(exc)
         if "root not bracketed" in msg.lower():
-            raise InvalidInputError(
-                "Target price implies volatility outside solver bounds [1e-6, 5.0] "
-                "or is outside arbitrage bounds",
-                field="price",
-            ) from exc
-        # Let unexpected QuantLib failures propagate as 500s
-        raise
+            logging.getLogger("deskpricer").warning(
+                "IV solver root not bracketed with bounds [1e-6, 5.0]; "
+                "retrying with [1e-8, 10.0] for target_price=%.6f s=%.2f k=%.2f t=%.6f",
+                target_price,
+                s,
+                k,
+                t,
+            )
+            try:
+                implied_vol = option.impliedVolatility(
+                    target_price, process, accuracy, max_iterations, 1e-8, 10.0
+                )
+            except RuntimeError as exc2:
+                raise InvalidInputError(
+                    "Target price implies volatility outside solver bounds [1e-6, 5.0] "
+                    "or is outside arbitrage bounds",
+                    field="price",
+                ) from exc2
+        else:
+            # Let unexpected QuantLib failures propagate as 500s
+            raise
 
     # Re-price at solved vol to provide a sanity-check NPV
     try:

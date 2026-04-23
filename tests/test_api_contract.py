@@ -276,6 +276,80 @@ class TestImpliedVol:
         assert root.find("code").text == "INVALID_INPUT"
         assert root.find("field") is not None
 
+    def test_impliedvol_retries_on_root_not_bracketed(self, client: TestClient, caplog):
+        """On 'root not bracketed', solver retries with [1e-8, 10.0] before failing."""
+        import logging
+
+        import QuantLib as ql
+        import deskpricer.pricing.implied_vol as iv_mod
+
+        calls = []
+
+        def _fake_implied_vol(self, target, process, accuracy, max_iter, min_vol, max_vol):
+            calls.append((min_vol, max_vol))
+            if min_vol == 1e-6:
+                raise RuntimeError("root not bracketed")
+            # Return a dummy IV on the retry
+            return 0.5
+
+        monkeypatch = __import__("pytest").MonkeyPatch()
+        monkeypatch.setattr(ql.VanillaOption, "impliedVolatility", _fake_implied_vol)
+        try:
+            with caplog.at_level(logging.WARNING, logger="deskpricer"):
+                result = iv_mod.compute_implied_vol(
+                    s=100,
+                    k=100,
+                    t=0.25,
+                    r=0.05,
+                    q=0,
+                    target_price=5.0,
+                    option_type="call",
+                    style="european",
+                    engine="analytic",
+                    valuation_date=__import__("datetime").date(2026, 4, 20),
+                )
+            assert result.implied_vol == 0.5
+            assert len(calls) == 2
+            assert calls[0] == (1e-6, 5.0)
+            assert calls[1] == (1e-8, 10.0)
+            assert "retrying with [1e-8, 10.0]" in caplog.text
+        finally:
+            monkeypatch.undo()
+
+    def test_impliedvol_fails_after_retry(self, client: TestClient):
+        """If widened bounds also fail, return 400 INVALID_INPUT."""
+        import QuantLib as ql
+        import deskpricer.pricing.implied_vol as iv_mod
+
+        calls = []
+
+        def _fake_implied_vol(self, target, process, accuracy, max_iter, min_vol, max_vol):
+            calls.append((min_vol, max_vol))
+            raise RuntimeError("root not bracketed")
+
+        monkeypatch = __import__("pytest").MonkeyPatch()
+        monkeypatch.setattr(ql.VanillaOption, "impliedVolatility", _fake_implied_vol)
+        try:
+            with __import__("pytest").raises(iv_mod.InvalidInputError) as exc_info:
+                iv_mod.compute_implied_vol(
+                    s=100,
+                    k=100,
+                    t=0.25,
+                    r=0.05,
+                    q=0,
+                    target_price=5.0,
+                    option_type="call",
+                    style="european",
+                    engine="analytic",
+                    valuation_date=__import__("datetime").date(2026, 4, 20),
+                )
+            assert "outside solver bounds" in str(exc_info.value)
+            assert len(calls) == 2
+            assert calls[0] == (1e-6, 5.0)
+            assert calls[1] == (1e-8, 10.0)
+        finally:
+            monkeypatch.undo()
+
 
 class TestPortfolio:
     def test_portfolio_json_default(self, client: TestClient):
