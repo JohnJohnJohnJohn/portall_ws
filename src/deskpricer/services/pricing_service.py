@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 from typing import Any, Callable
 
@@ -75,12 +75,8 @@ def _pnl_pv_kwargs(
     state: _MarketState, params: PnLAttributionGETRequest, valuation_date: date
 ) -> dict[str, Any]:
     return {
-        "s": state.s,
+        **asdict(state),
         "k": params.k,
-        "t": state.t,
-        "r": state.r,
-        "q": state.q,
-        "v": state.v,
         "option_type": params.type,
         "style": params.style,
         "engine": params.engine,

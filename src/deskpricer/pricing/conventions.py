@@ -46,19 +46,21 @@ def ql_date_from_iso(d: date) -> ql.Date:
     return ql.Date(d.day, d.month, d.year)
 
 
+_CALENDAR_MAP: dict[str, ql.Calendar] = {
+    "hong_kong": ql.HongKong(),
+    "us_nyse": ql.UnitedStates(ql.UnitedStates.NYSE),
+    "us_settlement": ql.UnitedStates(ql.UnitedStates.Settlement),
+    "united_kingdom": ql.UnitedKingdom(),
+    "null": ql.NullCalendar(),
+}
+
+
 def get_calendar(name: CalendarLiteral | None = None) -> ql.Calendar:
     """Return a QuantLib Calendar by name. Defaults to Hong Kong."""
     key = name or DEFAULT_CALENDAR
-    _map: dict[str, ql.Calendar] = {
-        "hong_kong": ql.HongKong(),
-        "us_nyse": ql.UnitedStates(ql.UnitedStates.NYSE),
-        "us_settlement": ql.UnitedStates(ql.UnitedStates.Settlement),
-        "united_kingdom": ql.UnitedKingdom(),
-        "null": ql.NullCalendar(),
-    }
-    if key not in _map:
+    if key not in _CALENDAR_MAP:
         raise InvalidInputError(f"Unknown calendar '{key}'", field="calendar")
-    return _map[key]
+    return _CALENDAR_MAP[key]
 
 
 def default_day_count() -> ql.DayCounter:
