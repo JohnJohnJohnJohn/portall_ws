@@ -136,8 +136,8 @@ def compute_implied_vol(
         process_iv = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts_iv)
 
         option_iv = ql.VanillaOption(payoff, exercise)
-        if style == "european":
-            option_iv.setPricingEngine(ql.AnalyticEuropeanEngine(process_iv))
+        if engine_cls is not None:
+            option_iv.setPricingEngine(engine_cls(process_iv))
         else:
             option_iv.setPricingEngine(ql.BinomialVanillaEngine(process_iv, ql_engine, steps))
 

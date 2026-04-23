@@ -10,6 +10,7 @@ applied only to the ``aggregate`` response block; each element of the
 ``legs`` array contains unscaled unit Greeks.
 """
 
+import logging
 from datetime import date
 from typing import Literal
 
@@ -152,8 +153,6 @@ class PortfolioRequest(BaseModel):
 
     @model_validator(mode="after")
     def check_spot_divergence(self):
-        import logging
-
         spots = [leg.s for leg in self.legs]
         if len(spots) > 1:
             base = spots[0]

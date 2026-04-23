@@ -40,12 +40,13 @@ def _meta(engine: str | None, valuation_date: date) -> dict[str, Any]:
 
 
 def _add_non_default_bumps(inputs: dict[str, Any], params) -> None:
-    if not math.isclose(params.bump_spot_rel, DEFAULT_BUMP_SPOT_REL, rel_tol=1e-12):
-        inputs["bump_spot_rel"] = params.bump_spot_rel
-    if not math.isclose(params.bump_vol_abs, DEFAULT_BUMP_VOL_ABS, rel_tol=1e-12):
-        inputs["bump_vol_abs"] = params.bump_vol_abs
-    if not math.isclose(params.bump_rate_abs, DEFAULT_BUMP_RATE_ABS, rel_tol=1e-12):
-        inputs["bump_rate_abs"] = params.bump_rate_abs
+    for name, default in (
+        ("bump_spot_rel", DEFAULT_BUMP_SPOT_REL),
+        ("bump_vol_abs", DEFAULT_BUMP_VOL_ABS),
+        ("bump_rate_abs", DEFAULT_BUMP_RATE_ABS),
+    ):
+        if not math.isclose(getattr(params, name), default, rel_tol=1e-12):
+            inputs[name] = getattr(params, name)
 
 
 @dataclass(frozen=True)
