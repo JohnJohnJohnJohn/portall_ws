@@ -11,8 +11,7 @@ from pathlib import Path
 
 
 def _default_log_dir() -> Path:
-    env_dir = os.environ.get("DESKPRICER_LOG_DIR")
-    if env_dir:
+    if env_dir := os.environ.get("DESKPRICER_LOG_DIR"):
         return Path(env_dir)
     if sys.platform == "win32":
         return Path(r"C:\ProgramData\DeskPricer\logs")
@@ -70,10 +69,7 @@ class _SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
     open, causing ``os.rename`` to fail with WinError 32.  Rather than crash
     the logging subsystem we skip the rotation and keep appending.
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._rollover_cooldown_until = 0.0
+    _rollover_cooldown_until = 0.0
 
     def shouldRollover(self, record):
         if time.monotonic() < self._rollover_cooldown_until:

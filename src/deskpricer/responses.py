@@ -94,10 +94,7 @@ def serialize_error(
     if field is not None:
         payload["error"]["field"] = field
 
-    if json_format:
-        return json.dumps(payload, indent=2)
-
-    return _to_xml(payload)
+    return json.dumps(payload, indent=2) if json_format else _to_xml(payload)
 
 
 def _serialize_wrap(
@@ -114,9 +111,7 @@ def _serialize_wrap(
             "outputs": _clean_value(outputs),
         }
     }
-    if json_format:
-        return json.dumps(payload, indent=2)
-    return _to_xml(payload)
+    return json.dumps(payload, indent=2) if json_format else _to_xml(payload)
 
 
 def serialize_greeks(
@@ -139,16 +134,12 @@ def serialize_impliedvol(
 
 def serialize_health(status: str, uptime_seconds: float, json_format: bool = False) -> str:
     payload = {"health": {"status": status, "uptime_seconds": _clean_value(uptime_seconds)}}
-    if json_format:
-        return json.dumps(payload, indent=2)
-    return _to_xml(payload)
+    return json.dumps(payload, indent=2) if json_format else _to_xml(payload)
 
 
 def serialize_version(version_info: dict[str, str], json_format: bool = False) -> str:
     payload = {"version": version_info}
-    if json_format:
-        return json.dumps(payload, indent=2)
-    return _to_xml(payload)
+    return json.dumps(payload, indent=2) if json_format else _to_xml(payload)
 
 
 def serialize_portfolio(
@@ -158,24 +149,15 @@ def serialize_portfolio(
     json_format: bool = False,
 ) -> str:
     cleaned_legs = [_clean_value(leg) for leg in legs]
-    if json_format:
-        payload: dict[str, Any] = {
-            "portfolio": {
-                "meta": meta,
-                "legs": cleaned_legs,
-                "aggregate": _clean_value(aggregate),
-            }
-        }
-        return json.dumps(payload, indent=2)
-
-    payload = {
-        "portfolio": {
-            "meta": meta,
-            "legs": {"leg": cleaned_legs},
-            "aggregate": _clean_value(aggregate),
-        }
+    portfolio: dict[str, Any] = {
+        "meta": meta,
+        "legs": cleaned_legs,
+        "aggregate": _clean_value(aggregate),
     }
-    return _to_xml(payload)
+    if json_format:
+        return json.dumps({"portfolio": portfolio}, indent=2)
+    portfolio["legs"] = {"leg": cleaned_legs}
+    return _to_xml({"portfolio": portfolio})
 
 
 def serialize_pnl_attribution(

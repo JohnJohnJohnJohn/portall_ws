@@ -1,7 +1,5 @@
 """Pricing orchestration service."""
 
-from __future__ import annotations
-
 import math
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -231,17 +229,7 @@ async def run_portfolio(
                 calendar_name=leg.calendar,
                 theta_convention=leg.theta_convention,
             )
-            row = {
-                "id": leg.id,
-                "engine": leg.engine,
-                "price": result.price,
-                "delta": result.delta,
-                "gamma": result.gamma,
-                "vega": result.vega,
-                "theta": result.theta,
-                "rho": result.rho,
-                "charm": result.charm,
-            }
+            row = {"id": leg.id, "engine": leg.engine, **result.model_dump()}
             legs_out.append(row)
             for greek in aggregate:
                 val = getattr(result, greek)

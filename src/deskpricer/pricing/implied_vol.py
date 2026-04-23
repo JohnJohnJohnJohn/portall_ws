@@ -154,9 +154,8 @@ def compute_implied_vol(
     tolerance_multiplier = 10 if engine_cls is not None else 50
     if abs(npv_at_iv - target_price) > tolerance_multiplier * accuracy:
         raise InvalidInputError(
-            f"Solved IV reproduces NPV {npv_at_iv:.6f} which deviates from target price "
-            f"{target_price:.6f} by more than tolerance {tolerance_multiplier * accuracy:.6f}. "
-            "The solver may have converged to a local minimum or the inputs are ill-conditioned.",
+            f"Solved NPV {npv_at_iv:.6f} deviates from target {target_price:.6f} "
+            f"by more than tolerance {tolerance_multiplier * accuracy:.6f}",
             field="price",
         )
 

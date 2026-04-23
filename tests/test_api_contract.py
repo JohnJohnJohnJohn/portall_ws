@@ -381,7 +381,7 @@ class TestImpliedVol:
                     engine="analytic",
                     valuation_date=__import__("datetime").date(2026, 4, 20),
                 )
-            assert "deviates from target price" in str(exc_info.value)
+            assert "deviates from target" in str(exc_info.value)
         finally:
             monkeypatch.undo()
 

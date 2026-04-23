@@ -34,11 +34,11 @@ def create_app() -> FastAPI:
         except StarletteHTTPException as exc:
             status = exc.status_code
             raise
+        except RequestValidationError:
+            status = 422
+            raise
         except DeskPricerError as exc:
             status = exc.status
-            raise
-        except Exception:
-            status = 500
             raise
         finally:
             duration_ms = (time.perf_counter() - start) * 1000

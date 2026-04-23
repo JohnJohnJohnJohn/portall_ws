@@ -149,22 +149,17 @@ def price_american(
         next_bd = next_business_day(ql_date, calendar)
     except RuntimeError as exc:
         raise InvalidInputError("Valuation date too close to maximum supported date") from exc
-    if expiry_date > next_bd:
+    if expiry_date <= next_bd:
+        price_next_bd = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
+        charm = 0.0
+    else:
         _common_t1 = (option_type, next_bd, expiry_date, steps, engine_type, calendar)
         price_next_bd = _npv(s, k, r, q, v, *_common_t1)
-    else:
-        # At expiry the option is worth its intrinsic value
-        price_next_bd = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
-    theta = price_next_bd - price
-
-    # Charm: ∂delta/∂t per trading day (forward difference, 1 business day)
-    if expiry_date > next_bd:
         price_up_s_t1 = _npv(s + h_s, k, r, q, v, *_common_t1)
         price_down_s_t1 = _npv(s - h_s, k, r, q, v, *_common_t1)
         delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
         charm = delta_t1 - delta
-    else:
-        charm = 0.0
+    theta = price_next_bd - price
 
     if theta_convention == "decay":
         theta = -theta

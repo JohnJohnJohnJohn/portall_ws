@@ -46,18 +46,9 @@ def price_vanilla(
             f"option_type must be 'call' or 'put'; got {option_type}",
             field="type",
         )
-    for field_name, field_val in (
-        ("s", s),
-        ("k", k),
-        ("t", t),
-        ("r", r),
-        ("q", q),
-        ("v", v),
-    ):
-        if not math.isfinite(field_val):
-            raise UnsupportedCombinationError(
-                f"{field_name} must be a finite number", field=field_name
-            )
+    for name, val in (("s", s), ("k", k), ("t", t), ("r", r), ("q", q), ("v", v)):
+        if not math.isfinite(val):
+            raise UnsupportedCombinationError(f"{name} must be a finite number", field=name)
     if t < 0:
         raise UnsupportedCombinationError("time to expiry must be non-negative", field="t")
     # Floor t to 1 day to avoid QuantLib singularities at t → 0.
