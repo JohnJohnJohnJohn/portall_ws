@@ -76,7 +76,7 @@ python scripts/build_executable.py
 
 A task is finished when **all** of these are true:
 
-1. `pytest tests -v` passes (104 tests).
+1. `pytest tests -v` passes (207 tests).
 2. `ruff check src tests` reports zero errors.
 3. `mypy src` reports zero errors.
 4. No new runtime dependencies were added without approval.

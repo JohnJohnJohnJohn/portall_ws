@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.3.1 — 2026-04-24
+
+### Fixed
+- **Documentation version numbers** — updated all stale `service_version` examples across `README.md`, `docs/api.md`, and `docs/operator_guide.md` from `2.1.0`/`2.5.1`/`3.0.1` to `3.3.1`.
+- **AGENTS.md test count** — corrected expected test count from 104 to 207.
+
 ## 3.3.0 — 2026-04-24
 
 ### Changed
