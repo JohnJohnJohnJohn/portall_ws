@@ -34,9 +34,7 @@ from deskpricer.pricing.engine import ENGINE_MAP
 from deskpricer.schemas import EngineLiteral, ImpliedVolOutput
 
 assert IV_SOLVER_VOL_LO < IV_SOLVER_VOL_HI, "IV solver primary bounds must form a bracket"
-assert (
-    IV_SOLVER_VOL_LO_RETRY < IV_SOLVER_VOL_HI_RETRY
-), "IV solver retry bounds must form a bracket"
+assert IV_SOLVER_VOL_LO_RETRY < IV_SOLVER_VOL_HI_RETRY, "IV solver retry bounds must form a bracket"
 
 
 def compute_implied_vol(

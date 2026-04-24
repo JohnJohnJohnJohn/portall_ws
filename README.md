@@ -94,13 +94,13 @@ Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just
 | `delta` | Absolute (∂V/∂S) |
 | `gamma` | Absolute (∂²V/∂S²) |
 | `vega` | Per **1% vol point** |
-| `theta` | Per **trading day**. Negative for typical long options (time decay). Sign is opposite of Bloomberg DM<GO>, which reports theta as positive decay. |
+| `theta` | Per **calendar day** (ACT/365). Negative for typical long options (time decay). Sign is opposite of Bloomberg DM<GO>, which reports theta as positive decay. |
 | `rho` | Per **1% rate point** (risk-free rate only; no dividend-yield rho) |
-| `charm` | Per **trading day** (∂delta/∂t) |
+| `charm` | Per **calendar day** (∂delta/∂t) |
 
-**Time to expiry (`t`)**: Supplied in years under ACT/365. Internally converted to calendar days (`round(t * 365)`) with a hard floor of 1 day, then rolled to the next business day using the chosen calendar (`hong_kong` by default).
+**Time to expiry (`t`)**: Supplied in years under ACT/365. Internally converted to calendar days (`round(t * 365)`) with a hard floor of 1 day, then rolled to the next business day using the chosen calendar (`hong_kong` by default). Theta and charm are computed per calendar day, not per business day.
 
-**PnL attribution**: `trading_days` represents the actual elapsed business-day hold period. If both valuation dates are omitted, `trading_days` defaults to 1. Provide explicit dates for multi-day hold accuracy.
+**PnL attribution**: `calendar_days` represents the actual elapsed calendar-day hold period. `theta_pnl = theta × calendar_days_elapsed`. If both valuation dates are omitted, `calendar_days` defaults to 1. Provide explicit dates for multi-day hold accuracy.
 
 ---
 
@@ -291,9 +291,9 @@ See [`docs/api.md`](docs/api.md) for the full request/response schema.
 | Delta | absolute | Per $1 spot move |
 | Gamma | absolute | Per $1 spot move |
 | Vega | per **1 vol point** | i.e. decimal vol × 100 |
-| Theta | per **trading day** | Forward P&L of one business day passing (next-BD revalue − today's price). Negative for a decaying long option. |
+| Theta | per **calendar day** | Forward P&L of one calendar day passing (1-calendar-day revalue − today's price). Negative for a decaying long option. |
 | Rho | per **1% rate point** | i.e. decimal rate × 100 |
-| Charm | per **trading day** | ∂delta/∂t (delta next business day − delta today per the chosen calendar). Negative for a long call — delta decays toward expiry |
+| Charm | per **calendar day** | ∂delta/∂t (delta at t − 1/365 − delta today). Negative for a long call — delta decays toward expiry |
 
 ---
 

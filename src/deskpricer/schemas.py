@@ -31,7 +31,6 @@ from deskpricer.pricing.conventions import (
 )
 
 EngineLiteral = Literal["analytic", "binomial_crr", "binomial_jr"]
-ThetaConvention = Literal["pnl", "decay"]
 
 
 class _EngineDefaultsMixin(BaseModel):
@@ -73,12 +72,7 @@ class _VanillaOptionCoreBase(_EngineDefaultsMixin, BaseModel):
     steps: int = Field(default=DEFAULT_STEPS, ge=10, le=5000, description="Tree/FD steps")
     calendar: CalendarLiteral = Field(
         default=DEFAULT_CALENDAR,
-        description="QuantLib calendar identifier for holiday schedule and theta business-day counting",
-    )
-    theta_convention: ThetaConvention = Field(
-        default="pnl",
-        description="Theta sign convention: 'pnl' (negative for long-option decay) "
-        "or 'decay' (positive decay, matching Bloomberg DM<GO>)",
+        description="QuantLib calendar identifier for holiday schedule and expiry rolling",
     )
 
 
@@ -161,18 +155,6 @@ class PortfolioRequest(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def check_theta_convention_consistency(self):
-        conventions = {leg.theta_convention for leg in self.legs}
-        if len(conventions) > 1:
-            items = ", ".join(
-                f"leg '{leg.id}' uses '{leg.theta_convention}'" for leg in self.legs
-            )
-            raise ValueError(
-                f"All legs in a portfolio must share the same theta_convention. Got: {items}."
-            )
-        return self
-
-    @model_validator(mode="after")
     def check_spot_divergence(self):
         from collections import defaultdict
 
@@ -210,19 +192,12 @@ class GreeksOutput(BaseModel):
     gamma: float
     vega: float
     theta: float = Field(
-        description="P&L impact of one business day passing (forward-looking). "
-        "Negative for a typical long option because the position loses value "
-        "as time passes.  This is the opposite sign of Bloomberg DM<GO>, "
-        "which reports theta as a positive decay figure.  Usage: "
-        "theta_pnl ≈ theta × number_of_trading_days_elapsed.",
+        description="Change in option price per 1 calendar day shortening of "
+        "time-to-expiry (ACT/365). Negative for a typical long option.",
     )
     rho: float
     charm: float = Field(
-        description="Change in delta per one business day passing "
-        "(forward-looking, inherits the same next-business-day revalue "
-        "convention as theta).  Sign follows ``theta_convention``: "
-        "negative under 'pnl' (delta decreases for a typical long option) "
-        "and positive under 'decay' (matching Bloomberg DM<GO>).",
+        description="Change in delta per 1 calendar day shortening of time-to-expiry (ACT/365).",
     )
 
 
@@ -284,22 +259,9 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, _BumpParamsMixin, BaseModel
     valuation_date_t: date | None = Field(default=None)
     method: Literal["backward", "average"] = Field(default="backward")
     cross_greeks: bool = Field(default=False)
-    theta_convention: ThetaConvention = Field(
-        default="pnl",
-        description="Theta sign convention: 'pnl' (negative for long-option decay) "
-        "or 'decay' (positive decay, matching Bloomberg DM<GO>)",
-    )
-    theta_time_unit: Literal["business_day", "calendar_day"] = Field(
-        default="business_day",
-        description="Time unit for theta scaling in PnL attribution. 'business_day' "
-        "(default) uses the per-business-day theta rate directly. 'calendar_day' "
-        "converts the per-business-day theta to a per-calendar-day rate "
-        "(theta * annual_business_days/365) before multiplying by calendar days, preventing "
-        "overstatement of decay over weekends/holidays.",
-    )
     calendar: CalendarLiteral = Field(
         default=DEFAULT_CALENDAR,
-        description="QuantLib calendar identifier for holiday schedule and theta business-day counting",
+        description="QuantLib calendar identifier for holiday schedule and expiry rolling",
     )
 
     @model_validator(mode="after")

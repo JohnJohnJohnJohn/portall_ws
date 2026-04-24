@@ -118,7 +118,7 @@ def build_greeks_sheet(wb):
         ("Delta", "delta", 0.160835646),
         ("Gamma", "gamma", 1.3039e-05),
         ("Vega", "vega", 91.427494809),
-        ("Theta", "theta", -26.181325921),
+        ("Theta", "theta", -26.154772431),
         ("Rho", "rho", 26.524188656),
         ("Charm", "charm", -0.001769148),
     ]
@@ -268,12 +268,12 @@ def build_pnl_sheet(wb):
         ("Delta PnL", "delta_pnl", 804.178231041),
         ("Gamma PnL", "gamma_pnl", 162.98430088),
         ("Vega PnL", "vega_pnl", 457.137474045),
-        ("Theta PnL", "theta_pnl", -26.181325921),
+        ("Theta PnL", "theta_pnl", -26.154772431),
         ("Rho PnL", "rho_pnl", 0),
         ("Vanna PnL", "vanna_pnl", 0),
         ("Volga PnL", "volga_pnl", 0),
-        ("Explained PnL", "explained_pnl", 1398.118680045),
-        ("Residual PnL", "residual_pnl", 167.704185559),
+        ("Explained PnL", "explained_pnl", 1398.145233534),
+        ("Residual PnL", "residual_pnl", 167.677632070),
     ]
     for i, (label, xpath, expected) in enumerate(outputs, start=17):
         ws.cell(row=i, column=1, value=label).font = LABEL_FONT

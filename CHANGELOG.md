@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.3.0 — 2026-04-24
+
+### Changed
+- **Migrated theta and charm to 1-calendar-day ACT/365 convention.** Removed `next_business_day` bump, `theta_convention` parameter, and all business-day theta references. European and American pricers now compute theta/charm by shortening expiry by exactly 1 calendar day (`expiry_date - 1`) and revaluing. PnL attribution is now `theta_pnl = theta × calendar_days_elapsed` with no business-day adjustment.
+- **Weekend/holiday theta** — theta decay now accrues on weekends and holidays (Friday→Monday = ~3× theta). This matches Bloomberg, broker risk screens, and FRTB PnL Explain conventions.
+
+### Removed
+- `next_business_day` function and `MAX_NEXT_BD_SEARCH_DAYS` constant.
+- `theta_convention` parameter from all pricers, schemas, routers, and services.
+- `theta_time_unit` parameter from PnL attribution (calendar-day is now the only mode).
+- `trading_days` field from PnL attribution meta; replaced by `calendar_days`.
+- `ANNUAL_TRADING_DAYS` constant (no longer needed).
+
 ## 3.1.0 — 2026-04-24
 
 ### Fixed

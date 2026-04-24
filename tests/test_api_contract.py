@@ -169,8 +169,8 @@ class TestGreeks:
         rhs = 100 * math.exp(-0.02 * t_actual) - 100 * math.exp(-0.05 * t_actual)
         assert abs(lhs - rhs) < 1e-6
 
-    def test_greeks_decay_convention_flips_charm_sign(self, client: TestClient):
-        """When theta_convention='decay', charm sign is flipped like theta."""
+    def test_greeks_theta_negative_for_long_option(self, client: TestClient):
+        """Theta is negative for a typical long option under calendar-day convention."""
         base = {
             "s": 100,
             "k": 100,
@@ -181,18 +181,10 @@ class TestGreeks:
             "type": "call",
             "style": "european",
         }
-        resp_pnl = client.get("/v1/greeks", params=base, headers={"Accept": "application/json"})
-        resp_decay = client.get(
-            "/v1/greeks",
-            params={**base, "theta_convention": "decay"},
-            headers={"Accept": "application/json"},
-        )
-        assert resp_pnl.status_code == 200
-        assert resp_decay.status_code == 200
-        pnl = resp_pnl.json()["greeks"]["outputs"]
-        decay = resp_decay.json()["greeks"]["outputs"]
-        assert decay["theta"] == pytest.approx(-pnl["theta"], abs=1e-10)
-        assert decay["charm"] == pytest.approx(-pnl["charm"], abs=1e-10)
+        resp = client.get("/v1/greeks", params=base, headers={"Accept": "application/json"})
+        assert resp.status_code == 200
+        outputs = resp.json()["greeks"]["outputs"]
+        assert outputs["theta"] < 0
 
 
 class TestImpliedVol:
@@ -303,7 +295,9 @@ class TestImpliedVol:
         assert root.find("code").text == "INVALID_INPUT"
         assert root.find("field") is not None
 
-    def test_impliedvol_retries_on_root_not_bracketed(self, client: TestClient, caplog, monkeypatch):
+    def test_impliedvol_retries_on_root_not_bracketed(
+        self, client: TestClient, caplog, monkeypatch
+    ):
         """On 'root not bracketed', solver retries with [1e-8, 10.0] before failing."""
         import logging
 

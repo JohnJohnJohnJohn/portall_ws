@@ -69,6 +69,7 @@ class _SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
     open, causing ``os.rename`` to fail with WinError 32.  Rather than crash
     the logging subsystem we skip the rotation and keep appending.
     """
+
     _rollover_cooldown_until = 0.0
 
     def shouldRollover(self, record):

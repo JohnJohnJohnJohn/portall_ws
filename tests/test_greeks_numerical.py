@@ -1,6 +1,5 @@
 """Bump-and-revalue consistency tests for Greeks."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 from deskpricer.pricing.conventions import DEFAULT_STEPS
@@ -62,26 +61,12 @@ class TestEuropeanGreeks:
         )
         assert abs(g["charm"]) < 0.01
 
-    def test_theta_decay_convention_positive(self, client: TestClient):
-        """With theta_convention=decay, theta should be positive for a long option."""
+    def test_theta_always_negative_for_long_option(self, client: TestClient):
+        """Theta is negative for a typical long option; decay convention removed."""
         g = fetch_greeks(
-            client,
-            s=100,
-            k=100,
-            t=0.5,
-            r=0.05,
-            q=0,
-            v=0.20,
-            type="call",
-            style="european",
-            theta_convention="decay",
-        )
-        assert g["theta"] > 0
-        # Same magnitude as pnl convention, opposite sign
-        g_pnl = fetch_greeks(
             client, s=100, k=100, t=0.5, r=0.05, q=0, v=0.20, type="call", style="european"
         )
-        assert g["theta"] == pytest.approx(-g_pnl["theta"], abs=1e-10)
+        assert g["theta"] < 0
 
 
 class TestAmericanBumpConsistency:

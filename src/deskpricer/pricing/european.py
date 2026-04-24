@@ -11,30 +11,31 @@ from deskpricer.pricing.conventions import (
     default_day_count,
     expiry_from_t,
     get_calendar,
-    next_business_day,
     ql_date_from_iso,
 )
+from deskpricer.pricing.constants import MIN_T_YEARS
 from deskpricer.schemas import GreeksOutput
 
 
-def _reprice_at_date(
+def _reprice_with_expiry(
     spot_handle: ql.QuoteHandle,
     payoff: ql.PlainVanillaPayoff,
-    exercise: ql.Exercise,
-    target_date: ql.Date,
+    valuation_date: ql.Date,
+    expiry_date: ql.Date,
     calendar: ql.Calendar,
     r: float,
     q: float,
     v: float,
     day_count: ql.DayCounter,
 ) -> ql.VanillaOption:
-    """Build a European option repriced at ``target_date`` (for theta/charm)."""
-    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(target_date, q, day_count))
-    rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(target_date, r, day_count))
+    """Build a European option repriced with a shortened expiry (for theta/charm)."""
+    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(valuation_date, q, day_count))
+    rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(valuation_date, r, day_count))
     vol_ts = ql.BlackVolTermStructureHandle(
-        ql.BlackConstantVol(target_date, calendar, v, day_count)
+        ql.BlackConstantVol(valuation_date, calendar, v, day_count)
     )
     process = ql.BlackScholesMertonProcess(spot_handle, div_ts, rf_ts, vol_ts)
+    exercise = ql.EuropeanExercise(expiry_date)
     option = ql.VanillaOption(payoff, exercise)
     option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
     return option
@@ -50,16 +51,15 @@ def price_european(
     option_type: str,
     valuation_date: date,
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
-    theta_convention: str = "pnl",
 ) -> GreeksOutput:
     """Price a European option and return Greeks.
 
     Delta, gamma, vega and rho come from QuantLib's analytic closed-form
-    engine.  Theta and charm are computed via next-business-day
-    bump-and-revalue rather than ``option.theta()``.  This guarantees a
-    per-business-day P&L figure that is directly usable in attribution and
-    is consistent with the American theta convention, rather than a
-    continuous-time annualised sensitivity.
+    engine.  Theta and charm are computed by shortening time-to-expiry by
+    ``1/365`` years (1 calendar day) and revaluing, rather than using
+    ``option.theta()``.  This guarantees a per-calendar-day P&L figure that
+    is directly usable in attribution and is consistent with the American
+    theta convention, rather than a continuous-time annualised sensitivity.
     """
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
@@ -95,36 +95,26 @@ def price_european(
     except RuntimeError as exc:
         raise InvalidInputError("Pricing failed for the given inputs") from exc
 
-    # Theta & Charm: next-business-day revalue.
-    # theta = price(next_bd) - price(today)  (negative for a typical long option).
-    # charm = delta(next_bd) - delta(today).
-    # When the option has <= 1 business day left, theta falls back to intrinsic - price
+    # Theta & Charm: 1-calendar-day revalue (t - 1/365).
+    # theta = price(t - 1/365) - price(t)  (negative for a typical long option).
+    # charm = delta(t - 1/365) - delta(today).
+    # When the option has <= 1 calendar day left, theta falls back to intrinsic - price
     # and charm falls back to 0.0.
     theta = 0.0
     charm = 0.0
-    try:
-        one_bd_forward = next_business_day(ql_date, calendar)
-    except RuntimeError as exc:
-        raise InvalidInputError("Valuation date too close to maximum supported date") from exc
+    if t <= MIN_T_YEARS:
+        intrinsic = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
+        theta = intrinsic - price
     else:
-        if expiry_date > one_bd_forward:
-            try:
-                option_t1 = _reprice_at_date(
-                    spot_handle, payoff, exercise, one_bd_forward, calendar, r, q, v, day_count
-                )
-                theta = float(option_t1.NPV()) - price
-                charm = float(option_t1.delta()) - delta
-            except RuntimeError as exc:
-                raise InvalidInputError(
-                    "Theta/charm calculation failed for the given inputs"
-                ) from exc
-        else:
-            intrinsic = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
-            theta = intrinsic - price
-
-    if theta_convention == "decay":
-        theta = -theta
-        charm = -charm
+        expiry_t1 = expiry_date - 1
+        try:
+            option_t1 = _reprice_with_expiry(
+                spot_handle, payoff, ql_date, expiry_t1, calendar, r, q, v, day_count
+            )
+            theta = float(option_t1.NPV()) - price
+            charm = float(option_t1.delta()) - delta
+        except RuntimeError as exc:
+            raise InvalidInputError("Theta/charm calculation failed for the given inputs") from exc
 
     return GreeksOutput(
         price=price,

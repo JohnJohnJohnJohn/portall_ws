@@ -21,12 +21,6 @@ DEFAULT_BUMP_VOL_ABS: float = 0.001
 DEFAULT_BUMP_RATE_ABS: float = 0.001
 """CONVENTIONS.md §4: 0.1 rate-point absolute rate bump (0.1% decimal)."""
 
-ANNUAL_TRADING_DAYS: int = 252
-"""CONVENTIONS.md §4: NYSE/HK proxy for business days per calendar year; numerator in per-calendar-day theta rate conversion."""
-
-CALENDAR_DAYS_PER_YEAR: int = 365
-"""CONVENTIONS.md §4: ACT/365 denominator; matches the day count convention throughout."""
-
 SPOT_DIVERGENCE_THRESHOLD: float = 0.05
 """CONVENTIONS.md §4: 5% relative spot divergence beyond which portfolio aggregate Greeks are a coarse approximation."""
 
@@ -59,9 +53,6 @@ IV_REPRICE_RELATIVE_TOLERANCE: float = 0.001
 
 VOL_BUMP_CAP_FACTOR: float = 0.5
 """CONVENTIONS.md §4: Cap at 50% of current vol ensures the down-bumped vol is always positive."""
-
-MAX_NEXT_BD_SEARCH_DAYS: int = 30
-"""Maximum calendar days to scan when searching for the next business day; guards against infinite loop over holiday clusters."""
 
 IV_SOLVER_DEFAULT_ACCURACY: float = 1e-4
 """Default Brent solver accuracy for IV root finding; tighter than QuantLib's own default to minimise reprice residual."""

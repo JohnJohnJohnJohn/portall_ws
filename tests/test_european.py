@@ -52,16 +52,16 @@ class TestEuropeanCharmThreadSafety:
         finally:
             ql.Settings.instance().evaluationDate = original
 
-    def test_next_business_day_failure_raises_invalid_input(self, monkeypatch):
-        """If next_business_day raises, InvalidInputError is propagated."""
+    def test_theta_charm_failure_raises_invalid_input(self, monkeypatch):
+        """If _reprice_with_expiry raises, InvalidInputError is propagated."""
         import pytest
 
         import deskpricer.pricing.european as eu
 
         def _boom(*args, **kwargs):
-            raise RuntimeError("simulated max date overflow")
+            raise RuntimeError("simulated pricing failure")
 
-        monkeypatch.setattr(eu, "next_business_day", _boom)
+        monkeypatch.setattr(eu, "_reprice_with_expiry", _boom)
         original = ql.Settings.instance().evaluationDate
         ql.Settings.instance().evaluationDate = ql.Date(20, 4, 2026)
         try:

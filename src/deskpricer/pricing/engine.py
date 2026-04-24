@@ -39,7 +39,6 @@ def price_vanilla(
     bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
     bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
-    theta_convention: str = "pnl",
 ) -> GreeksOutput:
     if option_type not in ("call", "put"):
         raise UnsupportedCombinationError(
@@ -72,7 +71,6 @@ def price_vanilla(
             option_type,
             valuation_date,
             calendar_name=calendar_name,
-            theta_convention=theta_convention,
         )
 
     if style == "american":
@@ -102,7 +100,6 @@ def price_vanilla(
             bump_vol_abs=bump_vol_abs,
             bump_rate_abs=bump_rate_abs,
             calendar_name=calendar_name,
-            theta_convention=theta_convention,
         )
 
     raise UnsupportedCombinationError(f"Unknown style: {style}", field="style")

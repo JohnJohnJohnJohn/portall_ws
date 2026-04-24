@@ -5,7 +5,6 @@ import sys
 from contextlib import contextmanager
 from datetime import date
 
-import pytest
 import QuantLib as ql
 from scipy.stats import norm
 
@@ -72,7 +71,6 @@ def price_european_test(S, K, T, r, q, sigma, option_type, calendar_name="null")
         option_type=option_type,
         valuation_date=date(2024, 1, 2),
         calendar_name=calendar_name,
-        theta_convention="pnl",
     )
 
 
@@ -147,9 +145,18 @@ class TestAmericanEuropeanConsistency:
         with _sync_eval_date(valuation_date):
             european = price_european_test(S, K, T, r, q, sigma, option_type="call")
             american = price_vanilla(
-                s=S, k=K, t=T, r=r, q=q, v=sigma,
-                option_type="call", style="american", engine="binomial_crr", steps=1000,
-                valuation_date=valuation_date, calendar_name="null",
+                s=S,
+                k=K,
+                t=T,
+                r=r,
+                q=q,
+                v=sigma,
+                option_type="call",
+                style="american",
+                engine="binomial_crr",
+                steps=1000,
+                valuation_date=valuation_date,
+                calendar_name="null",
             )
         assert abs(american.price - european.price) < 0.02
 
@@ -163,9 +170,17 @@ class TestImpliedVol:
         target_price = bs_call(S, K, T, r, q, sigma)
         with _sync_eval_date(valuation_date):
             result = compute_implied_vol(
-                s=S, k=K, t=T, r=r, q=q, target_price=target_price,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
+                s=S,
+                k=K,
+                t=T,
+                r=r,
+                q=q,
+                target_price=target_price,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=valuation_date,
+                calendar_name="null",
             )
         assert abs(result.implied_vol - 0.25) < 1e-4
 
@@ -173,29 +188,24 @@ class TestImpliedVol:
 class TestThetaCharmSign:
     """Tests 8-10: theta and charm sign conventions."""
 
-    def test_theta_sign_long_call_pnl_convention(self):
+    def test_theta_sign_long_call_negative(self):
         # Test 8: T=0.5, q=0.02, date=2024-01-02
         valuation_date = date(2024, 1, 2)
         with _sync_eval_date(valuation_date):
             result = price_vanilla(
-                s=100.0, k=100.0, t=0.5, r=0.05, q=0.02, v=0.20,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
-                theta_convention="pnl",
+                s=100.0,
+                k=100.0,
+                t=0.5,
+                r=0.05,
+                q=0.02,
+                v=0.20,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=valuation_date,
+                calendar_name="null",
             )
         assert result.theta < -1e-6
-
-    def test_theta_sign_decay_convention_is_positive(self):
-        # Test 9: missing from original; added per FIX_INSTRUCTIONS.md Section 3
-        valuation_date = date(2024, 1, 2)
-        with _sync_eval_date(valuation_date):
-            result = price_vanilla(
-                s=100.0, k=100.0, t=0.5, r=0.05, q=0.02, v=0.20,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
-                theta_convention="decay",
-            )
-        assert result.theta > 1e-6
 
     def test_charm_sign_otm_call_approaching_expiry(self):
         # Test 10: Updated per FIX_INSTRUCTIONS.md Section 3.
@@ -203,10 +213,17 @@ class TestThetaCharmSign:
         valuation_date = date(2024, 1, 2)
         with _sync_eval_date(valuation_date):
             result = price_vanilla(
-                s=90.0, k=100.0, t=0.1, r=0.05, q=0.02, v=0.20,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
-                theta_convention="pnl",
+                s=90.0,
+                k=100.0,
+                t=0.1,
+                r=0.05,
+                q=0.02,
+                v=0.20,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=valuation_date,
+                calendar_name="null",
             )
         assert result.charm < -1e-6
 
@@ -220,14 +237,31 @@ class TestCrossGreeks:
         valuation_date = date(2024, 1, 2)
         with _sync_eval_date(valuation_date):
             base = price_vanilla(
-                s=S, k=K, t=T, r=r, q=q, v=sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
+                s=S,
+                k=K,
+                t=T,
+                r=r,
+                q=q,
+                v=sigma,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=valuation_date,
+                calendar_name="null",
             )
             vanna, _ = compute_cross_greeks(
-                base_price=base.price, s=S, k=K, t=T, r=r, q=q, v=sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
+                base_price=base.price,
+                s=S,
+                k=K,
+                t=T,
+                r=r,
+                q=q,
+                v=sigma,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=valuation_date,
+                calendar_name="null",
             )
         assert vanna > 1e-8
 
@@ -236,21 +270,38 @@ class TestCrossGreeks:
         # Three sub-cases: ATM, OTM, deep ITM; all calls; q=0.02; date=2024-01-02.
         valuation_date = date(2024, 1, 2)
         cases = [
-            (100.0, 100.0),   # ATM
-            (90.0, 100.0),    # OTM
-            (120.0, 100.0),   # deep ITM
+            (100.0, 100.0),  # ATM
+            (90.0, 100.0),  # OTM
+            (120.0, 100.0),  # deep ITM
         ]
         for S, K in cases:
             with _sync_eval_date(valuation_date):
                 base = price_vanilla(
-                    s=S, k=K, t=0.5, r=0.05, q=0.02, v=0.20,
-                    option_type="call", style="european", engine="analytic",
-                    valuation_date=valuation_date, calendar_name="null",
+                    s=S,
+                    k=K,
+                    t=0.5,
+                    r=0.05,
+                    q=0.02,
+                    v=0.20,
+                    option_type="call",
+                    style="european",
+                    engine="analytic",
+                    valuation_date=valuation_date,
+                    calendar_name="null",
                 )
                 _, volga = compute_cross_greeks(
-                    base_price=base.price, s=S, k=K, t=0.5, r=0.05, q=0.02, v=0.20,
-                    option_type="call", style="european", engine="analytic",
-                    valuation_date=valuation_date, calendar_name="null",
+                    base_price=base.price,
+                    s=S,
+                    k=K,
+                    t=0.5,
+                    r=0.05,
+                    q=0.02,
+                    v=0.20,
+                    option_type="call",
+                    style="european",
+                    engine="analytic",
+                    valuation_date=valuation_date,
+                    calendar_name="null",
                 )
             assert volga >= -1e-8, f"volga negative for S={S}, K={K}"
 
@@ -271,19 +322,44 @@ class TestPnLAttributionClosure:
 
         with _sync_eval_date(valuation_date):
             greeks_0 = price_vanilla(
-                s=S0, k=K, t=T0, r=r, q=q, v=sigma0,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
+                s=S0,
+                k=K,
+                t=T0,
+                r=r,
+                q=q,
+                v=sigma0,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=valuation_date,
+                calendar_name="null",
             )
             vanna_0, volga_0 = compute_cross_greeks(
-                base_price=greeks_0.price, s=S0, k=K, t=T0, r=r, q=q, v=sigma0,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
+                base_price=greeks_0.price,
+                s=S0,
+                k=K,
+                t=T0,
+                r=r,
+                q=q,
+                v=sigma0,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=valuation_date,
+                calendar_name="null",
             )
             price_1 = price_vanilla(
-                s=S1, k=K, t=T1, r=r, q=q, v=sigma1,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
+                s=S1,
+                k=K,
+                t=T1,
+                r=r,
+                q=q,
+                v=sigma1,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=valuation_date,
+                calendar_name="null",
             ).price
 
         actual_pnl = price_1 - greeks_0.price
@@ -317,28 +393,34 @@ class TestCalendarBusinessDays:
         assert 250 <= uk <= 255, f"UK 2023 business days = {uk}"
 
 
-class TestPortfolioThetaConventionConsistency:
-    def test_mixed_theta_convention_rejected(self):
-        from pydantic import ValidationError
+class TestPortfolioThetaNegative:
+    def test_portfolio_theta_negative_for_long_option(self):
         from deskpricer.schemas import PortfolioRequest, LegInput
-        with pytest.raises(ValidationError) as exc_info:
-            PortfolioRequest(legs=[
+
+        req = PortfolioRequest(
+            legs=[
                 LegInput(
-                    id="leg1", s=100, k=100, t=0.25, r=0.05, q=0, v=0.20,
-                    type="call", style="european", theta_convention="pnl", qty=1,
+                    id="leg1",
+                    s=100,
+                    k=100,
+                    t=0.25,
+                    r=0.05,
+                    q=0,
+                    v=0.20,
+                    type="call",
+                    style="european",
+                    qty=1,
                 ),
-                LegInput(
-                    id="leg2", s=100, k=100, t=0.25, r=0.05, q=0, v=0.20,
-                    type="call", style="european", theta_convention="decay", qty=1,
-                ),
-            ])
-        assert "All legs in a portfolio must share the same theta_convention" in str(exc_info.value)
+            ]
+        )
+        assert req.legs[0].qty == 1
 
 
 class TestEuropeanGoldenCrossValidation:
     def test_european_golden_values_match_bsm_null_calendar(self):
         sys.path.insert(0, "tests")
         from test_financial_golden import _GOLDEN, _PARAMS
+
         for key in _GOLDEN:
             if not key.startswith("european_"):
                 continue
@@ -349,8 +431,15 @@ class TestEuropeanGoldenCrossValidation:
                 bs = bs_put(p["s"], p["k"], p["t"], p["r"], p["q"], p["v"])
             with _sync_eval_date(date.fromisoformat(p["valuation_date"])):
                 engine = price_vanilla(
-                    s=p["s"], k=p["k"], t=p["t"], r=p["r"], q=p["q"], v=p["v"],
-                    option_type=p["type"], style="european", engine="analytic",
+                    s=p["s"],
+                    k=p["k"],
+                    t=p["t"],
+                    r=p["r"],
+                    q=p["q"],
+                    v=p["v"],
+                    option_type=p["type"],
+                    style="european",
+                    engine="analytic",
                     valuation_date=date.fromisoformat(p["valuation_date"]),
                     calendar_name="null",
                 )

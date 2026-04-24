@@ -7,7 +7,7 @@ from datetime import date
 import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
-from deskpricer.pricing.constants import VOL_BUMP_CAP_FACTOR
+from deskpricer.pricing.constants import MIN_T_YEARS, VOL_BUMP_CAP_FACTOR
 from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
@@ -17,7 +17,6 @@ from deskpricer.pricing.conventions import (
     default_day_count,
     expiry_from_t,
     get_calendar,
-    next_business_day,
     ql_date_from_iso,
 )
 from deskpricer.schemas import GreeksOutput
@@ -86,7 +85,6 @@ def price_american(
     bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
     bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
-    theta_convention: str = "pnl",
 ) -> GreeksOutput:
     """Price an American option and return bump-and-revalue Greeks.
 
@@ -157,28 +155,21 @@ def price_american(
     price_down_r = _npv(s, k, r - h_r, q, v, *_common)
     rho = (price_up_r - price_down_r) / (2.0 * h_r) / 100.0
 
-    # Theta: P&L impact of one business day passing (forward-looking, negative for a long option).
-    # Revalue at the next business day and subtract today's price.
-    # When the option has <= 1 business day left, fallback to intrinsic value.
-    try:
-        next_bd = next_business_day(ql_date, calendar)
-    except RuntimeError as exc:
-        raise InvalidInputError("Valuation date too close to maximum supported date") from exc
-    if expiry_date <= next_bd:
-        price_next_bd = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
+    # Theta: P&L impact of one calendar day passing (forward-looking, negative for a long option).
+    # Revalue with expiry shortened by 1/365 years and subtract today's price.
+    # When the option has <= 1 calendar day left, fallback to intrinsic value.
+    if t <= MIN_T_YEARS:
+        price_t1 = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
         charm = 0.0
     else:
-        _common_t1 = (option_type, next_bd, expiry_date, steps, engine_type, calendar)
-        price_next_bd = _npv(s, k, r, q, v, *_common_t1)
+        expiry_t1 = expiry_date - 1
+        _common_t1 = (option_type, ql_date, expiry_t1, steps, engine_type, calendar)
+        price_t1 = _npv(s, k, r, q, v, *_common_t1)
         price_up_s_t1 = _npv(s + h_s, k, r, q, v, *_common_t1)
         price_down_s_t1 = _npv(s - h_s, k, r, q, v, *_common_t1)
         delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
         charm = delta_t1 - delta
-    theta = price_next_bd - price
-
-    if theta_convention == "decay":
-        theta = -theta
-        charm = -charm
+    theta = price_t1 - price
 
     return GreeksOutput(
         price=price,

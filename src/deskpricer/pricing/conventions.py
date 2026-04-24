@@ -4,23 +4,23 @@ Numerical conventions
 ---------------------
 - Vega is per **1 vol point** (1% absolute).
 - Rho is per **1 rate point** (1% absolute).
-- Theta is per **trading day** (1 business day per the chosen calendar).
-  Both European and American styles compute theta by revaluing the option
-  at the next business day and subtracting today's price.  This is a
+- Theta is per **1 calendar day** (ACT/365 Fixed).
+  Both European and American styles compute theta by shortening
+  time-to-expiry by ``1/365`` years, rebuilding the option with the
+  shortened expiry, and subtracting today's price.  This is a
   forward-looking P&L figure: theta < 0 for a typical long option because
   the position decays as time passes.  Sign is opposite of Bloomberg
   DM<GO>, which reports theta as positive decay.
   Worked example: a long call with theta = -0.05 loses approximately $0.05
-  in value for each business day that passes, all else equal.
-  PnL attribution: theta_pnl = theta * trading_days, where trading_days is the
-  elapsed business-day hold period (not a DTE-proxy).
-  Note: European theta is intentionally computed via next-business-day
+  in value for each calendar day that passes, all else equal.
+  PnL attribution: theta_pnl = theta * calendar_days_elapsed.
+  Note: European theta is intentionally computed via calendar-day
   bump-and-revalue rather than QuantLib's analytic ``option.theta()``.
-  This guarantees a per-business-day P&L figure that is directly usable
+  This guarantees a per-calendar-day P&L figure that is directly usable
   in attribution and is consistent with the American theta convention,
   rather than a continuous-time annualised sensitivity.
 - Charm inherits the same forward-difference, forward-looking convention as
-  theta: it is the change in delta per one business day passing.
+  theta: it is the change in delta per one calendar day passing.
 - Greeks bump semantics:
   - Relative spot bump (e.g., 1% of spot).
   - Absolute vol bump (e.g., 0.001 = 0.1 vol points).
@@ -33,7 +33,7 @@ Numerical conventions
 - Expiry conversion: ``t`` (years, ACT/365) is the sole expiry input.
   The pricer intentionally does not accept an explicit expiry date.
   Callers are expected to derive ``t`` from a real, pre-validated
-  business-day expiry date (e.g., ``t = (expiry_date - today).days / 365``).
+  expiry date (e.g., ``t = (expiry_date - today).days / 365``).
   The ``ql.Following`` business-day roll is a safety guard only; it is not
   expected to trigger in normal usage because callers should ensure the
   implied expiry date is already a business day.  If the roll does trigger,
@@ -54,7 +54,6 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError
 
 from deskpricer.pricing.constants import (  # noqa: F401
-    CALENDAR_DAYS_PER_YEAR,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
@@ -62,7 +61,6 @@ from deskpricer.pricing.constants import (  # noqa: F401
     IV_SOLVER_DEFAULT_ACCURACY,
     IV_SOLVER_MAX_ITERATIONS,
     MAX_EXPIRY_T_DISCREPANCY,
-    MAX_NEXT_BD_SEARCH_DAYS,
     MIN_T_YEARS,
     SPOT_DIVERGENCE_THRESHOLD,
 )
@@ -159,21 +157,6 @@ def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> q
                 expiry,
             )
     return expiry
-
-
-def next_business_day(date: ql.Date, calendar: ql.Calendar) -> ql.Date:
-    """Return the next business day strictly after ``date`` according to ``calendar``."""
-    d = date + 1
-    max_days = MAX_NEXT_BD_SEARCH_DAYS
-    days_checked = 0
-    while not calendar.isBusinessDay(d):
-        d += 1
-        days_checked += 1
-        if days_checked > max_days:
-            raise RuntimeError(
-                f"No business day found within {max_days} calendar days after {date}"
-            )
-    return d
 
 
 @lru_cache(maxsize=128)

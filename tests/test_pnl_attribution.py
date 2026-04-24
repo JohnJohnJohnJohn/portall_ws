@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 
-from deskpricer.pricing.conventions import MIN_T_YEARS, annual_business_days
+from deskpricer.pricing.conventions import MIN_T_YEARS
 
 
 class TestPnLAttribution:
@@ -77,8 +77,8 @@ class TestPnLAttribution:
         assert abs(data["vega_pnl"]) > abs(data["theta_pnl"])
 
     def test_theta_pnl_one_day(self, client: TestClient):
-        """One calendar day passes (Sun->Mon = 1 trading day), all market data identical.
-        Actual PnL should match theta * trading_days exactly under unified next-BD revalue."""
+        """One calendar day passes, all market data identical.
+        Actual PnL should match theta * calendar_days exactly."""
         params = self._base_params(
             t_t=0.25 - MIN_T_YEARS,
         )
@@ -92,7 +92,7 @@ class TestPnLAttribution:
         assert data["vega_pnl"] == pytest.approx(0, abs=1e-10)
         assert data["rho_pnl"] == pytest.approx(0, abs=1e-10)
 
-        assert meta["trading_days"] == 1
+        assert meta["calendar_days"] == 1
         assert data["theta_pnl"] < 0
         assert data["actual_pnl"] < 0
         assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-6)
@@ -179,18 +179,15 @@ class TestPnLAttribution:
         assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)
 
     def test_omit_both_dates_diff_t(self, client: TestClient, monkeypatch):
-        """Omitting both dates with 1-day t decay: theta_pnl = theta * trading_days.
-        Mocked to a weekday so next_business_day is exactly 1 calendar day."""
+        """Omitting both dates with 1-day t decay: theta_pnl = theta * calendar_days."""
         from datetime import date
 
         class _FixedDate(date):
             @classmethod
             def today(cls):
-                return cls(2026, 4, 21)  # Tuesday → next BD is 1 cal day
+                return cls(2026, 4, 21)  # Tuesday
 
-        monkeypatch.setattr(
-            "deskpricer.services.pricing_service.date", _FixedDate
-        )
+        monkeypatch.setattr("deskpricer.services.pricing_service.date", _FixedDate)
         params = self._base_params(t_t=0.25 - MIN_T_YEARS)
         del params["valuation_date_t_minus_1"]
         del params["valuation_date_t"]
@@ -198,14 +195,14 @@ class TestPnLAttribution:
         assert resp.status_code == 200
         data = resp.json()["pnl_attribution"]["outputs"]
         meta = resp.json()["pnl_attribution"]["meta"]
-        assert meta["trading_days"] == 1
+        assert meta["calendar_days"] == 1
         assert data["theta_pnl"] < 0
         assert data["actual_pnl"] < 0
         assert data["actual_pnl"] == pytest.approx(data["theta_pnl"], abs=1e-6)
         assert data["residual_pnl"] == pytest.approx(0, abs=1e-6)
 
     def test_explicit_dates_long_weekend(self, client: TestClient):
-        """Fri -> Mon spans only 1 trading day (Sat/Sun excluded)."""
+        """Fri -> Mon spans 3 calendar days."""
         params = self._base_params(
             valuation_date_t_minus_1="2026-04-17",
             valuation_date_t="2026-04-20",
@@ -213,35 +210,32 @@ class TestPnLAttribution:
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
         meta = resp.json()["pnl_attribution"]["meta"]
-        assert meta["trading_days"] == 1
         assert meta["calendar_days"] == 3
 
-    def test_theta_time_unit_calendar_day(self, client: TestClient):
-        """Calendar-day theta is converted from per-business-day rate
-        (annual_business_days/365) before scaling by calendar days, preventing
-        overstatement over weekends."""
+    def test_theta_pnl_scales_with_calendar_days(self, client: TestClient):
+        """Calendar-day theta scales linearly with elapsed calendar days."""
         params = self._base_params(
             valuation_date_t_minus_1="2026-04-17",
             valuation_date_t="2026-04-20",
         )
-        resp_bd = self._get(client, params, json_format=True)
-        assert resp_bd.status_code == 200
-        theta_pnl_bd = resp_bd.json()["pnl_attribution"]["outputs"]["theta_pnl"]
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        theta_pnl_3d = resp.json()["pnl_attribution"]["outputs"]["theta_pnl"]
+        meta = resp.json()["pnl_attribution"]["meta"]
+        assert meta["calendar_days"] == 3
+        assert theta_pnl_3d < 0
 
-        params_cd = {**params, "theta_time_unit": "calendar_day"}
-        resp_cd = self._get(client, params_cd, json_format=True)
-        assert resp_cd.status_code == 200
-        data_cd = resp_cd.json()["pnl_attribution"]
-        theta_pnl_cd = data_cd["outputs"]["theta_pnl"]
-
-        # 1 trading day vs 3 calendar days; theta is scaled by calendar-aware ratio
-        expected_ratio = (annual_business_days("hong_kong", 2026) / 365.0) * 3
-        assert theta_pnl_cd == pytest.approx(theta_pnl_bd * expected_ratio, abs=1e-7)
-        assert data_cd["meta"]["theta_time_unit"] == "calendar_day"
-        assert data_cd["inputs"]["theta_time_unit"] == "calendar_day"
+        # 1 calendar day hold should be exactly 1/3 of the 3-day hold
+        params_1d = self._base_params(
+            valuation_date_t_minus_1="2026-04-19",
+            valuation_date_t="2026-04-20",
+        )
+        resp_1d = self._get(client, params_1d, json_format=True)
+        theta_pnl_1d = resp_1d.json()["pnl_attribution"]["outputs"]["theta_pnl"]
+        assert theta_pnl_3d == pytest.approx(theta_pnl_1d * 3, abs=5e-4)
 
     def test_explicit_dates_crosses_holiday(self, client: TestClient):
-        """Apr 28 -> May 6 crosses Labour Day; HK holiday is excluded."""
+        """Apr 28 -> May 6 crosses Labour Day; 8 calendar days elapsed."""
         params = self._base_params(
             valuation_date_t_minus_1="2026-04-28",
             valuation_date_t="2026-05-06",
@@ -249,7 +243,7 @@ class TestPnLAttribution:
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
         meta = resp.json()["pnl_attribution"]["meta"]
-        assert meta["trading_days"] == 5
+        assert meta["calendar_days"] == 8
 
     def test_only_one_date(self, client: TestClient):
         """Providing only one date should fail."""
@@ -410,7 +404,7 @@ class TestPnLAttribution:
         assert data["delta_pnl"] == pytest.approx(0.0, abs=1e-10)
         assert data["gamma_pnl"] == pytest.approx(0.0, abs=1e-10)
         assert data["vega_pnl"] == pytest.approx(0.0, abs=1e-10)
-        # Same dates → count_business_days still returns 1, so theta_pnl is non-zero
+        # Same dates → calendar_days = 1, so theta_pnl is non-zero
         assert data["actual_pnl"] == pytest.approx(0.0, abs=1e-10)
         assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)
 

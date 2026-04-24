@@ -37,16 +37,12 @@ this document. In case of conflict, this file wins.
 - **Summary**: `vega` as stored = (∂V/∂σ) / 100. `vega_pnl = vega × Δσ_points`.
 
 ### 2.4 Theta
-- **Unit**: price change per one business day passing, forward-looking.
-- **Computation**: `theta = V(t+1 business day, all else equal) − V(today)`. This is a revalue-based (bump-and-revalue) estimate, not a continuous-time derivative.
-- **Sign under `theta_convention="pnl"` (default)**:
-  - A long option loses value as time passes → theta < 0.
-  - This is the P&L sign: theta directly represents how much money is made/lost per business day.
-- **Sign under `theta_convention="decay"`**:
-  - theta is negated: theta > 0 for a long option, representing the magnitude of decay (as reported by Bloomberg's DM<GO>).
-  - **Never use `"decay"` in P&L attribution.** The `run_pnl_attribution` function always calls `price_vanilla_fn` with `theta_convention="pnl"` regardless of the request parameter. This is correct and intentional.
-- **P&L attribution (business-day mode)**: `theta_pnl = theta × trading_days`, where `trading_days` is the count of business days in `[valuation_date_{t−1}, valuation_date_t)` according to the chosen calendar, with a minimum of 1 (intraday repricing still charges one full business day of decay).
-- **P&L attribution (calendar-day mode)**: `theta_pnl = theta × (ANNUAL_TRADING_DAYS / CALENDAR_DAYS_PER_YEAR) × calendar_days`. The ratio `252/365` converts a per-business-day theta into a per-calendar-day rate, preventing overstatement of decay over weekends and holidays.
+- **Unit**: price change per **1 calendar day** (ACT/365 Fixed), forward-looking.
+- **Computation**: `theta = V(t − 1/365 years, all else equal) − V(today)`. This is a revalue-based (bump-and-revalue) estimate, not a continuous-time derivative. The shortened expiry is computed by subtracting exactly 1 calendar day from the rolled expiry date used for the base valuation.
+- **Sign**: A long option loses value as time passes → theta < 0. This is the P&L sign: theta directly represents how much money is made/lost per calendar day.
+- **P&L attribution**: `theta_pnl = theta × calendar_days_elapsed`, where `calendar_days_elapsed` is the count of calendar days in `[valuation_date_{t−1}, valuation_date_t)`, with a minimum of 1 (intraday repricing still charges one full calendar day of decay).
+- **Weekend/holiday behaviour**: Weekends and holidays incur theta decay. A Friday-to-Monday hold attributes ~3 calendar days of theta decay (`theta × 3`). This matches Bloomberg, broker risk screens, and FRTB PnL Explain conventions.
+- **Worked example**: a long call with `theta = -0.05` loses approximately $0.05 per calendar day, so a Friday-to-Monday hold attributes ~$0.15 of theta decay.
 
 ### 2.5 Rho
 - **Raw QuantLib output**: ∂V/∂r, where r is a decimal. Raw value represents price change per 1.00 unit of decimal rate, i.e. per 100 rate-points.
@@ -54,10 +50,9 @@ this document. In case of conflict, this file wins.
 - **P&L attribution**: `rho_pnl = rho × Δr_points`, where `Δr_points = (r_t − r_{t−1}) × 100`.
 
 ### 2.6 Charm (delta decay)
-- **Unit**: change in delta per one business day passing, forward-looking.
-- **Computation**: `charm = delta(t+1 business day) − delta(today)`.
-- **Sign under `theta_convention="pnl"`**: For a long ATM or ITM call approaching expiry, delta drifts toward 1 (in-the-money convergence) or toward 0 (OTM), so charm can be positive or negative depending on moneyness. Specifically, for an ITM call approaching expiry (delta > 0.5), charm is **negative** because delta decays back toward 0.5 as seen from next business day — wait, more precisely: for a long call that is ITM and approaching expiry, delta is increasing toward 1.0 (not decaying). Charm is the forward difference in delta. Under `"pnl"` convention, charm retains the same sign as the forward difference.
-- **Sign under `theta_convention="decay"`**: charm is negated (same negation as theta).
+- **Unit**: change in delta per **1 calendar day** (ACT/365 Fixed), forward-looking.
+- **Computation**: `charm = delta(t − 1/365 years) − delta(today)`.
+- **Sign**: For a long ATM or ITM call approaching expiry, delta drifts toward 1 (in-the-money convergence) or toward 0 (OTM), so charm can be positive or negative depending on moneyness.
 - Charm is **not currently used in P&L attribution** in `pricing_service.py`. It is an output-only Greek. This is correct; charm enters PnL at third order and is excluded by design.
 
 ### 2.7 Vanna
@@ -77,11 +72,11 @@ this document. In case of conflict, this file wins.
 
 ## 3. Sign Convention Summary
 
-| Greek | `theta_convention="pnl"` | `theta_convention="decay"` |
-|-------|--------------------------|---------------------------|
-| theta (long call/put) | **negative** (P&L loss) | **positive** (decay magnitude) |
-| charm | forward difference sign preserved | negated |
-| All other Greeks | unaffected | unaffected |
+| Greek | Sign for long option |
+|-------|----------------------|
+| theta | **negative** (P&L loss as time passes) |
+| charm | forward-difference sign preserved |
+| All other Greeks | unaffected |
 
 ***
 
@@ -95,8 +90,6 @@ this document. In case of conflict, this file wins.
 | `DEFAULT_BUMP_SPOT_REL` | `0.01` (1%) | Relative spot bump for FD Greeks; large enough to clear noise, small enough for linearity | No |
 | `DEFAULT_BUMP_VOL_ABS` | `0.001` (0.1 vol-point) | Absolute vol bump; consistent with 0.1 vol-point market quoting granularity | No |
 | `DEFAULT_BUMP_RATE_ABS` | `0.001` (0.1 rate-point) | Absolute rate bump; consistent with central bank policy step granularity | No |
-| `ANNUAL_TRADING_DAYS` | `252` | Standard NYSE/HK proxy for business days per calendar year; used only as a ratio `252/365` in calendar-day theta conversion. For actual business-day counts, `annual_business_days(calendar_name, year)` is used. | Yes — see note below |
-| `CALENDAR_DAYS_PER_YEAR` | `365` | ACT/365 denominator; matches the day count convention throughout | No |
 | `SPOT_DIVERGENCE_THRESHOLD` | `0.05` (5%) | Portfolio aggregate Greeks are a coarse approximation when legs have spot prices diverging by more than 5%; warning only | No |
 | `IV_SOLVER_VOL_LO` | `1e-6` | Effective-zero lower vol bound for IV solver; avoids log(0) in BSM | No |
 | `IV_SOLVER_VOL_HI` | `5.0` (500%) | Upper vol bound; caps solver search space to financially plausible range | No |
@@ -108,11 +101,8 @@ this document. In case of conflict, this file wins.
 | `IV_HIGH_VOL_WARNING_THRESHOLD` | `2.0` (200%) | Log warning above this IV; indicates likely data-quality issue | No |
 | `IV_REPRICE_RELATIVE_TOLERANCE` | `0.001` (0.1%) | Relative tolerance floor for IV reprice check on high-nominal underlyings | No |
 | `VOL_BUMP_CAP_FACTOR` | `0.5` (50%) | Cap vol bump at 50% of current vol to ensure `v − h_v > 0` always holds | No |
-| `MAX_NEXT_BD_SEARCH_DAYS` | `30` | Maximum calendar days to scan when searching for the next business day; guards against infinite loop over holiday clusters. | No |
-| `IV_SOLVER_DEFAULT_ACCURACY` | `1e-4` | Default Brent solver accuracy for IV root finding; tighter than QuantLib's own default to minimise reprice residual. | No |
-| `IV_SOLVER_MAX_ITERATIONS` | `1000` | Maximum Brent iterations; sufficient for all practical BSM IV searches. | No |
-
-**Note on `ANNUAL_TRADING_DAYS` calendar-awareness**: The value `252` is used exclusively in the ratio `ANNUAL_TRADING_DAYS / CALENDAR_DAYS_PER_YEAR` inside the calendar-day theta conversion in `pricing_service.py`. This ratio is a long-run average. For maximum accuracy, this ratio should be computed dynamically using `annual_business_days(calendar_name, year)` for the specific calendar and year in question. The current fixed value of 252 is acceptable for HK and NYSE calendars in typical years (actual values: HK ~246, NYSE ~252, UK ~253) but overstates the conversion rate for HK by approximately 2.4%. Whether this constitutes a material error depends on the holding period. Until a calendar-aware version is implemented, the constant value of 252 must be used with documentation noting this approximation.
+| `IV_SOLVER_DEFAULT_ACCURACY` | `1e-4` | Default Brent solver accuracy for IV root finding; tighter than QuantLib's own default to minimise reprice residual | No |
+| `IV_SOLVER_MAX_ITERATIONS` | `1000` | Maximum Brent iterations; sufficient for all practical BSM IV searches | No |
 
 ***
 
@@ -125,7 +115,7 @@ The full first- and second-order Taylor expansion used in `run_pnl_attribution`:
   = delta        × ΔS                           [first-order spot]
   + 0.5 × gamma  × (ΔS)²                        [second-order spot]
   + vega         × Δσ_points                    [first-order vol; vega already per vol-point]
-  + theta        × N_days                        [time decay; N_days as described in §2.4]
+  + theta        × calendar_days_elapsed        [time decay; calendar days as described in §2.4]
   + rho          × Δr_points                    [first-order rate; rho already per rate-point]
   + vanna        × ΔS_pct × Δσ_points              [cross spot-vol; ΔS_pct = ΔS / S₀ × 100]
   + 0.5 × volga  × (Δσ_points)²                [second-order vol]
@@ -137,4 +127,4 @@ residual   = ΔV_actual − ΔV_explained
 
 All quantities are **per unit** (no position size or qty applied at this layer). Position sizing (multiplication by `leg.qty`) is applied only in `run_portfolio`, not in `run_pnl_attribution`.
 
-Signs: a long call position gains value when S rises (delta_pnl > 0), when σ rises (vega_pnl > 0), and loses value as time passes (theta_pnl < 0 under `"pnl"` convention). All signs above are for a long position; callers scale by signed quantity.
+Signs: a long call position gains value when S rises (delta_pnl > 0), when σ rises (vega_pnl > 0), and loses value as time passes (theta_pnl < 0). All signs above are for a long position; callers scale by signed quantity.

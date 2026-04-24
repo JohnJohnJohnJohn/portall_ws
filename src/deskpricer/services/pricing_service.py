@@ -8,7 +8,6 @@ from typing import Any, Callable
 from deskpricer import __version__ as service_version
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (
-    CALENDAR_DAYS_PER_YEAR,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
@@ -16,10 +15,6 @@ from deskpricer.pricing.conventions import (
     DEFAULT_STEPS,
     IV_SOLVER_DEFAULT_ACCURACY,
     IV_SOLVER_MAX_ITERATIONS,
-    annual_business_days,
-    count_business_days,
-    get_calendar,
-    ql_date_from_iso,
 )
 from deskpricer.pricing.cross_greeks import compute_cross_greeks as _compute_cross_greeks
 from deskpricer.pricing.engine import price_vanilla as _price_vanilla
@@ -126,7 +121,6 @@ async def run_greeks(
             bump_vol_abs=params.bump_vol_abs,
             bump_rate_abs=params.bump_rate_abs,
             calendar_name=params.calendar,
-            theta_convention=params.theta_convention,
         )
     meta = _meta(params.engine, valuation_date)
     inputs: dict[str, Any] = {
@@ -143,8 +137,6 @@ async def run_greeks(
         inputs["steps"] = params.steps
     if params.calendar != DEFAULT_CALENDAR:
         inputs["calendar"] = params.calendar
-    if params.theta_convention != "pnl":
-        inputs["theta_convention"] = params.theta_convention
     _add_non_default_bumps(inputs, params)
     return meta, inputs, result.model_dump()
 
@@ -235,7 +227,6 @@ async def run_portfolio(
                 bump_vol_abs=leg.bump_vol_abs,
                 bump_rate_abs=leg.bump_rate_abs,
                 calendar_name=leg.calendar,
-                theta_convention=leg.theta_convention,
             )
             row = {"id": leg.id, "engine": leg.engine, **result.model_dump()}
             legs_out.append(row)
@@ -267,18 +258,11 @@ async def run_pnl_attribution(
     valuation_date_t_minus_1 = params.valuation_date_t_minus_1
     valuation_date_t = params.valuation_date_t
     method = params.method
-    ql_calendar = get_calendar(params.calendar)
     if valuation_date_t_minus_1 is None and valuation_date_t is None:
         valuation_date_t_minus_1 = date.today()
         valuation_date_t = date.today()
-        trading_days = 1
         calendar_days = 1
     elif valuation_date_t_minus_1 is not None and valuation_date_t is not None:
-        ql_start = ql_date_from_iso(valuation_date_t_minus_1)
-        ql_end = ql_date_from_iso(valuation_date_t)
-        trading_days = count_business_days(ql_start, ql_end, ql_calendar)
-        # Intraday repricing: still charge one full business day of theta decay
-        trading_days = max(trading_days, 1)
         calendar_days = max((valuation_date_t - valuation_date_t_minus_1).days, 1)
     else:
         raise InvalidInputError(
@@ -290,7 +274,6 @@ async def run_pnl_attribution(
     state_t = _market_state(params, "_t")
     async with with_evaluation_date(valuation_date_t_minus_1):
         greeks_t_minus_1 = price_vanilla_fn(
-            theta_convention="pnl",
             **_pnl_pv_kwargs(state_t_m1, params, valuation_date_t_minus_1),
         )
         if params.cross_greeks:
@@ -301,7 +284,6 @@ async def run_pnl_attribution(
             )
     async with with_evaluation_date(valuation_date_t):
         greeks_t = price_vanilla_fn(
-            theta_convention="pnl",
             **_pnl_pv_kwargs(state_t, params, valuation_date_t),
         )
         if params.cross_greeks and method == "average":
@@ -320,17 +302,7 @@ async def run_pnl_attribution(
     else:
         vega_pnl = greeks_t_minus_1.vega * delta_v_points
         rho_pnl = greeks_t_minus_1.rho * delta_r_points
-    if params.theta_time_unit == "calendar_day":
-        # Convert per-business-day theta to per-calendar-day rate using the
-        # calendar-aware business day count (see CONVENTIONS.md §4), preventing
-        # overstatement of decay over weekends/holidays.
-        theta_pnl = (
-            greeks_t_minus_1.theta
-            * (annual_business_days(params.calendar, valuation_date_t_minus_1.year) / CALENDAR_DAYS_PER_YEAR)
-            * calendar_days
-        )
-    else:
-        theta_pnl = greeks_t_minus_1.theta * trading_days
+    theta_pnl = greeks_t_minus_1.theta * calendar_days
     vanna_pnl_per_unit = 0.0
     volga_pnl_per_unit = 0.0
     if params.cross_greeks:
@@ -372,11 +344,8 @@ async def run_pnl_attribution(
         "valuation_date_t_minus_1": valuation_date_t_minus_1.isoformat(),
         "valuation_date_t": valuation_date_t.isoformat(),
         "method": method,
-        "trading_days": trading_days,
         "calendar_days": calendar_days,
     }
-    if params.theta_time_unit != "business_day":
-        meta["theta_time_unit"] = params.theta_time_unit
     inputs: dict[str, Any] = {
         "s_t_minus_1": params.s_t_minus_1,
         "s_t": params.s_t,
@@ -402,8 +371,5 @@ async def run_pnl_attribution(
     _add_non_default_bumps(inputs, params)
     if params.cross_greeks:
         inputs["cross_greeks"] = True
-    if params.theta_convention != "pnl":
-        inputs["theta_convention"] = params.theta_convention
-    if params.theta_time_unit != "business_day":
-        inputs["theta_time_unit"] = params.theta_time_unit
+
     return meta, inputs, outputs
