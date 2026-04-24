@@ -24,6 +24,8 @@ from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_VOL_ABS,
     DEFAULT_CALENDAR,
     DEFAULT_STEPS,
+    IV_SOLVER_DEFAULT_ACCURACY,
+    IV_SOLVER_MAX_ITERATIONS,
     MIN_T_YEARS,
     SPOT_DIVERGENCE_THRESHOLD,
 )
@@ -230,9 +232,15 @@ class ImpliedVolRequest(_VanillaOptionCoreBase):
     )
     valuation_date: date | None = Field(default=None, description="Valuation date (ISO)")
     accuracy: float = Field(
-        default=1e-4, gt=0, le=1e-2, allow_inf_nan=False, description="Brent solver accuracy"
+        default=IV_SOLVER_DEFAULT_ACCURACY,
+        gt=0,
+        le=1e-2,
+        allow_inf_nan=False,
+        description="Brent solver accuracy",
     )
-    max_iterations: int = Field(default=1000, ge=100, le=10000, description="Max solver iterations")
+    max_iterations: int = Field(
+        default=IV_SOLVER_MAX_ITERATIONS, ge=100, le=10000, description="Max solver iterations"
+    )
     verify_reprice: bool = Field(
         default=True,
         description="If False, skip the post-solver NPV reprice verification. "

@@ -1,7 +1,7 @@
 """Financial regression tests with independent BSM reference implementation."""
 
-import asyncio
 import math
+import sys
 from contextlib import contextmanager
 from datetime import date
 
@@ -10,61 +10,70 @@ import QuantLib as ql
 from scipy.stats import norm
 
 from deskpricer.pricing.conventions import (
-    count_business_days,
-    get_calendar,
+    annual_business_days,
     ql_date_from_iso,
 )
 from deskpricer.pricing.cross_greeks import compute_cross_greeks
+from deskpricer.pricing.european import price_european
 from deskpricer.pricing.engine import price_vanilla
 from deskpricer.pricing.implied_vol import compute_implied_vol
-from deskpricer.schemas import PnLAttributionGETRequest
-from deskpricer.services.pricing_service import run_pnl_attribution
 
 
-def _d1(S, K, T, r, q, sigma):
+def bs_d1(S, K, T, r, q, sigma):
     return (math.log(S / K) + (r - q + sigma**2 / 2) * T) / (sigma * math.sqrt(T))
 
 
-def _d2(S, K, T, r, q, sigma):
-    return _d1(S, K, T, r, q, sigma) - sigma * math.sqrt(T)
+def bs_d2(S, K, T, r, q, sigma):
+    return bs_d1(S, K, T, r, q, sigma) - sigma * math.sqrt(T)
 
 
 def bs_call(S, K, T, r, q, sigma):
-    d1 = _d1(S, K, T, r, q, sigma)
-    d2 = _d2(S, K, T, r, q, sigma)
+    d1 = bs_d1(S, K, T, r, q, sigma)
+    d2 = bs_d2(S, K, T, r, q, sigma)
     return S * math.exp(-q * T) * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
 
 
 def bs_put(S, K, T, r, q, sigma):
-    return bs_call(S, K, T, r, q, sigma) - S * math.exp(-q * T) + K * math.exp(-r * T)
+    d1 = bs_d1(S, K, T, r, q, sigma)
+    d2 = bs_d2(S, K, T, r, q, sigma)
+    return K * math.exp(-r * T) * norm.cdf(-d2) - S * math.exp(-q * T) * norm.cdf(-d1)
 
 
 def bs_delta_call(S, K, T, r, q, sigma):
-    return math.exp(-q * T) * norm.cdf(_d1(S, K, T, r, q, sigma))
+    return math.exp(-q * T) * norm.cdf(bs_d1(S, K, T, r, q, sigma))
 
 
-def bs_delta_put(S, K, T, r, q, sigma):
-    return math.exp(-q * T) * (norm.cdf(_d1(S, K, T, r, q, sigma)) - 1)
+def bs_vega_raw(S, K, T, r, q, sigma):
+    d1 = bs_d1(S, K, T, r, q, sigma)
+    return S * math.exp(-q * T) * norm.pdf(d1) * math.sqrt(T)
 
 
-def bs_gamma(S, K, T, r, q, sigma):
-    d1 = _d1(S, K, T, r, q, sigma)
-    return math.exp(-q * T) * norm.pdf(d1) / (S * sigma * math.sqrt(T))
+def bs_vega_per_point(S, K, T, r, q, sigma):
+    return bs_vega_raw(S, K, T, r, q, sigma) / 100
 
 
-def bs_vega_per_volpoint(S, K, T, r, q, sigma):
-    d1 = _d1(S, K, T, r, q, sigma)
-    return S * math.exp(-q * T) * norm.pdf(d1) * math.sqrt(T) / 100
+def bs_rho_call_raw(S, K, T, r, q, sigma):
+    d2 = bs_d2(S, K, T, r, q, sigma)
+    return K * T * math.exp(-r * T) * norm.cdf(d2)
 
 
-def bs_rho_call_per_ratepoint(S, K, T, r, q, sigma):
-    d2 = _d2(S, K, T, r, q, sigma)
-    return K * T * math.exp(-r * T) * norm.cdf(d2) / 100
+def bs_rho_call_per_point(S, K, T, r, q, sigma):
+    return bs_rho_call_raw(S, K, T, r, q, sigma) / 100
 
 
-def bs_rho_put_per_ratepoint(S, K, T, r, q, sigma):
-    d2 = _d2(S, K, T, r, q, sigma)
-    return -K * T * math.exp(-r * T) * norm.cdf(-d2) / 100
+def price_european_test(S, K, T, r, q, sigma, option_type, calendar_name="null"):
+    return price_european(
+        s=S,
+        k=K,
+        t=T,
+        r=r,
+        q=q,
+        v=sigma,
+        option_type=option_type,
+        valuation_date=date(2024, 1, 2),
+        calendar_name=calendar_name,
+        theta_convention="pnl",
+    )
 
 
 @contextmanager
@@ -78,100 +87,83 @@ def _sync_eval_date(valuation_date):
 
 
 class TestEuropeanBSMReference:
-    _S = 100.0
-    _K = 100.0
-    _T = 1.0
-    _r = 0.05
-    _q = 0.0
-    _sigma = 0.20
-    _valuation_date = date(2025, 6, 16)
+    """Tests 1-5: European analytic engine vs closed-form BSM."""
 
-    def test_atm_european_call_price(self):
-        with _sync_eval_date(self._valuation_date):
-            result = price_vanilla(
-                s=self._S, k=self._K, t=self._T, r=self._r, q=self._q, v=self._sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=self._valuation_date, calendar_name="null",
+    def test_atm_european_call_price_vs_bsm(self):
+        # Updated per FIX_INSTRUCTIONS.md Section 3 Test 1: q=0.02, date=2024-01-02
+        with _sync_eval_date(date(2024, 1, 2)):
+            result = price_european_test(
+                S=100.0, K=100.0, T=1.0, r=0.05, q=0.02, sigma=0.20, option_type="call"
             )
-        expected = bs_call(self._S, self._K, self._T, self._r, self._q, self._sigma)
-        assert abs(result.price - expected) < 1e-3
+        expected = bs_call(100.0, 100.0, 1.0, 0.05, 0.02, 0.20)
+        assert abs(result.price - expected) < 0.005
 
-    def test_atm_european_put_price_put_call_parity(self):
-        with _sync_eval_date(self._valuation_date):
-            call_price = price_vanilla(
-                s=self._S, k=self._K, t=self._T, r=self._r, q=self._q, v=self._sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=self._valuation_date, calendar_name="null",
-            ).price
-            put_price = price_vanilla(
-                s=self._S, k=self._K, t=self._T, r=self._r, q=self._q, v=self._sigma,
-                option_type="put", style="european", engine="analytic",
-                valuation_date=self._valuation_date, calendar_name="null",
-            ).price
-        expected_put = call_price - self._S + self._K * math.exp(-self._r * self._T)
-        assert abs(put_price - expected_put) < 1e-4
-
-    def test_european_call_delta(self):
-        with _sync_eval_date(self._valuation_date):
-            result = price_vanilla(
-                s=self._S, k=self._K, t=self._T, r=self._r, q=self._q, v=self._sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=self._valuation_date, calendar_name="null",
+    def test_atm_european_put_price_parity(self):
+        # Updated per FIX_INSTRUCTIONS.md Section 3 Test 2: q=0.02, date=2024-01-02
+        with _sync_eval_date(date(2024, 1, 2)):
+            call_result = price_european_test(
+                S=100.0, K=100.0, T=1.0, r=0.05, q=0.02, sigma=0.20, option_type="call"
             )
-        expected = bs_delta_call(self._S, self._K, self._T, self._r, self._q, self._sigma)
-        assert abs(result.delta - expected) < 5e-4
-
-    def test_european_call_vega(self):
-        with _sync_eval_date(self._valuation_date):
-            result = price_vanilla(
-                s=self._S, k=self._K, t=self._T, r=self._r, q=self._q, v=self._sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=self._valuation_date, calendar_name="null",
+            put_result = price_european_test(
+                S=100.0, K=100.0, T=1.0, r=0.05, q=0.02, sigma=0.20, option_type="put"
             )
-        expected = bs_vega_per_volpoint(self._S, self._K, self._T, self._r, self._q, self._sigma)
-        assert abs(result.vega - expected) < 5e-4
+        expected_diff = 100.0 * math.exp(-0.02 * 1.0) - 100.0 * math.exp(-0.05 * 1.0)
+        assert abs(call_result.price - put_result.price - expected_diff) < 0.005
 
-    def test_european_call_rho(self):
-        with _sync_eval_date(self._valuation_date):
-            result = price_vanilla(
-                s=self._S, k=self._K, t=self._T, r=self._r, q=self._q, v=self._sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=self._valuation_date, calendar_name="null",
+    def test_european_call_delta_vs_bsm(self):
+        # Updated per FIX_INSTRUCTIONS.md Section 3 Test 3: q=0.02, date=2024-01-02
+        with _sync_eval_date(date(2024, 1, 2)):
+            result = price_european_test(
+                S=100.0, K=100.0, T=1.0, r=0.05, q=0.02, sigma=0.20, option_type="call"
             )
-        expected = bs_rho_call_per_ratepoint(self._S, self._K, self._T, self._r, self._q, self._sigma)
-        assert abs(result.rho - expected) < 5e-4
+        expected = bs_delta_call(100.0, 100.0, 1.0, 0.05, 0.02, 0.20)
+        assert abs(result.delta - expected) < 1e-4
+
+    def test_european_call_vega_vs_bsm(self):
+        # Updated per FIX_INSTRUCTIONS.md Section 3 Test 4: q=0.02, date=2024-01-02
+        with _sync_eval_date(date(2024, 1, 2)):
+            result = price_european_test(
+                S=100.0, K=100.0, T=1.0, r=0.05, q=0.02, sigma=0.20, option_type="call"
+            )
+        expected = bs_vega_per_point(100.0, 100.0, 1.0, 0.05, 0.02, 0.20)
+        assert abs(result.vega - expected) < 1e-4
+
+    def test_european_call_rho_vs_bsm(self):
+        # Updated per FIX_INSTRUCTIONS.md Section 3 Test 5: q=0.02, date=2024-01-02
+        with _sync_eval_date(date(2024, 1, 2)):
+            result = price_european_test(
+                S=100.0, K=100.0, T=1.0, r=0.05, q=0.02, sigma=0.20, option_type="call"
+            )
+        expected = bs_rho_call_per_point(100.0, 100.0, 1.0, 0.05, 0.02, 0.20)
+        assert abs(result.rho - expected) < 1e-3
 
 
 class TestAmericanEuropeanConsistency:
+    """Test 6: American call on non-dividend stock equals European."""
+
     def test_american_call_no_dividend_equals_european(self):
         S, K, T, r, q, sigma = 100.0, 100.0, 1.0, 0.05, 0.0, 0.20
-        valuation_date = date(2025, 6, 16)
+        valuation_date = date(2024, 1, 2)
         with _sync_eval_date(valuation_date):
-            european = price_vanilla(
-                s=S, k=K, t=T, r=r, q=q, v=sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
-            )
+            european = price_european_test(S, K, T, r, q, sigma, option_type="call")
             american = price_vanilla(
                 s=S, k=K, t=T, r=r, q=q, v=sigma,
-                option_type="call", style="american", engine="binomial_crr", steps=500,
+                option_type="call", style="american", engine="binomial_crr", steps=1000,
                 valuation_date=valuation_date, calendar_name="null",
             )
-        assert abs(american.price - european.price) < 0.05
+        assert abs(american.price - european.price) < 0.02
 
 
 class TestImpliedVol:
-    def test_implied_vol_roundtrip(self):
-        S, K, T, r, q, sigma = 100.0, 100.0, 0.5, 0.05, 0.0, 0.25
-        valuation_date = date(2025, 6, 16)
+    """Test 7: IV round-trip."""
+
+    def test_implied_vol_round_trip(self):
+        S, K, T, r, q, sigma = 100.0, 100.0, 1.0, 0.05, 0.02, 0.25
+        valuation_date = date(2024, 1, 2)
+        target_price = bs_call(S, K, T, r, q, sigma)
         with _sync_eval_date(valuation_date):
-            price_at_025 = price_vanilla(
-                s=S, k=K, t=T, r=r, q=q, v=sigma,
-                option_type="call", style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
-            ).price
             result = compute_implied_vol(
-                s=S, k=K, t=T, r=r, q=q, target_price=price_at_025,
+                s=S, k=K, t=T, r=r, q=q, target_price=target_price,
                 option_type="call", style="european", engine="analytic",
                 valuation_date=valuation_date, calendar_name="null",
             )
@@ -179,33 +171,53 @@ class TestImpliedVol:
 
 
 class TestThetaCharmSign:
+    """Tests 8-10: theta and charm sign conventions."""
+
     def test_theta_sign_long_call_pnl_convention(self):
-        valuation_date = date(2025, 6, 16)
+        # Test 8: T=0.5, q=0.02, date=2024-01-02
+        valuation_date = date(2024, 1, 2)
         with _sync_eval_date(valuation_date):
             result = price_vanilla(
-                s=100.0, k=100.0, t=0.25, r=0.05, q=0.0, v=0.20,
+                s=100.0, k=100.0, t=0.5, r=0.05, q=0.02, v=0.20,
                 option_type="call", style="european", engine="analytic",
                 valuation_date=valuation_date, calendar_name="null",
                 theta_convention="pnl",
             )
         assert result.theta < -1e-6
 
-    def test_charm_sign_itm_call_approaching_expiry_pnl(self):
-        valuation_date = date(2025, 6, 16)
+    def test_theta_sign_decay_convention_is_positive(self):
+        # Test 9: missing from original; added per FIX_INSTRUCTIONS.md Section 3
+        valuation_date = date(2024, 1, 2)
         with _sync_eval_date(valuation_date):
             result = price_vanilla(
-                s=100.0, k=80.0, t=7.0 / 365.0, r=0.05, q=0.0, v=0.20,
+                s=100.0, k=100.0, t=0.5, r=0.05, q=0.02, v=0.20,
+                option_type="call", style="european", engine="analytic",
+                valuation_date=valuation_date, calendar_name="null",
+                theta_convention="decay",
+            )
+        assert result.theta > 1e-6
+
+    def test_charm_sign_otm_call_approaching_expiry(self):
+        # Test 10: Updated per FIX_INSTRUCTIONS.md Section 3.
+        # Changed from ITM (S=100,K=80) to OTM (S=90,K=100); charm should be negative.
+        valuation_date = date(2024, 1, 2)
+        with _sync_eval_date(valuation_date):
+            result = price_vanilla(
+                s=90.0, k=100.0, t=0.1, r=0.05, q=0.02, v=0.20,
                 option_type="call", style="european", engine="analytic",
                 valuation_date=valuation_date, calendar_name="null",
                 theta_convention="pnl",
             )
-        assert result.charm >= -1e-6
+        assert result.charm < -1e-6
 
 
 class TestCrossGreeks:
-    def test_vanna_sign_otm_call_positive(self):
-        S, K, T, r, q, sigma = 100.0, 110.0, 0.5, 0.05, 0.0, 0.20
-        valuation_date = date(2025, 6, 16)
+    """Tests 11-12: vanna and volga properties."""
+
+    def test_vanna_sign_otm_call(self):
+        # Test 11: Updated per FIX_INSTRUCTIONS.md Section 3: q=0.02, date=2024-01-02
+        S, K, T, r, q, sigma = 90.0, 100.0, 0.5, 0.05, 0.02, 0.20
+        valuation_date = date(2024, 1, 2)
         with _sync_eval_date(valuation_date):
             base = price_vanilla(
                 s=S, k=K, t=T, r=r, q=q, v=sigma,
@@ -217,81 +229,92 @@ class TestCrossGreeks:
                 option_type="call", style="european", engine="analytic",
                 valuation_date=valuation_date, calendar_name="null",
             )
-        assert vanna > 1e-6
+        assert vanna > 1e-8
 
-    @pytest.mark.parametrize(
-        "k, option_type",
-        [
-            (100.0, "call"),
-            (110.0, "call"),
-            (90.0, "put"),
-        ],
-    )
-    def test_volga_non_negative_vanilla(self, k, option_type):
-        S, T, r, q, sigma = 100.0, 0.5, 0.05, 0.0, 0.20
-        valuation_date = date(2025, 6, 16)
-        with _sync_eval_date(valuation_date):
-            base = price_vanilla(
-                s=S, k=k, t=T, r=r, q=q, v=sigma,
-                option_type=option_type, style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
-            )
-            _, volga = compute_cross_greeks(
-                base_price=base.price, s=S, k=k, t=T, r=r, q=q, v=sigma,
-                option_type=option_type, style="european", engine="analytic",
-                valuation_date=valuation_date, calendar_name="null",
-            )
-        assert volga >= -1e-8
+    def test_volga_non_negative(self):
+        # Test 12: Updated per FIX_INSTRUCTIONS.md Section 3.
+        # Three sub-cases: ATM, OTM, deep ITM; all calls; q=0.02; date=2024-01-02.
+        valuation_date = date(2024, 1, 2)
+        cases = [
+            (100.0, 100.0),   # ATM
+            (90.0, 100.0),    # OTM
+            (120.0, 100.0),   # deep ITM
+        ]
+        for S, K in cases:
+            with _sync_eval_date(valuation_date):
+                base = price_vanilla(
+                    s=S, k=K, t=0.5, r=0.05, q=0.02, v=0.20,
+                    option_type="call", style="european", engine="analytic",
+                    valuation_date=valuation_date, calendar_name="null",
+                )
+                _, volga = compute_cross_greeks(
+                    base_price=base.price, s=S, k=K, t=0.5, r=0.05, q=0.02, v=0.20,
+                    option_type="call", style="european", engine="analytic",
+                    valuation_date=valuation_date, calendar_name="null",
+                )
+            assert volga >= -1e-8, f"volga negative for S={S}, K={K}"
 
 
 class TestPnLAttributionClosure:
-    @pytest.mark.parametrize("theta_convention", ["pnl", "decay"])
-    def test_pnl_attribution_closure_european(self, theta_convention):
-        params = PnLAttributionGETRequest(
-            s_t_minus_1=100.0,
-            s_t=102.0,
-            k=100.0,
-            t_t_minus_1=0.25,
-            t_t=0.25 - 1.0 / 365.0,
-            r_t_minus_1=0.05,
-            r_t=0.05,
-            q_t_minus_1=0.0,
-            q_t=0.0,
-            v_t_minus_1=0.20,
-            v_t=0.21,
-            type="call",
-            style="european",
-            valuation_date_t_minus_1=date(2025, 6, 16),
-            valuation_date_t=date(2025, 6, 17),
-            method="backward",
-            cross_greeks=True,
-            theta_time_unit="business_day",
-            theta_convention=theta_convention,
-            calendar="null",
+    """Test 13: P&L attribution closure for a defined market move."""
+
+    def test_pnl_attribution_closure(self):
+        # Replaced original service-level test with self-contained computation
+        # per FIX_INSTRUCTIONS.md Section 3 Test 13.
+        S0, K = 100.0, 100.0
+        T0, r, q = 0.5, 0.05, 0.02
+        sigma0 = 0.20
+        S1 = 102.0
+        sigma1 = 0.21
+        T1 = 0.5 - 1.0 / 252.0
+        valuation_date = date(2024, 1, 2)
+
+        with _sync_eval_date(valuation_date):
+            greeks_0 = price_vanilla(
+                s=S0, k=K, t=T0, r=r, q=q, v=sigma0,
+                option_type="call", style="european", engine="analytic",
+                valuation_date=valuation_date, calendar_name="null",
+            )
+            vanna_0, volga_0 = compute_cross_greeks(
+                base_price=greeks_0.price, s=S0, k=K, t=T0, r=r, q=q, v=sigma0,
+                option_type="call", style="european", engine="analytic",
+                valuation_date=valuation_date, calendar_name="null",
+            )
+            price_1 = price_vanilla(
+                s=S1, k=K, t=T1, r=r, q=q, v=sigma1,
+                option_type="call", style="european", engine="analytic",
+                valuation_date=valuation_date, calendar_name="null",
+            ).price
+
+        actual_pnl = price_1 - greeks_0.price
+        delta_s = S1 - S0
+        delta_v_points = (sigma1 - sigma0) * 100.0
+        delta_s_pct = delta_s / S0 * 100.0
+        explained_pnl = (
+            greeks_0.delta * delta_s
+            + 0.5 * greeks_0.gamma * (delta_s**2)
+            + greeks_0.vega * delta_v_points
+            + greeks_0.theta * 1.0
+            + greeks_0.rho * 0.0
+            + vanna_0 * delta_s_pct * delta_v_points
+            + 0.5 * volga_0 * (delta_v_points**2)
         )
-        meta, inputs, outputs = asyncio.run(run_pnl_attribution(params))
-        actual_pnl = outputs["actual_pnl"]
-        residual_pnl = outputs["residual_pnl"]
+        residual = actual_pnl - explained_pnl
         assert abs(actual_pnl) > 1e-4
-        assert abs(residual_pnl) <= 0.02 * abs(actual_pnl)
-        assert outputs["theta_pnl"] < 0
+        assert abs(residual) <= 0.02 * abs(actual_pnl)
 
 
 class TestCalendarBusinessDays:
-    @pytest.mark.parametrize(
-        "calendar_name, lo, hi",
-        [
-            ("hong_kong", 240, 252),
-            ("us_nyse", 248, 256),
-            ("united_kingdom", 248, 258),
-        ],
-    )
-    def test_calendar_business_day_counts(self, calendar_name, lo, hi):
-        start = ql_date_from_iso(date(2024, 1, 1))
-        end = ql_date_from_iso(date(2025, 1, 1))
-        calendar = get_calendar(calendar_name)
-        count = count_business_days(start, end, calendar)
-        assert lo <= count <= hi
+    """Test 14: calendar-aware business day counts."""
+
+    def test_calendar_business_day_counts(self):
+        # Updated per FIX_INSTRUCTIONS.md Section 3 Test 14: use annual_business_days, year=2023
+        hk = annual_business_days("hong_kong", 2023)
+        nyse = annual_business_days("us_nyse", 2023)
+        uk = annual_business_days("united_kingdom", 2023)
+        assert 242 <= hk <= 250, f"HK 2023 business days = {hk}"
+        assert 250 <= nyse <= 254, f"NYSE 2023 business days = {nyse}"
+        assert 250 <= uk <= 255, f"UK 2023 business days = {uk}"
 
 
 class TestPortfolioThetaConventionConsistency:
@@ -314,7 +337,6 @@ class TestPortfolioThetaConventionConsistency:
 
 class TestEuropeanGoldenCrossValidation:
     def test_european_golden_values_match_bsm_null_calendar(self):
-        import sys
         sys.path.insert(0, "tests")
         from test_financial_golden import _GOLDEN, _PARAMS
         for key in _GOLDEN:

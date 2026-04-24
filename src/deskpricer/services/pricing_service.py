@@ -8,13 +8,15 @@ from typing import Any, Callable
 from deskpricer import __version__ as service_version
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.conventions import (
-    ANNUAL_TRADING_DAYS,
     CALENDAR_DAYS_PER_YEAR,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
     DEFAULT_CALENDAR,
     DEFAULT_STEPS,
+    IV_SOLVER_DEFAULT_ACCURACY,
+    IV_SOLVER_MAX_ITERATIONS,
+    annual_business_days,
     count_business_days,
     get_calendar,
     ql_date_from_iso,
@@ -188,9 +190,9 @@ async def run_impliedvol(
         inputs["steps"] = params.steps
     if params.calendar != DEFAULT_CALENDAR:
         inputs["calendar"] = params.calendar
-    if params.accuracy != 1e-4:
+    if params.accuracy != IV_SOLVER_DEFAULT_ACCURACY:
         inputs["accuracy"] = params.accuracy
-    if params.max_iterations != 1000:
+    if params.max_iterations != IV_SOLVER_MAX_ITERATIONS:
         inputs["max_iterations"] = params.max_iterations
     if not params.verify_reprice:
         inputs["verify_reprice"] = False
@@ -309,6 +311,7 @@ async def run_pnl_attribution(
     delta_s = params.s_t - params.s_t_minus_1
     delta_v_points = (params.v_t - params.v_t_minus_1) * 100.0
     delta_r_points = (params.r_t - params.r_t_minus_1) * 100.0
+    delta_s_pct = delta_s / params.s_t_minus_1 * 100.0
     delta_pnl = greeks_t_minus_1.delta * delta_s
     gamma_pnl = 0.5 * greeks_t_minus_1.gamma * (delta_s**2)
     if method == "average":
@@ -319,11 +322,11 @@ async def run_pnl_attribution(
         rho_pnl = greeks_t_minus_1.rho * delta_r_points
     if params.theta_time_unit == "calendar_day":
         # Convert per-business-day theta to per-calendar-day rate using the
-        # fixed 252/365 ratio (see CONVENTIONS.md §4), preventing overstatement
-        # of decay over weekends/holidays.
+        # calendar-aware business day count (see CONVENTIONS.md §4), preventing
+        # overstatement of decay over weekends/holidays.
         theta_pnl = (
             greeks_t_minus_1.theta
-            * (ANNUAL_TRADING_DAYS / CALENDAR_DAYS_PER_YEAR)
+            * (annual_business_days(params.calendar, valuation_date_t_minus_1.year) / CALENDAR_DAYS_PER_YEAR)
             * calendar_days
         )
     else:
@@ -336,7 +339,7 @@ async def run_pnl_attribution(
             volga = (volga_t_m1 + volga_t) / 2.0
         else:
             vanna, volga = vanna_t_m1, volga_t_m1
-        vanna_pnl_per_unit = vanna * delta_s * delta_v_points
+        vanna_pnl_per_unit = vanna * delta_s_pct * delta_v_points
         volga_pnl_per_unit = 0.5 * volga * (delta_v_points**2)
     actual_pnl = greeks_t.price - greeks_t_minus_1.price
     explained_pnl = (

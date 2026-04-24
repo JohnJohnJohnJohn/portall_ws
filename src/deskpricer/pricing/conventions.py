@@ -54,13 +54,15 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError
 
 from deskpricer.pricing.constants import (  # noqa: F401
-    ANNUAL_TRADING_DAYS,
     CALENDAR_DAYS_PER_YEAR,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
     DEFAULT_STEPS,
+    IV_SOLVER_DEFAULT_ACCURACY,
+    IV_SOLVER_MAX_ITERATIONS,
     MAX_EXPIRY_T_DISCREPANCY,
+    MAX_NEXT_BD_SEARCH_DAYS,
     MIN_T_YEARS,
     SPOT_DIVERGENCE_THRESHOLD,
 )
@@ -162,7 +164,7 @@ def expiry_from_t(valuation_date: ql.Date, t: float, calendar: ql.Calendar) -> q
 def next_business_day(date: ql.Date, calendar: ql.Calendar) -> ql.Date:
     """Return the next business day strictly after ``date`` according to ``calendar``."""
     d = date + 1
-    max_days = 30
+    max_days = MAX_NEXT_BD_SEARCH_DAYS
     days_checked = 0
     while not calendar.isBusinessDay(d):
         d += 1

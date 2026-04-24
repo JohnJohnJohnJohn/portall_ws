@@ -95,7 +95,14 @@ class TestAmericanPriceBounds:
         exercise = ql.EuropeanExercise(expiry)
         eu_option = ql.VanillaOption(payoff, exercise)
         eu_option.setPricingEngine(ql.BinomialVanillaEngine(process, "crr", DEFAULT_STEPS))
-        p_eu_tree = float(eu_option.NPV())
+        # Direct engine calls must align the global evaluation date or QuantLib
+        # may reject the option as expired when a prior test left the date stale.
+        old_eval = ql.Settings.instance().evaluationDate
+        try:
+            ql.Settings.instance().evaluationDate = today
+            p_eu_tree = float(eu_option.NPV())
+        finally:
+            ql.Settings.instance().evaluationDate = old_eval
         # Tree discretization can occasionally make the American CRR price slightly
         # below the European CRR price (e.g. r=0 where early-exercise premium is
         # zero, or extreme vol where node spacing amplifies round-off).  Allow a
@@ -247,21 +254,27 @@ class TestCrossGreeksBSMConsistency:
 
         s, k, t, r, q, v = 100.0, 100.0, 0.25, 0.05, 0.0, 0.20
         val_date = datetime.date(2026, 4, 20)
-        base = price_european(s, k, t, r, q, v, "call", val_date)
-
-        vanna_num, volga_num = compute_cross_greeks(
-            base_price=base.price,
-            s=s,
-            k=k,
-            t=t,
-            r=r,
-            q=q,
-            v=v,
-            option_type="call",
-            style="european",
-            engine="analytic",
-            valuation_date=val_date,
-        )
+        ql_val = ql_date_from_iso(val_date)
+        # Direct engine calls must align the global evaluation date.
+        old_eval = ql.Settings.instance().evaluationDate
+        try:
+            ql.Settings.instance().evaluationDate = ql_val
+            base = price_european(s, k, t, r, q, v, "call", val_date)
+            vanna_num, volga_num = compute_cross_greeks(
+                base_price=base.price,
+                s=s,
+                k=k,
+                t=t,
+                r=r,
+                q=q,
+                v=v,
+                option_type="call",
+                style="european",
+                engine="analytic",
+                valuation_date=val_date,
+            )
+        finally:
+            ql.Settings.instance().evaluationDate = old_eval
 
         d1 = (math.log(s / k) + (r - q + 0.5 * v * v) * t) / (v * math.sqrt(t))
         d2 = d1 - v * math.sqrt(t)

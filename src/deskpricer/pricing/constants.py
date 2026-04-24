@@ -59,3 +59,12 @@ IV_REPRICE_RELATIVE_TOLERANCE: float = 0.001
 
 VOL_BUMP_CAP_FACTOR: float = 0.5
 """CONVENTIONS.md §4: Cap at 50% of current vol ensures the down-bumped vol is always positive."""
+
+MAX_NEXT_BD_SEARCH_DAYS: int = 30
+"""Maximum calendar days to scan when searching for the next business day; guards against infinite loop over holiday clusters."""
+
+IV_SOLVER_DEFAULT_ACCURACY: float = 1e-4
+"""Default Brent solver accuracy for IV root finding; tighter than QuantLib's own default to minimise reprice residual."""
+
+IV_SOLVER_MAX_ITERATIONS: int = 1000
+"""Maximum Brent iterations; sufficient for all practical BSM IV searches."""

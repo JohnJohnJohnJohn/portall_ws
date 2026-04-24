@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.1.0 — 2026-04-24
+
+### Fixed
+- **Vanna P&L dimensional inconsistency** — `run_pnl_attribution` now converts the absolute spot move to a percentage (`ΔS_pct = ΔS / S₀ × 100`) before applying the vanna term, matching the documented unit of vanna (per 1% relative spot move per vol-point).
+- **Calendar-day theta not calendar-aware** — `run_pnl_attribution` now uses `annual_business_days(calendar, year)` instead of the hardcoded `252` in the calendar-day theta conversion, fixing ~2.4% overstatement for HK options.
+
+### Added
+- `CONVENTIONS.md` — Single source of truth for financial units, sign conventions, scaling factors, named constants, and P&L attribution formulas.
+- `tests/test_financial_regression.py` — 14 financial regression tests with independent pure-Python BSM reference implementation (Tests 1-14 per FIX_INSTRUCTIONS.md).
+- `tests/test_conventions_doc_exists.py` — Structural guard asserting `CONVENTIONS.md` exists.
+- `MAX_NEXT_BD_SEARCH_DAYS`, `IV_SOLVER_DEFAULT_ACCURACY`, `IV_SOLVER_MAX_ITERATIONS` named constants in `src/deskpricer/pricing/constants.py`.
+
+### Changed
+- `implied_vol.py` function signature defaults now use `IV_SOLVER_DEFAULT_ACCURACY` and `IV_SOLVER_MAX_ITERATIONS`.
+- `schemas.py` and `pricing_service.py` now use `IV_SOLVER_DEFAULT_ACCURACY` and `IV_SOLVER_MAX_ITERATIONS` instead of inline literals.
+- `conventions.py` no longer re-exports dead constant `ANNUAL_TRADING_DAYS`.
+
 ## 3.0.1 — 2026-04-24
 
 ### Fixed

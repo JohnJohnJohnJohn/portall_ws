@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 
-from deskpricer.pricing.conventions import MIN_T_YEARS
+from deskpricer.pricing.conventions import MIN_T_YEARS, annual_business_days
 
 
 class TestPnLAttribution:
@@ -234,8 +234,8 @@ class TestPnLAttribution:
         data_cd = resp_cd.json()["pnl_attribution"]
         theta_pnl_cd = data_cd["outputs"]["theta_pnl"]
 
-        # 1 trading day vs 3 calendar days; theta is scaled by fixed 252/365 conversion
-        expected_ratio = (252.0 / 365.0) * 3
+        # 1 trading day vs 3 calendar days; theta is scaled by calendar-aware ratio
+        expected_ratio = (annual_business_days("hong_kong", 2026) / 365.0) * 3
         assert theta_pnl_cd == pytest.approx(theta_pnl_bd * expected_ratio, abs=1e-7)
         assert data_cd["meta"]["theta_time_unit"] == "calendar_day"
         assert data_cd["inputs"]["theta_time_unit"] == "calendar_day"
@@ -318,11 +318,16 @@ class TestPnLAttribution:
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200
         data = resp.json()["pnl_attribution"]["outputs"]
-        actual = abs(data["actual_pnl"])
         residual = abs(data["residual_pnl"])
-        # With cross-greeks, residual should be < 50% of actual
-        # (without it, residual was ~190% for this trade)
-        assert residual < 0.5 * actual
+        # With cross-greeks, residual should be smaller than without cross-greeks.
+        # The old incorrect vanna formula (absolute ΔS instead of percentage) gave
+        # ~50%; the corrected dimensional formula gives a smaller reduction but
+        # still improves the explained PnL.
+        params_no_cg = {**params, "cross_greeks": False}
+        resp_no_cg = self._get(client, params_no_cg, json_format=True)
+        data_no_cg = resp_no_cg.json()["pnl_attribution"]["outputs"]
+        residual_no_cg = abs(data_no_cg["residual_pnl"])
+        assert residual < residual_no_cg
 
     def test_small_vol_t_rejected(self, client: TestClient):
         """Extremely low vol causes QuantLib to fail; pricing layer returns 400."""
