@@ -324,7 +324,7 @@ When `cross_greeks=true`, the PnL attribution adds two second-order terms that c
 
 | Bucket | Definition | When it matters |
 |--------|-----------|-----------------|
-| `vanna_pnl` | Vanna × ΔS × Δvol_points | Large simultaneous spot and vol moves (e.g. a rally with vol crush) |
+| `vanna_pnl` | Vanna × ΔS_pct × Δvol_points, where `ΔS_pct = (ΔS / S₀) × 100` | Large simultaneous spot and vol moves (e.g. a rally with vol crush) |
 | `volga_pnl` | ½ × Volga × (Δvol_points)² | Large vol-of-vol moves |
 
 **Computation**: Vanna (∂²V/∂S∂σ) and volga (∂²V/∂σ²) are computed via uniform finite differences using the same bump conventions as the main Greeks (`bump_spot_rel=0.01`, `bump_vol_abs=0.001`).  `method=average` averages the cross-Greeks at t−1 and t; `method=backward` uses t−1 only.
@@ -334,6 +334,9 @@ When `cross_greeks=true`, the PnL attribution adds two second-order terms that c
 | `bump_spot_rel` | float | No | Relative spot bump. Default: 0.01 |
 | `bump_vol_abs` | float | No | Absolute vol bump. Default: 0.001 |
 | `bump_rate_abs` | float | No | Absolute rate bump. Default: 0.001 |
+| `calendar` | enum | No | `hong_kong`, `us_nyse`, `us_settlement`, `united_kingdom`, `null`. Default: `hong_kong` |
+| `theta_convention` | `pnl` / `decay` | No | Theta sign convention. Default: `pnl` |
+| `theta_time_unit` | `business_day` / `calendar_day` | No | Time unit for theta scaling. Default: `business_day`. `calendar_day` converts per-business-day theta to a per-calendar-day rate using `annual_business_days(calendar, year) / 365` before multiplying by elapsed calendar days. |
 
 #### Response (XML)
 
