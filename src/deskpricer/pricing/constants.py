@@ -54,5 +54,8 @@ IV_TOLERANCE_MULTIPLIER_TREE: int = 50
 IV_HIGH_VOL_WARNING_THRESHOLD: float = 2.0
 """CONVENTIONS.md §4: 200% IV warning threshold for data quality."""
 
+IV_REPRICE_RELATIVE_TOLERANCE: float = 0.001
+"""CONVENTIONS.md §4: Relative tolerance (0.1% of target price) for IV reprice verification."""
+
 VOL_BUMP_CAP_FACTOR: float = 0.5
 """CONVENTIONS.md §4: Cap at 50% of current vol ensures the down-bumped vol is always positive."""

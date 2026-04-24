@@ -171,6 +171,7 @@ async def run_impliedvol(
             accuracy=params.accuracy,
             max_iterations=params.max_iterations,
             calendar_name=params.calendar,
+            verify_reprice=params.verify_reprice,
         )
     meta = _meta(params.engine, valuation_date)
     inputs: dict[str, Any] = {
@@ -191,6 +192,8 @@ async def run_impliedvol(
         inputs["accuracy"] = params.accuracy
     if params.max_iterations != 1000:
         inputs["max_iterations"] = params.max_iterations
+    if not params.verify_reprice:
+        inputs["verify_reprice"] = False
     return meta, inputs, result.model_dump()
 
 

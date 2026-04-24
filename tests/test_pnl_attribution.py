@@ -178,8 +178,19 @@ class TestPnLAttribution:
         assert data["theta_pnl"] < 0
         assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)
 
-    def test_omit_both_dates_diff_t(self, client: TestClient):
-        """Omitting both dates with 1-day t decay: theta_pnl = theta * trading_days."""
+    def test_omit_both_dates_diff_t(self, client: TestClient, monkeypatch):
+        """Omitting both dates with 1-day t decay: theta_pnl = theta * trading_days.
+        Mocked to a weekday so next_business_day is exactly 1 calendar day."""
+        from datetime import date
+
+        class _FixedDate(date):
+            @classmethod
+            def today(cls):
+                return cls(2026, 4, 21)  # Tuesday → next BD is 1 cal day
+
+        monkeypatch.setattr(
+            "deskpricer.services.pricing_service.date", _FixedDate
+        )
         params = self._base_params(t_t=0.25 - MIN_T_YEARS)
         del params["valuation_date_t_minus_1"]
         del params["valuation_date_t"]
@@ -282,7 +293,8 @@ class TestPnLAttribution:
 
     def test_cross_greeks_reduces_residual_on_large_move(self, client: TestClient):
         """The user's problematic trade: large spot + vol move.
-        cross_greeks should cut residual dramatically."""
+        cross_greeks should cut residual dramatically.
+        Hard-coded valuation dates avoid Friday→Monday weekend jumps."""
         params = {
             "s_t_minus_1": 702.5,
             "s_t": 738.5,
@@ -300,6 +312,8 @@ class TestPnLAttribution:
             "qty": 1,
             "method": "backward",
             "cross_greeks": True,
+            "valuation_date_t_minus_1": "2026-04-23",
+            "valuation_date_t": "2026-04-23",
         }
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 200

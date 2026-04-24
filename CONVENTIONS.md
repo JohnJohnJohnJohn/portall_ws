@@ -194,6 +194,7 @@ as an inline literal in any business-logic file.
 | `IV_TOLERANCE_MULTIPLIER_ANALYTIC` | `10` | `implied_vol.py` (inline) | Analytic engine re-price tolerance = `10 × accuracy`; tight because the analytic engine has no discretisation noise. | No. |
 | `IV_TOLERANCE_MULTIPLIER_TREE` | `50` | `implied_vol.py` (inline) | Tree engine re-price tolerance = `50 × accuracy`; relaxed to accommodate binomial discretisation error at 500 steps. | No. |
 | `IV_HIGH_VOL_WARNING_THRESHOLD` | `2.0` | `implied_vol.py` (inline) | Log a warning when solved IV exceeds 200%; indicates likely data-quality issue. | No. |
+| `IV_REPRICE_RELATIVE_TOLERANCE` | `0.001` | `implied_vol.py` (inline) | Relative tolerance (0.1% of target price) for IV reprice verification; prevents over-tight rejection on high-nominal underlyings. | No. |
 | `SPOT_DIVERGENCE_THRESHOLD` | `0.05` | `schemas.py` (`check_spot_divergence`) | Portfolio legs with spot prices diverging by more than 5% receive a warning that aggregate Greeks are a linear approximation across independent positions. | No. |
 | `VOL_BUMP_CAP_FACTOR` | `0.5` | `american.py`, `cross_greeks.py` (inline) | Vol bump is capped at `v × 0.5` to ensure `v − bump > 0`; prevents negative vol in the down-bump leg of finite differences. | No. |
 

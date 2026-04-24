@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.1 — 2026-04-24
+
+### Fixed
+- **Date-dependent test fragility** — Three tests that relied on `date.today()` or direct QuantLib engine calls without global evaluation date management broke when the calendar rolled from Thursday to Friday:
+  - `test_impliedvol_high_vol_warning` now sets `ql.Settings.instance().evaluationDate` before calling `compute_implied_vol` directly.
+  - `test_omit_both_dates_diff_t` now mocks `date.today()` to a weekday so `next_business_day` is exactly 1 calendar day away.
+  - `test_cross_greeks_reduces_residual_on_large_move` now uses explicit valuation dates to avoid Friday→Monday weekend jumps in theta and expiry calculations.
+
 ## 3.0.0 — 2026-04-23
 
 ### Fixed

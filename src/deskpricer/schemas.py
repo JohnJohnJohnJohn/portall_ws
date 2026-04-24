@@ -233,6 +233,11 @@ class ImpliedVolRequest(_VanillaOptionCoreBase):
         default=1e-4, gt=0, le=1e-2, allow_inf_nan=False, description="Brent solver accuracy"
     )
     max_iterations: int = Field(default=1000, ge=100, le=10000, description="Max solver iterations")
+    verify_reprice: bool = Field(
+        default=True,
+        description="If False, skip the post-solver NPV reprice verification. "
+        "Useful for exotic or illiquid options where QuantLib round-trip noise exceeds tolerance.",
+    )
 
 
 class ImpliedVolOutput(BaseModel):

@@ -9,6 +9,7 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError, UnsupportedCombinationError
 from deskpricer.pricing.constants import (
     IV_HIGH_VOL_WARNING_THRESHOLD,
+    IV_REPRICE_RELATIVE_TOLERANCE,
     IV_SEED_VOL,
     IV_SOLVER_VOL_HI,
     IV_SOLVER_VOL_HI_RETRY,
@@ -51,6 +52,7 @@ def compute_implied_vol(
     accuracy: float = 1e-4,
     max_iterations: int = 1000,
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
+    verify_reprice: bool = True,
 ) -> ImpliedVolOutput:
     """Solve for implied volatility given an observed market price."""
     if not math.isfinite(t):
@@ -217,10 +219,17 @@ def compute_implied_vol(
     tolerance_multiplier = (
         IV_TOLERANCE_MULTIPLIER_TREE if is_tree_engine else IV_TOLERANCE_MULTIPLIER_ANALYTIC
     )
-    if abs(npv_at_iv - target_price) > tolerance_multiplier * accuracy:
+    # Hybrid tolerance: base accuracy multiplier with a relative scale
+    # (0.1% of target price) to prevent over-tight rejection on
+    # high-nominal underlyings.
+    effective_tolerance = max(
+        tolerance_multiplier * accuracy,
+        IV_REPRICE_RELATIVE_TOLERANCE * target_price,
+    )
+    if verify_reprice and abs(npv_at_iv - target_price) > effective_tolerance:
         raise InvalidInputError(
             f"Solved NPV {npv_at_iv:.6f} deviates from target {target_price:.6f} "
-            f"by more than tolerance {tolerance_multiplier * accuracy:.6f}",
+            f"by more than tolerance {effective_tolerance:.6f}",
             field="price",
         )
 

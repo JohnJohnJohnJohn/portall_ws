@@ -401,23 +401,33 @@ class TestImpliedVol:
     def test_impliedvol_high_vol_warning(self, client: TestClient, caplog):
         """Solved IV > 200%% should emit a WARNING-level log entry."""
         import logging
+        from datetime import date
+
+        import QuantLib as ql
 
         import deskpricer.pricing.implied_vol as iv_mod
 
-        # Deep ITM call with very short expiry forces high IV
-        with caplog.at_level(logging.WARNING, logger="deskpricer"):
-            result = iv_mod.compute_implied_vol(
-                s=100,
-                k=200,
-                t=0.01,
-                r=0.05,
-                q=0,
-                target_price=0.5,
-                option_type="call",
-                style="european",
-                engine="analytic",
-                valuation_date=__import__("datetime").date(2026, 4, 20),
-            )
+        # Deep ITM call with very short expiry forces high IV.
+        # Direct engine calls must set the global QuantLib evaluation date
+        # because impliedVolatility() checks it against the exercise date.
+        old_eval = ql.Settings.instance().evaluationDate
+        try:
+            ql.Settings.instance().evaluationDate = ql.Date(20, 4, 2026)
+            with caplog.at_level(logging.WARNING, logger="deskpricer"):
+                result = iv_mod.compute_implied_vol(
+                    s=100,
+                    k=200,
+                    t=0.01,
+                    r=0.05,
+                    q=0,
+                    target_price=0.5,
+                    option_type="call",
+                    style="european",
+                    engine="analytic",
+                    valuation_date=date(2026, 4, 20),
+                )
+        finally:
+            ql.Settings.instance().evaluationDate = old_eval
         assert result.implied_vol > 2.0
         assert "exceeds 200%" in caplog.text
 
