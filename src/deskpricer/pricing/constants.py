@@ -21,6 +21,9 @@ DEFAULT_BUMP_VOL_ABS: float = 0.001
 DEFAULT_BUMP_RATE_ABS: float = 0.001
 """CONVENTIONS.md §4: 0.1 rate-point absolute rate bump (0.1% decimal)."""
 
+DEFAULT_BORROW_COST: float = 0.0
+"""CONVENTIONS.md §4: Default stock borrow cost (zero = no borrow cost)."""
+
 SPOT_DIVERGENCE_THRESHOLD: float = 0.05
 """CONVENTIONS.md §4: 5% relative spot divergence beyond which portfolio aggregate Greeks are a coarse approximation."""
 

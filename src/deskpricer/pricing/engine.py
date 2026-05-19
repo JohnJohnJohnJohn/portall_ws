@@ -34,6 +34,7 @@ def price_vanilla(
     style: str,
     engine: EngineLiteral,
     valuation_date: date,
+    b: float = 0.0,
     steps: int = DEFAULT_STEPS,
     bump_spot_rel: float = DEFAULT_BUMP_SPOT_REL,
     bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
@@ -45,7 +46,7 @@ def price_vanilla(
             f"option_type must be 'call' or 'put'; got {option_type}",
             field="type",
         )
-    for name, val in (("s", s), ("k", k), ("t", t), ("r", r), ("q", q), ("v", v)):
+    for name, val in (("s", s), ("k", k), ("t", t), ("r", r), ("q", q), ("b", b), ("v", v)):
         if not math.isfinite(val):
             raise UnsupportedCombinationError(f"{name} must be a finite number", field=name)
     if t < 0:
@@ -70,6 +71,7 @@ def price_vanilla(
             v,
             option_type,
             valuation_date,
+            b=b,
             calendar_name=calendar_name,
         )
 
@@ -96,6 +98,7 @@ def price_vanilla(
             valuation_date,
             steps,
             ql_engine,
+            b=b,
             bump_spot_rel=bump_spot_rel,
             bump_vol_abs=bump_vol_abs,
             bump_rate_abs=bump_rate_abs,

@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, model_validator
 from deskpricer.pricing.conventions import (
     CalendarLiteral,
     DAY_COUNT,
+    DEFAULT_BORROW_COST,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
@@ -65,6 +66,17 @@ class _VanillaOptionCoreBase(_EngineDefaultsMixin, BaseModel):
     )
     q: float = Field(
         ge=-1.0, le=5.0, allow_inf_nan=False, description="Continuously compounded dividend yield"
+    )
+    b: float = Field(
+        default=DEFAULT_BORROW_COST,
+        ge=-0.5,
+        le=5.0,
+        allow_inf_nan=False,
+        description=(
+            "Annualized continuously compounded stock borrow cost (decimal, not %). "
+            "Reduces the effective cost-of-carry: carry = r - q - b. "
+            "Default 0.0 (no borrow cost)."
+        ),
     )
     type: Literal["call", "put"] = Field(description="Option type")
     style: Literal["european", "american"] = Field(description="Option style")
@@ -248,6 +260,14 @@ class PnLAttributionGETRequest(_EngineDefaultsMixin, _BumpParamsMixin, BaseModel
     r_t: float = Field(ge=-1.0, le=5.0, allow_inf_nan=False)
     q_t_minus_1: float = Field(ge=-1.0, le=5.0, allow_inf_nan=False)
     q_t: float = Field(ge=-1.0, le=5.0, allow_inf_nan=False)
+    b_t_minus_1: float = Field(
+        default=DEFAULT_BORROW_COST, ge=-0.5, le=5.0, allow_inf_nan=False,
+        description="Borrow cost at t-1 (decimal)."
+    )
+    b_t: float = Field(
+        default=DEFAULT_BORROW_COST, ge=-0.5, le=5.0, allow_inf_nan=False,
+        description="Borrow cost at t (decimal)."
+    )
     v_t_minus_1: float = Field(gt=0, allow_inf_nan=False)
     v_t: float = Field(gt=0, allow_inf_nan=False)
     type: Literal["call", "put"]

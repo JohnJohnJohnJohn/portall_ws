@@ -852,3 +852,124 @@ class TestPortfolioQtyZero:
         for greek in ["delta", "gamma", "vega", "theta", "rho", "charm"]:
             assert abs(agg[greek] - 2 * legs[0][greek]) < 1e-6
             assert isinstance(legs[1][greek], float)
+
+
+class TestBorrowCost:
+    def test_greeks_zero_borrow_default_matches_explicit(self, client: TestClient):
+        """Omitting b should produce identical output to b=0.0."""
+        base = {
+            "s": 100,
+            "k": 100,
+            "t": 0.25,
+            "r": 0.05,
+            "q": 0.02,
+            "v": 0.20,
+            "type": "call",
+            "style": "european",
+        }
+        resp_default = client.get("/v1/greeks", params=base, headers={"Accept": "application/json"})
+        resp_explicit = client.get(
+            "/v1/greeks", params={**base, "b": 0.0}, headers={"Accept": "application/json"}
+        )
+        assert resp_default.status_code == 200
+        assert resp_explicit.status_code == 200
+        assert resp_default.json()["greeks"]["outputs"] == resp_explicit.json()["greeks"]["outputs"]
+
+    def test_portfolio_with_borrow_cost(self, client: TestClient):
+        """Portfolio with b=0.03 on each leg should return valid aggregate delta."""
+        payload = {
+            "legs": [
+                {
+                    "id": "L1",
+                    "qty": 1,
+                    "s": 100,
+                    "k": 105,
+                    "t": 0.25,
+                    "r": 0.05,
+                    "q": 0.02,
+                    "b": 0.03,
+                    "v": 0.22,
+                    "type": "call",
+                    "style": "european",
+                },
+                {
+                    "id": "L2",
+                    "qty": 1,
+                    "s": 100,
+                    "k": 95,
+                    "t": 0.25,
+                    "r": 0.05,
+                    "q": 0.02,
+                    "b": 0.03,
+                    "v": 0.22,
+                    "type": "put",
+                    "style": "european",
+                },
+            ]
+        }
+        resp = client.post(
+            "/v1/portfolio/greeks", json=payload, headers={"Accept": "application/json"}
+        )
+        assert resp.status_code == 200
+        agg = resp.json()["portfolio"]["aggregate"]
+        assert isinstance(agg["delta"], float)
+
+    def test_implied_vol_roundtrip_with_b(self, client: TestClient):
+        """Price a call with b=0.04, then solve IV passing b=0.04; should recover vol."""
+        base = {
+            "s": 100,
+            "k": 100,
+            "t": 0.5,
+            "r": 0.05,
+            "q": 0.02,
+            "b": 0.04,
+            "v": 0.20,
+            "type": "call",
+            "style": "european",
+        }
+        resp_price = client.get("/v1/greeks", params=base, headers={"Accept": "application/json"})
+        assert resp_price.status_code == 200
+        price = resp_price.json()["greeks"]["outputs"]["price"]
+
+        iv_params = {k: v for k, v in base.items() if k != "v"}
+        iv_params["price"] = price
+        resp_iv = client.get(
+            "/v1/impliedvol", params=iv_params, headers={"Accept": "application/json"}
+        )
+        assert resp_iv.status_code == 200
+        iv = resp_iv.json()["impliedvol"]["outputs"]["implied_vol"]
+        assert abs(iv - 0.20) < 1e-4
+
+    @pytest.mark.parametrize("value", [5.1, -0.51])
+    def test_borrow_cost_bounds_rejected(self, client: TestClient, value):
+        """b outside [-0.5, 5.0] should return 422."""
+        params = {
+            "s": 100,
+            "k": 100,
+            "t": 0.25,
+            "r": 0.05,
+            "q": 0,
+            "b": value,
+            "v": 0.20,
+            "type": "call",
+            "style": "european",
+        }
+        resp = client.get("/v1/greeks", params=params, headers={"Accept": "application/json"})
+        assert resp.status_code == 422
+        assert resp.json()["error"]["code"] == "INVALID_INPUT"
+
+    def test_borrow_cost_boundary_accepted(self, client: TestClient):
+        """b=5.0 should be accepted."""
+        params = {
+            "s": 100,
+            "k": 100,
+            "t": 0.25,
+            "r": 0.05,
+            "q": 0,
+            "b": 5.0,
+            "v": 0.20,
+            "type": "call",
+            "style": "european",
+        }
+        resp = client.get("/v1/greeks", params=params, headers={"Accept": "application/json"})
+        assert resp.status_code == 200

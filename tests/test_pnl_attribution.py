@@ -419,3 +419,41 @@ class TestPnLAttribution:
             )
         assert resp.status_code == 200
         assert any("auto-capped" in r.message for r in caplog.records)
+
+
+class TestBorrowCostPnL:
+    def _get(self, client, params, json_format=False):
+        headers = {"Accept": "application/json"} if json_format else {}
+        return client.get("/v1/pnl_attribution", params=params, headers=headers)
+
+    def test_pnl_attribution_with_borrow_cost(self, client: TestClient):
+        """PnL attribution with non-zero b_t_minus_1 and b_t should return valid outputs."""
+        params = {
+            "s_t_minus_1": 100.0,
+            "s_t": 100.0,
+            "k": 100.0,
+            "t_t_minus_1": 0.25,
+            "t_t": 0.25,
+            "r_t_minus_1": 0.05,
+            "r_t": 0.05,
+            "q_t_minus_1": 0.0,
+            "q_t": 0.0,
+            "b_t_minus_1": 0.03,
+            "b_t": 0.04,
+            "v_t_minus_1": 0.20,
+            "v_t": 0.20,
+            "type": "call",
+            "style": "european",
+            "qty": 1.0,
+            "valuation_date_t_minus_1": "2026-04-19",
+            "valuation_date_t": "2026-04-20",
+            "method": "backward",
+            "cross_greeks": False,
+        }
+        resp = self._get(client, params, json_format=True)
+        assert resp.status_code == 200
+        data = resp.json()["pnl_attribution"]
+        assert "inputs" in data
+        assert data["inputs"]["b_t_minus_1"] == 0.03
+        assert data["inputs"]["b_t"] == 0.04
+        assert isinstance(data["outputs"]["actual_pnl"], float)

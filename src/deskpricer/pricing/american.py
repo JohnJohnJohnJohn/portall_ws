@@ -34,6 +34,7 @@ def _npv(
     steps: int,
     engine_type: str,
     calendar: ql.Calendar,
+    b: float = 0.0,
 ) -> float:
     """Return the NPV of an American option.
 
@@ -49,7 +50,7 @@ def _npv(
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
-    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(valuation_date, q, day_count))
+    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(valuation_date, q + b, day_count))
     rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(valuation_date, r, day_count))
     vol_ts = ql.BlackVolTermStructureHandle(
         ql.BlackConstantVol(valuation_date, calendar, v, day_count)
@@ -81,6 +82,7 @@ def price_american(
     valuation_date: date,
     steps: int,
     engine_type: str,
+    b: float = 0.0,
     bump_spot_rel: float = DEFAULT_BUMP_SPOT_REL,
     bump_vol_abs: float = DEFAULT_BUMP_VOL_ABS,
     bump_rate_abs: float = DEFAULT_BUMP_RATE_ABS,
@@ -113,7 +115,8 @@ def price_american(
     calendar = get_calendar(calendar_name)
     expiry_date = expiry_from_t(ql_date, t, calendar)
 
-    price = _npv(s, k, r, q, v, option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    _common = (option_type, ql_date, expiry_date, steps, engine_type, calendar)
+    price = _npv(s, k, r, q, v, *_common, b=b)
 
     # Delta & Gamma via central differences on spot
     h_s = bump_spot_rel * s
@@ -122,9 +125,8 @@ def price_american(
             "Spot bump underflowed to zero; use larger spot or bump_spot_rel",
             field="bump_spot_rel",
         )
-    _common = (option_type, ql_date, expiry_date, steps, engine_type, calendar)
-    price_up_s = _npv(s + h_s, k, r, q, v, *_common)
-    price_down_s = _npv(s - h_s, k, r, q, v, *_common)
+    price_up_s = _npv(s + h_s, k, r, q, v, *_common, b=b)
+    price_down_s = _npv(s - h_s, k, r, q, v, *_common, b=b)
     delta = (price_up_s - price_down_s) / (2.0 * h_s)
     gamma = (price_up_s - 2.0 * price + price_down_s) / (h_s * h_s)
 
@@ -144,15 +146,15 @@ def price_american(
             "Vol bump underflowed to zero; use larger vol or bump_vol_abs",
             field="bump_vol_abs",
         )
-    price_up_v = _npv(s, k, r, q, v + h_v, *_common)
-    price_down_v = _npv(s, k, r, q, v - h_v, *_common)
+    price_up_v = _npv(s, k, r, q, v + h_v, *_common, b=b)
+    price_down_v = _npv(s, k, r, q, v - h_v, *_common, b=b)
     vega = (price_up_v - price_down_v) / (2.0 * h_v) / 100.0
 
     # Rho via central difference on rate
     # Divide by 100 to report standard market convention (per 1%)
     h_r = bump_rate_abs
-    price_up_r = _npv(s, k, r + h_r, q, v, *_common)
-    price_down_r = _npv(s, k, r - h_r, q, v, *_common)
+    price_up_r = _npv(s, k, r + h_r, q, v, *_common, b=b)
+    price_down_r = _npv(s, k, r - h_r, q, v, *_common, b=b)
     rho = (price_up_r - price_down_r) / (2.0 * h_r) / 100.0
 
     # Theta: P&L impact of one calendar day passing (forward-looking, negative for a long option).
@@ -164,9 +166,9 @@ def price_american(
     else:
         expiry_t1 = expiry_date - 1
         _common_t1 = (option_type, ql_date, expiry_t1, steps, engine_type, calendar)
-        price_t1 = _npv(s, k, r, q, v, *_common_t1)
-        price_up_s_t1 = _npv(s + h_s, k, r, q, v, *_common_t1)
-        price_down_s_t1 = _npv(s - h_s, k, r, q, v, *_common_t1)
+        price_t1 = _npv(s, k, r, q, v, *_common_t1, b=b)
+        price_up_s_t1 = _npv(s + h_s, k, r, q, v, *_common_t1, b=b)
+        price_down_s_t1 = _npv(s - h_s, k, r, q, v, *_common_t1, b=b)
         delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
         charm = delta_t1 - delta
     theta = price_t1 - price

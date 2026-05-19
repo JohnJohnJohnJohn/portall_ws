@@ -27,9 +27,10 @@ def _reprice_with_expiry(
     q: float,
     v: float,
     day_count: ql.DayCounter,
+    b: float = 0.0,
 ) -> ql.VanillaOption:
     """Build a European option repriced with a shortened expiry (for theta/charm)."""
-    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(valuation_date, q, day_count))
+    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(valuation_date, q + b, day_count))
     rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(valuation_date, r, day_count))
     vol_ts = ql.BlackVolTermStructureHandle(
         ql.BlackConstantVol(valuation_date, calendar, v, day_count)
@@ -50,6 +51,7 @@ def price_european(
     v: float,
     option_type: str,
     valuation_date: date,
+    b: float = 0.0,
     calendar_name: CalendarLiteral = DEFAULT_CALENDAR,
 ) -> GreeksOutput:
     """Price a European option and return Greeks.
@@ -74,7 +76,7 @@ def price_european(
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
-    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(ql_date, q, day_count))
+    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(ql_date, q + b, day_count))
     rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(ql_date, r, day_count))
     vol_ts = ql.BlackVolTermStructureHandle(ql.BlackConstantVol(ql_date, calendar, v, day_count))
 
@@ -109,7 +111,7 @@ def price_european(
         expiry_t1 = expiry_date - 1
         try:
             option_t1 = _reprice_with_expiry(
-                spot_handle, payoff, ql_date, expiry_t1, calendar, r, q, v, day_count
+                spot_handle, payoff, ql_date, expiry_t1, calendar, r, q, v, day_count, b
             )
             theta = float(option_t1.NPV()) - price
             charm = float(option_t1.delta()) - delta

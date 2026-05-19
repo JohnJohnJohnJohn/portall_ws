@@ -48,6 +48,7 @@ def compute_implied_vol(
     style: str,
     engine: EngineLiteral,
     valuation_date: date,
+    b: float = 0.0,
     steps: int = DEFAULT_STEPS,
     accuracy: float = IV_SOLVER_DEFAULT_ACCURACY,
     max_iterations: int = IV_SOLVER_MAX_ITERATIONS,
@@ -64,7 +65,7 @@ def compute_implied_vol(
     day_count = default_day_count()
 
     spot_handle = ql.QuoteHandle(ql.SimpleQuote(s))
-    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(ql_date, q, day_count))
+    div_ts = ql.YieldTermStructureHandle(ql.FlatForward(ql_date, q + b, day_count))
     rf_ts = ql.YieldTermStructureHandle(ql.FlatForward(ql_date, r, day_count))
 
     if option_type not in ("call", "put"):
@@ -117,24 +118,24 @@ def compute_implied_vol(
 
     # Pre-check no-arbitrage bounds before invoking solver
     df_r = math.exp(-r * effective_t)
-    df_q = math.exp(-q * effective_t)
+    df_qb = math.exp(-(q + b) * effective_t)
     if option_type == "call":
-        lower_bound = max(0.0, s * df_q - k * df_r)
-        upper_bound = s * df_q
+        lower_bound = max(0.0, s * df_qb - k * df_r)
+        upper_bound = s * df_qb
     else:
-        lower_bound = max(0.0, k * df_r - s * df_q)
+        lower_bound = max(0.0, k * df_r - s * df_qb)
         upper_bound = k * df_r
 
     if target_price < lower_bound:
         raise InvalidInputError(
             f"Target price {target_price:.6f} is below the no-arbitrage lower bound "
-            f"{lower_bound:.6f} (S={s}, K={k}, r={r}, q={q}, T={effective_t})",
+            f"{lower_bound:.6f} (S={s}, K={k}, r={r}, q={q}, b={b}, T={effective_t})",
             field="price",
         )
     if target_price > upper_bound:
         raise InvalidInputError(
             f"Target price {target_price:.6f} is above the no-arbitrage upper bound "
-            f"{upper_bound:.6f} (S={s}, K={k}, r={r}, q={q}, T={effective_t})",
+            f"{upper_bound:.6f} (S={s}, K={k}, r={r}, q={q}, b={b}, T={effective_t})",
             field="price",
         )
 

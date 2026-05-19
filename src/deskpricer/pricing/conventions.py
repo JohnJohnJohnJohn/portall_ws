@@ -54,6 +54,7 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError
 
 from deskpricer.pricing.constants import (  # noqa: F401
+    DEFAULT_BORROW_COST,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,

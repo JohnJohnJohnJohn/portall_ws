@@ -78,3 +78,45 @@ class TestEuropeanCharmThreadSafety:
                 )
         finally:
             ql.Settings.instance().evaluationDate = original
+
+
+class TestBorrowCostEngine:
+    def test_borrow_cost_reduces_call_price(self):
+        """Higher borrow cost lowers forward → lower European call price."""
+        from datetime import date
+
+        from deskpricer.pricing.european import price_european
+
+        base = {
+            "s": 100.0,
+            "k": 100.0,
+            "t": 0.25,
+            "r": 0.05,
+            "q": 0.02,
+            "v": 0.20,
+            "option_type": "call",
+            "valuation_date": date(2026, 4, 20),
+        }
+        p0 = price_european(**base, b=0.0)
+        p1 = price_european(**base, b=0.05)
+        assert p1.price < p0.price
+
+    def test_borrow_cost_increases_put_price(self):
+        """Higher borrow cost lowers forward → higher European put price."""
+        from datetime import date
+
+        from deskpricer.pricing.european import price_european
+
+        base = {
+            "s": 100.0,
+            "k": 100.0,
+            "t": 0.25,
+            "r": 0.05,
+            "q": 0.02,
+            "v": 0.20,
+            "option_type": "put",
+            "valuation_date": date(2026, 4, 20),
+        }
+        p0 = price_european(**base, b=0.0)
+        p1 = price_european(**base, b=0.05)
+        assert p1.price > p0.price

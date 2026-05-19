@@ -56,6 +56,7 @@ class _MarketState:
     t: float
     r: float
     q: float
+    b: float
     v: float
 
 
@@ -65,6 +66,7 @@ def _market_state(params: PnLAttributionGETRequest, suffix: str) -> _MarketState
         t=getattr(params, f"t{suffix}"),
         r=getattr(params, f"r{suffix}"),
         q=getattr(params, f"q{suffix}"),
+        b=getattr(params, f"b{suffix}"),
         v=getattr(params, f"v{suffix}"),
     )
 
@@ -111,6 +113,7 @@ async def run_greeks(
             t=params.t,
             r=params.r,
             q=params.q,
+            b=params.b,
             v=params.v,
             option_type=params.type,
             style=params.style,
@@ -129,6 +132,7 @@ async def run_greeks(
         "t": params.t,
         "r": params.r,
         "q": params.q,
+        "b": params.b,
         "v": params.v,
         "type": params.type,
         "style": params.style,
@@ -156,6 +160,7 @@ async def run_impliedvol(
             t=params.t,
             r=params.r,
             q=params.q,
+            b=params.b,
             target_price=params.price,
             option_type=params.type,
             style=params.style,
@@ -174,6 +179,7 @@ async def run_impliedvol(
         "t": params.t,
         "r": params.r,
         "q": params.q,
+        "b": params.b,
         "price": params.price,
         "type": params.type,
         "style": params.style,
@@ -217,6 +223,7 @@ async def run_portfolio(
                 t=leg.t,
                 r=leg.r,
                 q=leg.q,
+                b=leg.b,
                 v=leg.v,
                 option_type=leg.type,
                 style=leg.style,
@@ -356,6 +363,8 @@ async def run_pnl_attribution(
         "r_t": params.r_t,
         "q_t_minus_1": params.q_t_minus_1,
         "q_t": params.q_t,
+        "b_t_minus_1": params.b_t_minus_1,
+        "b_t": params.b_t,
         "v_t_minus_1": params.v_t_minus_1,
         "v_t": params.v_t,
         "type": params.type,
