@@ -55,6 +55,7 @@ Price a single vanilla option and return Greeks.
 | `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 day. The pricer does **not** accept an explicit expiry date; callers must derive `t` from a real, pre-validated expiry (e.g. `(expiry_date - today).days / 365`). |
 | `r` | float | Yes | Continuously compounded risk-free rate |
 | `q` | float | Yes | Continuously compounded dividend yield |
+| `b` | float | No | Annualized continuously compounded stock borrow cost (decimal). Reduces effective cost-of-carry: carry = r − q − b. Default: `0.0`. Range: [−0.5, 5.0]. |
 | `v` | float > 0 | Yes | Black volatility (decimal) |
 | `type` | `call` / `put` | Yes | Option type |
 | `style` | `european` / `american` | Yes | Option style |
@@ -93,7 +94,7 @@ Price a single vanilla option and return Greeks.
 | `rho` | ∂V/∂r | per **1% rate point** (standard market convention) |
 | `charm` | ∂²V/∂S∂t = ∂delta/∂t | per **calendar day** (delta at t − 1/365 − delta today). Inherits the same forward-looking convention as theta.
 
-> **Rho scope**: `rho` measures sensitivity to the **risk-free rate** (`r`) only.  DeskPricer does not return a dividend-yield rho (`rho_q`).
+> **Rho scope**: `rho` measures sensitivity to the **risk-free rate** (`r`) only. DeskPricer does not return a dividend-yield rho (`rho_q`) or a borrow-cost rho (`rho_b`).
 >
 > **Unit-basis note**: All values in `<outputs>` are **per unit** (qty = 1).  The pricer prices one contract at a time and does not model position sizing.  Quantity scaling is the caller's responsibility.
 
@@ -113,6 +114,7 @@ Price a single vanilla option and return Greeks.
     <t>0.2466</t>
     <r>0.045</r>
     <q>0.012</q>
+    <b>0.0</b>
     <v>0.22</v>
     <type>call</type>
     <style>european</style>
@@ -149,6 +151,7 @@ Bulk endpoint for book-level aggregation.
       "t": 0.25,
       "r": 0.045,
       "q": 0.012,
+      "b": 0.0,
       "v": 0.22,
       "type": "call",
       "style": "european",
@@ -244,6 +247,7 @@ Solve for implied volatility given an observed market price.
 | `t` | float ≥ 0 | Yes | Time to expiry in years (ACT/365F). Values < 1/365 are floored to 1 day |
 | `r` | float | Yes | Continuously compounded risk-free rate |
 | `q` | float | Yes | Continuously compounded dividend yield |
+| `b` | float | No | Annualized continuously compounded stock borrow cost (decimal). Default: `0.0`. Range: [−0.5, 5.0]. |
 | `price` | float > 0 | Yes | Observed market price of the option |
 | `type` | `call` / `put` | Yes | Option type |
 | `style` | `european` / `american` | Yes | Option style |
@@ -270,6 +274,7 @@ Solve for implied volatility given an observed market price.
     <t>0.5</t>
     <r>0.05</r>
     <q>0.02</q>
+    <b>0.0</b>
     <price>6.317050</price>
     <type>call</type>
     <style>european</style>
@@ -286,6 +291,7 @@ Solve for implied volatility given an observed market price.
 #### Error Cases
 
 - If `price` is outside arbitrage bounds (e.g., below intrinsic value or above max possible), the endpoint returns `400 INVALID_INPUT` with field=`price`.
+> The no-arbitrage bounds check uses the effective carry `r − q − b`; supplying a non-zero `b` shifts both the lower and upper bounds accordingly.
 - If the Brent solver fails to converge, returns `400 INVALID_INPUT`.
 
 ---
@@ -309,6 +315,8 @@ Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and resi
 | `r_t` | float | Yes | Rate at t |
 | `q_t_minus_1` | float | Yes | Div yield at t-1 |
 | `q_t` | float | Yes | Div yield at t |
+| `b_t_minus_1` | float | No | Borrow cost at t−1 (decimal). Default: `0.0`. Range: [−0.5, 5.0]. |
+| `b_t` | float | No | Borrow cost at t (decimal). Default: `0.0`. Range: [−0.5, 5.0]. |
 | `v_t_minus_1` | float > 0 | Yes | Vol at t-1 |
 | `v_t` | float > 0 | Yes | Vol at t |
 | `type` | `call` / `put` | Yes | Option type |
@@ -359,6 +367,8 @@ When `cross_greeks=true`, the PnL attribution adds two second-order terms that c
     <r_t>0.05</r_t>
     <q_t_minus_1>0.02</q_t_minus_1>
     <q_t>0.02</q_t>
+    <b_t_minus_1>0.0</b_t_minus_1>
+    <b_t>0.0</b_t>
     <v_t_minus_1>0.2</v_t_minus_1>
     <v_t>0.22</v_t>
     <type>call</type>

@@ -20,10 +20,10 @@ pip install -e ".[dev]"
 python -m deskpricer.main
 
 # 3. Test with curl
-curl "http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&type=call&style=european"
+curl "http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&b=0.0&v=0.20&type=call&style=european"
 
 # 4. Test with Excel (copy into a cell)
-# =FILTERXML(WEBSERVICE("http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&type=call&style=european"),"//outputs/price")
+# =FILTERXML(WEBSERVICE("http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&b=0.0&v=0.20&type=call&style=european"),"//outputs/price")
 ```
 
 Expected output for the curl call (XML):
@@ -43,6 +43,7 @@ Expected output for the curl call (XML):
     <t>0.25</t>
     <r>0.05</r>
     <q>0.02</q>
+    <b>0.0</b>
     <v>0.2</v>
     <type>call</type>
     <style>european</style>
@@ -95,7 +96,7 @@ Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just
 | `gamma` | Absolute (∂²V/∂S²) |
 | `vega` | Per **1% vol point** |
 | `theta` | Per **calendar day** (ACT/365). Negative for typical long options (time decay). Sign is opposite of Bloomberg DM<GO>, which reports theta as positive decay. |
-| `rho` | Per **1% rate point** (risk-free rate only; no dividend-yield rho) |
+| `rho` | Per **1% rate point** (risk-free rate only; no dividend-yield or borrow-cost rho) |
 | `charm` | Per **calendar day** (∂delta/∂t) |
 
 **Time to expiry (`t`)**: Supplied in years under ACT/365. Internally converted to calendar days (`round(t * 365)`) with a hard floor of 1 day, then rolled to the next business day using the chosen calendar (`hong_kong` by default). Theta and charm are computed per calendar day, not per business day.
@@ -156,6 +157,7 @@ Assume your sheet has:
 | T | Time to expiry (years) | `0.25` |
 | R | Risk-free rate | `0.05` |
 | Q | Dividend yield | `0.02` |
+| B | Borrow cost (optional, default 0.0) | `0.0` |
 | V | Volatility | `0.20` |
 | TYPE | Option type | `call` |
 | STYLE | Style | `european` |
@@ -163,7 +165,7 @@ Assume your sheet has:
 **Step 1 — Build the URL in a helper cell (e.g. H2):**
 
 ```excel
-="http://127.0.0.1:8765/v1/greeks?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&v="&V2&"&type="&TYPE2&"&style="&STYLE2
+="http://127.0.0.1:8765/v1/greeks?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&b="&B2&"&v="&V2&"&type="&TYPE2&"&style="&STYLE2
 ```
 
 **Step 2 — Fetch the raw XML (e.g. I2):**
@@ -207,7 +209,7 @@ You observe a mid-market price of `6.50` for the same option and want the implie
 **Step 1 — Build the URL (e.g. H2):**
 
 ```excel
-="http://127.0.0.1:8765/v1/impliedvol?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&price=6.50&type="&TYPE2&"&style="&STYLE2
+="http://127.0.0.1:8765/v1/impliedvol?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&b="&B2&"&price=6.50&type="&TYPE2&"&style="&STYLE2
 ```
 
 **Step 2 — Extract implied vol:**
@@ -233,12 +235,13 @@ Assume:
 | Vol | `0.20` | `0.22` |
 | Rate | `0.05` | `0.05` |
 | Div | `0.02` | `0.02` |
+| Borrow | `0.0` | `0.0` |
 | Qty | `10` | — |
 
 **Step 1 — Build the URL:**
 
 ```excel
-="http://127.0.0.1:8765/v1/pnl_attribution?s_t_minus_1=100&s_t=102&k=105&t_t_minus_1=0.25&t_t=0.2466&r_t_minus_1=0.05&r_t=0.05&q_t_minus_1=0.02&q_t=0.02&v_t_minus_1=0.2&v_t=0.22&type=call&style=european&qty=10&cross_greeks=true"
+="http://127.0.0.1:8765/v1/pnl_attribution?s_t_minus_1=100&s_t=102&k=105&t_t_minus_1=0.25&t_t=0.2466&r_t_minus_1=0.05&r_t=0.05&q_t_minus_1=0.02&q_t=0.02&b_t_minus_1=0.0&b_t=0.0&v_t_minus_1=0.2&v_t=0.22&type=call&style=european&qty=10&cross_greeks=true"
 ```
 
 **Step 2 — Extract attribution buckets:**

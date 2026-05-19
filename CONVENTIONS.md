@@ -90,6 +90,7 @@ this document. In case of conflict, this file wins.
 | `DEFAULT_BUMP_SPOT_REL` | `0.01` (1%) | Relative spot bump for FD Greeks; large enough to clear noise, small enough for linearity | No |
 | `DEFAULT_BUMP_VOL_ABS` | `0.001` (0.1 vol-point) | Absolute vol bump; consistent with 0.1 vol-point market quoting granularity | No |
 | `DEFAULT_BUMP_RATE_ABS` | `0.001` (0.1 rate-point) | Absolute rate bump; consistent with central bank policy step granularity | No |
+| `DEFAULT_BORROW_COST` | `0.0` (0%) | Default stock borrow cost; zero means no borrow cost, preserving backward compatibility. Callers pricing hard-to-borrow names should pass the annualized borrow rate (e.g. `0.05` for 5% p.a.). | No |
 | `SPOT_DIVERGENCE_THRESHOLD` | `0.05` (5%) | Portfolio aggregate Greeks are a coarse approximation when legs have spot prices diverging by more than 5%; warning only | No |
 | `IV_SOLVER_VOL_LO` | `1e-6` | Effective-zero lower vol bound for IV solver; avoids log(0) in BSM | No |
 | `IV_SOLVER_VOL_HI` | `5.0` (500%) | Upper vol bound; caps solver search space to financially plausible range | No |
@@ -120,11 +121,13 @@ The full first- and second-order Taylor expansion used in `run_pnl_attribution`:
   + vanna        × ΔS_pct × Δσ_points              [cross spot-vol; ΔS_pct = ΔS / S₀ × 100]
   + 0.5 × volga  × (Δσ_points)²                [second-order vol]
 
-ΔV_actual  = V(S_t, σ_t, t_t, r_t, q_t) − V(S_{t−1}, σ_{t−1}, t_{t−1}, r_{t−1}, q_{t−1})
+ΔV_actual  = V(S_t, σ_t, t_t, r_t, q_t, b_t) − V(S_{t−1}, σ_{t−1}, t_{t−1}, r_{t−1}, q_{t−1}, b_{t−1})
 
 residual   = ΔV_actual − ΔV_explained
 ```
 
 All quantities are **per unit** (no position size or qty applied at this layer). Position sizing (multiplication by `leg.qty`) is applied only in `run_portfolio`, not in `run_pnl_attribution`.
+
+> **Borrow cost**: The borrow cost `b` reduces the effective cost-of-carry to `r − q − b`. It is implemented in QuantLib by passing `q + b` as the dividend yield to `BlackScholesMertonProcess`. A non-zero `b` lowers call prices and raises put prices relative to `b = 0`, holding all else equal.
 
 Signs: a long call position gains value when S rises (delta_pnl > 0), when σ rises (vega_pnl > 0), and loses value as time passes (theta_pnl < 0). All signs above are for a long position; callers scale by signed quantity.

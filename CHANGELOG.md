@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.4.0 — 2026-05-19
+
+### Added
+- **Stock borrow cost parameter `b`** — all pricing endpoints (`/greeks`,
+  `/portfolio/greeks`, `/impliedvol`, `/pnl_attribution`) now accept an optional
+  `b` parameter (annualized continuously compounded borrow cost, decimal, default
+  `0.0`). The effective cost-of-carry is `r − q − b`, implemented via QuantLib
+  dividend yield `q + b`. Callers omitting `b` receive identical results to prior
+  versions (fully backward compatible).
+- `DEFAULT_BORROW_COST = 0.0` constant in `pricing/constants.py`.
+- No-arbitrage bounds in the IV solver updated to use `exp(−(q + b) × T)` for the
+  discount factor on the spot leg, correctly shifting call/put bounds for
+  hard-to-borrow names.
+- 9 new tests: zero-default regression, call/put price directionality, portfolio
+  legs, PnL attribution passthrough, IV roundtrip, and boundary validation
+  (`b = 5.1` → HTTP 422).
+
 ## 3.3.1 — 2026-04-24
 
 ### Fixed
