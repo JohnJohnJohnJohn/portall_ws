@@ -122,3 +122,12 @@ A task is finished when **all** of these are true:
 
 - `/cleanup` — Execute the procedure defined in `.agent/commands/cleanup.md` verbatim. Do not paraphrase, do not relax constraints, do not chain multiple passes.
 - `/review` — Run `pytest tests -v`, `ruff check src tests`, `mypy src`, and report the full results.
+
+## Cursor Cloud specific instructions
+
+- **No external services required.** DeskPricer is fully self-contained — no database, Docker, Redis, or message queue. All state is in-memory per-request.
+- **`ruff` is not in `[dev]` extras.** The update script installs it separately (`pip install ruff`). Both `ruff` and the dev tools (`pytest`, `mypy`, `hypothesis`, `httpx`) install to `~/.local/bin`, which must be on `PATH`. The update script handles installation; `~/.bashrc` adds the path.
+- **Use `python3`, not `python`.** The VM provides `python3` on `PATH` but does not alias `python`. All commands in AGENTS.md that say `python` should be run as `python3` (e.g. `python3 -m deskpricer.main`).
+- **Starting the server:** `python3 -m deskpricer.main` binds to `127.0.0.1:8765` by default. Use `--port <N>` to override. Verify with `curl http://127.0.0.1:8765/v1/health`.
+- **Tests use FastAPI's `TestClient` in-process** — no running server needed for `pytest tests -v`.
+- **All standard commands** (install, run, test, lint, format, typecheck) are listed in the Commands section above.
