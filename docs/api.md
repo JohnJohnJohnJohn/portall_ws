@@ -325,6 +325,13 @@ Decompose option PnL into delta, gamma, vega, theta, rho, vanna, volga, and resi
 | `method` | `backward` / `average` | No | Greeks averaging method. Default: `backward` |
 | `cross_greeks` | bool | No | Include vanna/volga. Default: `false` |
 | `engine` | enum | No | Pricing engine |
+| `steps` | int (10–5000) | No | Tree steps. Default: 500 |
+| `valuation_date_t_minus_1` | ISO date | No | Defaults to today if both dates omitted |
+| `valuation_date_t` | ISO date | No | Defaults to today if both dates omitted |
+| `bump_spot_rel` | float | No | Relative spot bump. Default: 0.01 |
+| `bump_vol_abs` | float | No | Absolute vol bump. Default: 0.001 |
+| `bump_rate_abs` | float | No | Absolute rate bump. Default: 0.001 |
+| `calendar` | enum | No | `hong_kong`, `us_nyse`, `us_settlement`, `united_kingdom`, `null`. Default: `hong_kong` |
 
 #### Cross-Greeks (`cross_greeks=true`)
 
@@ -336,14 +343,6 @@ When `cross_greeks=true`, the PnL attribution adds two second-order terms that c
 | `volga_pnl` | ½ × Volga × (Δvol_points)² | Large vol-of-vol moves |
 
 **Computation**: Vanna (∂²V/∂S∂σ) and volga (∂²V/∂σ²) are computed via uniform finite differences using the same bump conventions as the main Greeks (`bump_spot_rel=0.01`, `bump_vol_abs=0.001`).  `method=average` averages the cross-Greeks at t−1 and t; `method=backward` uses t−1 only.
-| `steps` | int (10–5000) | No | Tree steps. Default: 500 |
-| `valuation_date_t_minus_1` | ISO date | No | Defaults to today if both dates omitted |
-| `valuation_date_t` | ISO date | No | Defaults to today if both dates omitted |
-| `bump_spot_rel` | float | No | Relative spot bump. Default: 0.01 |
-| `bump_vol_abs` | float | No | Absolute vol bump. Default: 0.001 |
-| `bump_rate_abs` | float | No | Absolute rate bump. Default: 0.001 |
-| `calendar` | enum | No | `hong_kong`, `us_nyse`, `us_settlement`, `united_kingdom`, `null`. Default: `hong_kong` |
-
 
 #### Response (XML)
 

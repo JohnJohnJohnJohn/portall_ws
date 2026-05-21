@@ -99,6 +99,8 @@ Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just
 | `rho` | Per **1% rate point** (risk-free rate only; no dividend-yield or borrow-cost rho) |
 | `charm` | Per **calendar day** (∂delta/∂t) |
 
+**Borrow cost (`b`)**: Optional annualized stock borrow cost (decimal). Effective cost-of-carry is `r − q − b`. Omitted or `0.0` matches pre-3.4.0 behavior.
+
 **Time to expiry (`t`)**: Supplied in years under ACT/365. Internally converted to calendar days (`round(t * 365)`) with a hard floor of 1 day, then rolled to the next business day using the chosen calendar (`hong_kong` by default). Theta and charm are computed per calendar day, not per business day.
 
 **PnL attribution**: `calendar_days` represents the actual elapsed calendar-day hold period. `theta_pnl = theta × calendar_days_elapsed`. If both valuation dates are omitted, `calendar_days` defaults to 1. Provide explicit dates for multi-day hold accuracy.
@@ -109,16 +111,16 @@ Each sheet has the actual `WEBSERVICE` and `FILTERXML` formulas pre-loaded. Just
 
 ### Standalone Executable (Recommended)
 
-Download `DeskPricer_v2.exe` from the [Releases](https://github.com/JohnJohnJohnJohn/portall_ws/releases) page and run:
+Download `DeskPricer_v3.exe` from the [Releases](https://github.com/JohnJohnJohnJohn/portall_ws/releases) page and run:
 
 ```powershell
-.\DeskPricer_v2.exe
+.\DeskPricer_v3.exe
 ```
 
 The service starts on port `8765`. To use a different port:
 
 ```powershell
-.\DeskPricer_v2.exe --port 9000
+.\DeskPricer_v3.exe --port 9000
 ```
 
 ### From Source

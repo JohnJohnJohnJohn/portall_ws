@@ -14,7 +14,7 @@ pip install -e ".[dev]"
 python -m deskpricer.main
 
 # 3. Test with curl
-curl "http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&v=0.20&type=call&style=european"
+curl "http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&b=0.0&v=0.20&type=call&style=european"
 
 # Expected output (XML):
 # <?xml version="1.0" encoding="UTF-8"?>

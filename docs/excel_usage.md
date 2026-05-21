@@ -25,6 +25,7 @@ Assume columns:
 - `T` = time to expiry `t`
 - `R` = rate `r`
 - `Q` = dividend yield `q`
+- `B` = borrow cost `b` (optional; default `0.0`)
 - `V` = volatility `v`
 - `TYPE` = `call` or `put`
 - `STYLE` = `european` or `american`
@@ -32,7 +33,7 @@ Assume columns:
 ### Build the URL
 
 ```excel
-="http://127.0.0.1:8765/v1/greeks?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&v="&V2&"&type="&TYPE2&"&style="&STYLE2
+="http://127.0.0.1:8765/v1/greeks?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&b="&B2&"&v="&V2&"&type="&TYPE2&"&style="&STYLE2
 ```
 
 ### Fetch Raw XML
@@ -78,7 +79,7 @@ Or a simpler liveness check:
 If you know the market price and want to back out IV:
 
 ```excel
-="http://127.0.0.1:8765/v1/impliedvol?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&price="&P2&"&type="&TYPE2&"&style="&STYLE2
+="http://127.0.0.1:8765/v1/impliedvol?s="&C2&"&k="&K2&"&t="&T2&"&r="&R2&"&q="&Q2&"&b="&B2&"&price="&P2&"&type="&TYPE2&"&style="&STYLE2
 ```
 
 Then extract the solved vol:

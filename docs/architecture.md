@@ -35,7 +35,7 @@ app.py              schemas.py          pricing/engine.py     responses.py      
 | `pricing/american.py` | Binomial CRR/JR via `BinomialVanillaEngine`. Greeks via bump-and-revalue (central differences on spot, vol, rate). Theta/charm via 1-calendar-day expiry shortening and reprice, with fallback to intrinsic value at zero DTE. |
 | `pricing/implied_vol.py` | Brent solver (`impliedVolatility`) with bounds `[1e-6, 5.0]`. Re-prices at solved vol as sanity check. |
 | `pricing/cross_greeks.py` | Vanna and volga via uniform finite differences using the same bump conventions as the main Greeks. |
-| `pricing/conventions.py` | Date helpers (`ql_date_from_iso`, `expiry_from_t`) and numerical constants (`MIN_T_YEARS`, `DEFAULT_STEPS`, `DEFAULT_BUMP_*`, `DAY_COUNT`). |
+| `pricing/conventions.py` | Date helpers (`ql_date_from_iso`, `expiry_from_t`) and numerical constants (`MIN_T_YEARS`, `DEFAULT_STEPS`, `DEFAULT_BORROW_COST`, `DEFAULT_BUMP_*`, `DAY_COUNT`). |
 
 ## Data Flow
 

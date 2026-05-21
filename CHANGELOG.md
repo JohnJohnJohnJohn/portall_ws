@@ -17,6 +17,11 @@
   legs, PnL attribution passthrough, IV roundtrip, and boundary validation
   (`b = 5.1` → HTTP 422).
 
+### Fixed
+- **Documentation sync for 3.4.0** — release executable name (`DeskPricer_v3.exe`),
+  borrow-cost `b` in operator/excel guides, repaired PnL attribution parameter table
+  in `docs/api.md`, and AGENTS.md test count (216).
+
 ## 3.3.1 — 2026-04-24
 
 ### Fixed
