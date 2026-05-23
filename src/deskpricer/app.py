@@ -21,7 +21,22 @@ _REQUEST_LOGGER = setup_logging()
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="DeskPricer", version=service_version, docs_url=None, redoc_url=None)
+    from contextlib import asynccontextmanager
+
+    from deskpricer.services.ql_runtime import shutdown_pool
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        yield
+        shutdown_pool()
+
+    app = FastAPI(
+        title="DeskPricer",
+        version=service_version,
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
 
     @app.middleware("http")
     async def log_and_format(request: Request, call_next):

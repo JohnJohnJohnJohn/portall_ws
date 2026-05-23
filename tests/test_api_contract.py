@@ -523,7 +523,7 @@ class TestPortfolio:
                     "r": 0.05,
                     "q": 0,
                     "v": 0.0005,
-                    "type": "call",
+                    "type": "put",
                     "style": "american",
                 },
             ]
@@ -796,7 +796,7 @@ class TestCatchallHandler:
         def _boom(*args, **kwargs):
             raise Exception("simulated internal explosion")
 
-        monkeypatch.setattr(svc, "_price_vanilla", _boom)
+        monkeypatch.setattr(svc, "_price_vanilla_result", _boom)
 
         app = create_app()
         client = TestClient(app, raise_server_exceptions=False)

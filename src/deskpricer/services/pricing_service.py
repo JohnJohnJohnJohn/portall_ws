@@ -17,7 +17,6 @@ from deskpricer.pricing.conventions import (
     IV_SOLVER_MAX_ITERATIONS,
 )
 from deskpricer.pricing.cross_greeks import compute_cross_greeks as _compute_cross_greeks
-from deskpricer.pricing.engine import price_vanilla as _price_vanilla
 from deskpricer.pricing.implied_vol import compute_implied_vol as _compute_implied_vol
 from deskpricer.schemas import (
     GreeksOutput,
@@ -26,7 +25,7 @@ from deskpricer.schemas import (
     PnLAttributionGETRequest,
     PortfolioRequest,
 )
-from deskpricer.services.ql_runtime import QUANTLIB_VERSION, with_evaluation_date
+from deskpricer.services.ql_runtime import QUANTLIB_VERSION, run_pricing_task
 
 
 def _meta(engine: str | None, valuation_date: date) -> dict[str, Any]:
@@ -98,33 +97,55 @@ def _pnl_cg_kwargs(
     return {"base_price": base_price, **_pnl_pv_kwargs(state, params, valuation_date)}
 
 
+def _price_vanilla_payload(kwargs: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(kwargs)
+    payload.pop("valuation_date", None)
+    return payload
+
+
+async def _price_vanilla_result(
+    price_vanilla_fn: Callable[..., GreeksOutput] | None,
+    valuation_date: date,
+    kwargs: dict[str, Any],
+) -> GreeksOutput:
+    if price_vanilla_fn is not None:
+        return price_vanilla_fn(**kwargs)
+    result_dict = await run_pricing_task(
+        "price_vanilla",
+        valuation_date,
+        _price_vanilla_payload(kwargs),
+    )
+    return GreeksOutput(**result_dict)
+
+
 async def run_greeks(
     params: GreeksRequest,
     price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    if price_vanilla_fn is None:
-        price_vanilla_fn = _price_vanilla
     valuation_date = params.valuation_date or date.today()
     assert params.engine is not None
-    async with with_evaluation_date(valuation_date):
-        result = price_vanilla_fn(
-            s=params.s,
-            k=params.k,
-            t=params.t,
-            r=params.r,
-            q=params.q,
-            b=params.b,
-            v=params.v,
-            option_type=params.type,
-            style=params.style,
-            engine=params.engine,
-            valuation_date=valuation_date,
-            steps=params.steps,
-            bump_spot_rel=params.bump_spot_rel,
-            bump_vol_abs=params.bump_vol_abs,
-            bump_rate_abs=params.bump_rate_abs,
-            calendar_name=params.calendar,
-        )
+    result = await _price_vanilla_result(
+        price_vanilla_fn,
+        valuation_date,
+        {
+            "s": params.s,
+            "k": params.k,
+            "t": params.t,
+            "r": params.r,
+            "q": params.q,
+            "b": params.b,
+            "v": params.v,
+            "option_type": params.type,
+            "style": params.style,
+            "engine": params.engine,
+            "valuation_date": valuation_date,
+            "steps": params.steps,
+            "bump_spot_rel": params.bump_spot_rel,
+            "bump_vol_abs": params.bump_vol_abs,
+            "bump_rate_abs": params.bump_rate_abs,
+            "calendar_name": params.calendar,
+        },
+    )
     meta = _meta(params.engine, valuation_date)
     inputs: dict[str, Any] = {
         "s": params.s,
@@ -149,29 +170,33 @@ async def run_impliedvol(
     params: ImpliedVolRequest,
     compute_implied_vol_fn: Callable[..., Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    if compute_implied_vol_fn is None:
-        compute_implied_vol_fn = _compute_implied_vol
     valuation_date = params.valuation_date or date.today()
     assert params.engine is not None
-    async with with_evaluation_date(valuation_date):
-        result = compute_implied_vol_fn(
-            s=params.s,
-            k=params.k,
-            t=params.t,
-            r=params.r,
-            q=params.q,
-            b=params.b,
-            target_price=params.price,
-            option_type=params.type,
-            style=params.style,
-            engine=params.engine,
-            valuation_date=valuation_date,
-            steps=params.steps,
-            accuracy=params.accuracy,
-            max_iterations=params.max_iterations,
-            calendar_name=params.calendar,
-            verify_reprice=params.verify_reprice,
-        )
+    iv_kwargs = {
+        "s": params.s,
+        "k": params.k,
+        "t": params.t,
+        "r": params.r,
+        "q": params.q,
+        "b": params.b,
+        "target_price": params.price,
+        "option_type": params.type,
+        "style": params.style,
+        "engine": params.engine,
+        "valuation_date": valuation_date,
+        "steps": params.steps,
+        "accuracy": params.accuracy,
+        "max_iterations": params.max_iterations,
+        "calendar_name": params.calendar,
+        "verify_reprice": params.verify_reprice,
+    }
+    if compute_implied_vol_fn is not None:
+        result = compute_implied_vol_fn(**iv_kwargs)
+        result_dict = result.model_dump()
+    else:
+        payload = dict(iv_kwargs)
+        payload.pop("valuation_date", None)
+        result_dict = await run_pricing_task("compute_implied_vol", valuation_date, payload)
     meta = _meta(params.engine, valuation_date)
     inputs: dict[str, Any] = {
         "s": params.s,
@@ -194,15 +219,13 @@ async def run_impliedvol(
         inputs["max_iterations"] = params.max_iterations
     if not params.verify_reprice:
         inputs["verify_reprice"] = False
-    return meta, inputs, result.model_dump()
+    return meta, inputs, result_dict
 
 
 async def run_portfolio(
     payload: PortfolioRequest,
     price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, float]]:
-    if price_vanilla_fn is None:
-        price_vanilla_fn = _price_vanilla
     valuation_date = payload.valuation_date or date.today()
     legs_out: list[dict[str, Any]] = []
     aggregate: dict[str, float] = {
@@ -214,7 +237,7 @@ async def run_portfolio(
         "rho": 0.0,
         "charm": 0.0,
     }
-    async with with_evaluation_date(valuation_date):
+    if price_vanilla_fn is not None:
         for leg in payload.legs:
             assert leg.engine is not None
             result = price_vanilla_fn(
@@ -245,6 +268,46 @@ async def run_portfolio(
                         field=greek,
                     )
                 aggregate[greek] += leg.qty * val
+    else:
+        leg_payloads = []
+        for leg in payload.legs:
+            assert leg.engine is not None
+            leg_payloads.append(
+                {
+                    "s": leg.s,
+                    "k": leg.k,
+                    "t": leg.t,
+                    "r": leg.r,
+                    "q": leg.q,
+                    "b": leg.b,
+                    "v": leg.v,
+                    "option_type": leg.type,
+                    "style": leg.style,
+                    "engine": leg.engine,
+                    "steps": leg.steps,
+                    "bump_spot_rel": leg.bump_spot_rel,
+                    "bump_vol_abs": leg.bump_vol_abs,
+                    "bump_rate_abs": leg.bump_rate_abs,
+                    "calendar_name": leg.calendar,
+                }
+            )
+        leg_results = await run_pricing_task(
+            "portfolio_legs",
+            valuation_date,
+            {"legs": leg_payloads},
+        )
+        for leg, result_dict in zip(payload.legs, leg_results, strict=True):
+            result = GreeksOutput(**result_dict)
+            row = {"id": leg.id, "engine": leg.engine, **result.model_dump()}
+            legs_out.append(row)
+            for greek in aggregate:
+                val = getattr(result, greek)
+                if not math.isfinite(val):
+                    raise InvalidInputError(
+                        f"Pricing produced non-finite {greek} for leg {leg.id}",
+                        field=greek,
+                    )
+                aggregate[greek] += leg.qty * val
     meta = {
         "service_version": service_version,
         "quantlib_version": QUANTLIB_VERSION,
@@ -258,10 +321,6 @@ async def run_pnl_attribution(
     price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
     compute_cross_greeks_fn: Callable[..., tuple[float, float]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    if price_vanilla_fn is None:
-        price_vanilla_fn = _price_vanilla
-    if compute_cross_greeks_fn is None:
-        compute_cross_greeks_fn = _compute_cross_greeks
     valuation_date_t_minus_1 = params.valuation_date_t_minus_1
     valuation_date_t = params.valuation_date_t
     method = params.method
@@ -279,23 +338,39 @@ async def run_pnl_attribution(
     vanna_t_m1 = volga_t_m1 = vanna_t = volga_t = 0.0
     state_t_m1 = _market_state(params, "_t_minus_1")
     state_t = _market_state(params, "_t")
-    async with with_evaluation_date(valuation_date_t_minus_1):
-        greeks_t_minus_1 = price_vanilla_fn(
-            **_pnl_pv_kwargs(state_t_m1, params, valuation_date_t_minus_1),
+    greeks_t_minus_1 = await _price_vanilla_result(
+        price_vanilla_fn,
+        valuation_date_t_minus_1,
+        _pnl_pv_kwargs(state_t_m1, params, valuation_date_t_minus_1),
+    )
+    if params.cross_greeks:
+        cg_kwargs = _pnl_cg_kwargs(
+            state_t_m1, params, valuation_date_t_minus_1, greeks_t_minus_1.price
         )
-        if params.cross_greeks:
-            vanna_t_m1, volga_t_m1 = compute_cross_greeks_fn(
-                **_pnl_cg_kwargs(
-                    state_t_m1, params, valuation_date_t_minus_1, greeks_t_minus_1.price
-                )
+        if compute_cross_greeks_fn is not None:
+            vanna_t_m1, volga_t_m1 = compute_cross_greeks_fn(**cg_kwargs)
+        else:
+            payload = _price_vanilla_payload(cg_kwargs)
+            vanna_t_m1, volga_t_m1 = await run_pricing_task(
+                "compute_cross_greeks",
+                valuation_date_t_minus_1,
+                payload,
             )
-    async with with_evaluation_date(valuation_date_t):
-        greeks_t = price_vanilla_fn(
-            **_pnl_pv_kwargs(state_t, params, valuation_date_t),
-        )
-        if params.cross_greeks and method == "average":
-            vanna_t, volga_t = compute_cross_greeks_fn(
-                **_pnl_cg_kwargs(state_t, params, valuation_date_t, greeks_t.price)
+    greeks_t = await _price_vanilla_result(
+        price_vanilla_fn,
+        valuation_date_t,
+        _pnl_pv_kwargs(state_t, params, valuation_date_t),
+    )
+    if params.cross_greeks and method == "average":
+        cg_kwargs = _pnl_cg_kwargs(state_t, params, valuation_date_t, greeks_t.price)
+        if compute_cross_greeks_fn is not None:
+            vanna_t, volga_t = compute_cross_greeks_fn(**cg_kwargs)
+        else:
+            payload = _price_vanilla_payload(cg_kwargs)
+            vanna_t, volga_t = await run_pricing_task(
+                "compute_cross_greeks",
+                valuation_date_t,
+                payload,
             )
     delta_s = params.s_t - params.s_t_minus_1
     delta_v_points = (params.v_t - params.v_t_minus_1) * 100.0

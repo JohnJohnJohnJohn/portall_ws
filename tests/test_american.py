@@ -21,7 +21,7 @@ class TestAmericanPut:
                     "r": 0.05,
                     "q": 0,
                     "v": 0.01,
-                    "type": "call",
+                    "type": "put",
                     "style": "american",
                     "steps": DEFAULT_STEPS,
                     "bump_vol_abs": 0.01,

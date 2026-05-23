@@ -57,6 +57,9 @@ IV_REPRICE_RELATIVE_TOLERANCE: float = 0.001
 VOL_BUMP_CAP_FACTOR: float = 0.5
 """CONVENTIONS.md §4: Cap at 50% of current vol ensures the down-bumped vol is always positive."""
 
+AMERICAN_EUROPEAN_EQUIVALENCE_ABS_TOL: float = 1e-8
+"""Absolute tolerance for q+b (calls) and r (puts) when deciding American→European reroute."""
+
 IV_SOLVER_DEFAULT_ACCURACY: float = 1e-4
 """Default Brent solver accuracy for IV root finding; tighter than QuantLib's own default to minimise reprice residual."""
 

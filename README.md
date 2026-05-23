@@ -6,6 +6,47 @@ Local HTTP pricing microservice for vanilla European and American equity options
 
 ---
 
+## Use with AI Agents (MCP)
+
+DeskPricer is available as an MCP server. Add it to Cursor, Claude Desktop, or any MCP-compatible agent:
+
+```bash
+pip install deskpricer
+```
+
+**Cursor** — add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "deskpricer": {
+      "command": "deskpricer-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+**Claude Desktop** — add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "deskpricer": {
+      "command": "deskpricer-mcp"
+    }
+  }
+}
+```
+
+If `deskpricer-mcp` is not on your PATH, use the full path to the executable in your virtualenv.
+
+Tools: `price_option`, `implied_volatility`, `pnl_attribution`, `portfolio_greeks` — same pricing engine as the HTTP API.
+
+See [docs/mcp_quickstart.md](docs/mcp_quickstart.md) for full setup, conventions, and example prompts.
+
+---
+
 ## Quickstart
 
 Go from clean clone to a working pricing call in under 5 minutes:
@@ -340,8 +381,8 @@ Excel receives XML by default. For JSON, send `Accept: application/json` or `?fo
 
 ## Limitations
 
-- **No FD engine** — analytic BSM for Europeans, binomial CRR/JR for Americans only.
-- **Portfolio serializes via `_QL_LOCK`** — max 500 legs; throughput is limited by QuantLib's global state.
+- **No FD engine** — closed-form BSM for Europeans and equivalent Americans; binomial CRR/JR for other Americans.
+- **Concurrent QuantLib via process pool** — default `min(4, cpu_count())` workers (`DESKPRICER_WORKERS`). Portfolio legs batch in a single worker call per request.
 - **Bounded bump ranges** — `bump_spot_rel` ≤ 0.1, `bump_vol_abs` ≤ 0.01, `bump_rate_abs` ≤ 0.01.
 - **No database or persistence** — all state is in-memory per-request.
 - **No auth, TLS, or rate limiting** — local-only by design.
@@ -364,15 +405,17 @@ DeskPricer is built as a **personal desktop tool**, not a public API. This expla
 
 - **No authentication / authorization** — only `127.0.0.1` can reach the service.
 - **No TLS / HTTPS** — local loopback traffic is unencrypted by design.
-- **No rate limiting** — the `asyncio.Lock` serializes requests only to protect QuantLib's global `Settings.instance()` state, not to throttle users.
+- **No rate limiting** — no throttling; concurrent requests are handled by a process pool rather than serialized on a single QuantLib global state.
 - **No Swagger / Redoc** — OpenAPI docs are hidden in production builds to reduce attack surface.
 - **XML by default** — Excel's `WEBSERVICE` function does not send `Accept: application/json`.
 
 If you need any of these features, DeskPricer is the wrong tool. Use a proper API gateway or a full-featured pricing platform.
 
-### Why all requests are serialized (`asyncio.Lock`)
+### Why QuantLib runs in a process pool
 
-QuantLib's Python bindings rely on a single process-global `Settings.instance()` object. There is no supported way to create isolated per-request QuantLib contexts in the Python API. Holding an `asyncio.Lock` around every pricing call guarantees that concurrent requests never corrupt each other's evaluation date or global state. The tradeoff is lower throughput for portfolio requests, which is acceptable for a desk-pricing tool where correctness matters more than concurrency. A future refactor could explore a `ProcessPoolExecutor` to parallelize work across separate Python processes.
+QuantLib's Python bindings rely on a single process-global `Settings.instance()` object. Rather than serializing all requests with an `asyncio.Lock`, DeskPricer dispatches QuantLib work to a `ProcessPoolExecutor`. Each worker process has its own isolated settings, so concurrent agent or Excel calls can price in parallel without corrupting evaluation dates. Pool size defaults to `min(4, cpu_count())` and is configurable via `DESKPRICER_WORKERS`.
+
+Europeans and economically equivalent Americans bypass QuantLib entirely and use a pure-Python BSM implementation (`bsm_fast`), validated against QuantLib to six decimal places.
 
 ### Why PnL attribution uses GET with many query params
 

@@ -5,6 +5,7 @@ from datetime import date
 
 from deskpricer.errors import UnsupportedCombinationError
 from deskpricer.pricing.american import price_american
+from deskpricer.pricing.bsm_fast import price_european_bsm
 from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
@@ -14,7 +15,7 @@ from deskpricer.pricing.conventions import (
     MIN_T_YEARS,
     CalendarLiteral,
 )
-from deskpricer.pricing.european import price_european
+from deskpricer.pricing.equivalence import american_is_european_equivalent
 from deskpricer.schemas import EngineLiteral, GreeksOutput
 
 ENGINE_MAP = {
@@ -62,7 +63,7 @@ def price_vanilla(
                 f"European style only supports analytic engine; got {engine}",
                 field="engine",
             )
-        return price_european(
+        return price_european_bsm(
             s,
             k,
             effective_t,
@@ -80,6 +81,19 @@ def price_vanilla(
             raise UnsupportedCombinationError(
                 "American style does not support analytic engine",
                 field="engine",
+            )
+        if american_is_european_equivalent(option_type, r, q, b):
+            return price_european_bsm(
+                s,
+                k,
+                effective_t,
+                r,
+                q,
+                v,
+                option_type,
+                valuation_date,
+                b=b,
+                calendar_name=calendar_name,
             )
         ql_engine = ENGINE_MAP.get(engine)
         if ql_engine is None:

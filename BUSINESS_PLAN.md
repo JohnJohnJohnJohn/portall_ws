@@ -150,7 +150,7 @@ No direct MCP-native competitor with QuantLib-backed pricing exists on any regis
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | MCP standard fragmentation | Medium | Support both stdio and SSE transports; monitor Anthropic roadmap |
-| QuantLib scaling ceiling | Medium | ProcessPoolExecutor refactor in Milestone 1 |
+| QuantLib scaling ceiling | Medium | Addressed in Milestone 1 via ProcessPoolExecutor + BSM fast path |
 | Low paid conversion from free | Medium | Gate extended models (barriers, vol surface) to paid tier |
 | Employer compliance objection | Low | OBA disclosure before any revenue; pure analytics positioning |
 | Larger player enters niche | Low (near-term) | First-mover registry presence + community moat |

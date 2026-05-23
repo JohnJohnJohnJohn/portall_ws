@@ -100,9 +100,9 @@ or append `?format=json` to the URL.
 
 DeskPricer is intentionally scoped as a **local-only desk tool**. The following are by design, not oversights:
 
-- **No finite-difference (FD) engine** — only analytic Black-Scholes-Merton for Europeans and binomial CRR/JR for Americans.
-- **European requires analytic** — the `engine` parameter is ignored for European style; it always uses `AnalyticEuropeanEngine`.
-- **Portfolio endpoint serializes requests** — the entire portfolio loop holds `_QL_LOCK` to protect QuantLib global state. Throughput is lower than a true concurrent service, but correctness is guaranteed.
+- **No finite-difference (FD) engine** — closed-form BSM (`bsm_fast`) for Europeans and equivalent Americans; binomial CRR/JR for other Americans.
+- **European requires analytic** — the `engine` parameter must be `analytic` for European style; pricing uses the pure-Python BSM path (validated against QuantLib to 6 dp).
+- **Concurrent pricing via process pool** — QuantLib work runs in a `ProcessPoolExecutor` (default `min(4, cpu_count())` workers, configurable via `DESKPRICER_WORKERS`). Each worker has an isolated `Settings.instance()`.
 - **Max 500 legs per portfolio** — hard limit to prevent accidental denial-of-self.
 - **Bounded bump ranges** — `bump_spot_rel` ∈ (0, 0.1], `bump_vol_abs` ∈ (0, 0.01], `bump_rate_abs` ∈ (0, 0.01].
 - **No database or persistence** — all state is in-memory and per-request.

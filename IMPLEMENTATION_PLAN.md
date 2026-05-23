@@ -169,7 +169,7 @@ startCommand:
 
 **Task 1C-2: Ensure `pyproject.toml` is PyPI-publishable**
 
-- Add `project.name = "deskpricer-mcp"` (check PyPI availability first)
+- Keep `project.name = "deskpricer"` (PyPI package name; MCP command remains `deskpricer-mcp`)
 - Add `project.description`, `project.readme`, `project.license`, `project.urls`
 - Add classifiers: `Topic :: Office/Business :: Financial`, `Topic :: Scientific/Engineering :: Mathematics`
 - Run `python -m build` and verify the wheel builds cleanly
@@ -190,7 +190,7 @@ Add a new top-level section to `README.md` immediately after the intro:
 DeskPricer is available as an MCP server. Add it to Claude Desktop, Cursor, or any MCP-compatible agent:
 
 \`\`\`bash
-pip install deskpricer-mcp
+pip install deskpricer
 \`\`\`
 
 Then add to your `claude_desktop_config.json`:
@@ -240,12 +240,12 @@ Tag: `#MCP #QuantLib #Options #AlgoTrading #LLM #FinTech`
 ## Milestone 1 Checklist
 
 ```
-[ ] 1A-1  ProcessPoolExecutor replaces asyncio.Lock
-[ ] 1A-2  Pure-Python BSM fast path for Europeans (optional)
-[ ] 1B-1  mcp dependency added to pyproject.toml
-[ ] 1B-2  src/deskpricer/mcp_server.py created and tested
-[ ] 1B-3  deskpricer-mcp entrypoint in pyproject.toml
-[ ] 1B-4  docs/mcp_quickstart.md created
+[x] 1A-1  ProcessPoolExecutor replaces asyncio.Lock
+[x] 1A-2  Pure-Python BSM fast path for Europeans (optional)
+[x] 1B-1  mcp dependency added to pyproject.toml
+[x] 1B-2  src/deskpricer/mcp_server.py created and tested
+[x] 1B-3  deskpricer-mcp entrypoint in pyproject.toml
+[x] 1B-4  docs/mcp_quickstart.md created
 [ ] 1C-1  smithery.yaml added to repo root
 [ ] 1C-2  pyproject.toml PyPI-publishable; package published
 [ ] 1C-3  GitHub repo topics updated

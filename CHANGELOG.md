@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Phase 1C — PyPI and registry metadata**
+  - `smithery.yaml` for Smithery listing (`deskpricer-mcp` stdio start command).
+  - PyPI-publishable `pyproject.toml` (author email, classifiers, project URLs).
+  - README MCP section and Cursor setup in `docs/mcp_quickstart.md`.
+- **Phase 1B — MCP transport layer**
+  - MCP stdio server (`mcp_server.py`, `mcp_tools.py`) with tools: `price_option`,
+    `implied_volatility`, `pnl_attribution`, `portfolio_greeks`.
+  - CLI entrypoint `deskpricer-mcp`; runtime dependency `mcp>=1.0`.
+  - Agent setup guide [`docs/mcp_quickstart.md`](docs/mcp_quickstart.md).
+  - `tests/test_mcp_server.py`.
+- **Phase 1A — concurrency and BSM fast path**
+  - `ProcessPoolExecutor` worker pool replaces the former `asyncio.Lock` serialization
+    (`worker.py`, `services/ql_runtime.py`). Configurable via `DESKPRICER_WORKERS`
+    (default `min(4, cpu_count())`). Pool shuts down on app exit.
+  - Pure-Python European pricer `pricing/bsm_fast.py` (scipy BSM) for `style=european`
+    and for American options that are economically equivalent to Europeans.
+  - American→European reroute when `|q + b| ≤ 1e-8` (calls) or `|r| ≤ 1e-8` (puts).
+  - `tests/test_bsm_fast_parity.py`, `tests/test_american_european_reroute.py`,
+    `tests/test_worker_pool.py`.
+  - `DESKPRICER_INLINE=1` test mode (set in `conftest.py`) for in-process pricing.
+
+### Changed
+- Documentation updated for process-pool architecture (`README.md`, `AGENTS.md`,
+  `docs/architecture.md`, `docs/operator_guide.md`).
+- American call golden values aligned with European equivalents (reroute removes
+  binomial discretisation error).
+
 ## 3.4.0 — 2026-05-19
 
 ### Added

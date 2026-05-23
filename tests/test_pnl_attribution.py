@@ -325,7 +325,7 @@ class TestPnLAttribution:
 
     def test_small_vol_t_rejected(self, client: TestClient):
         """Extremely low vol causes QuantLib to fail; pricing layer returns 400."""
-        params = self._base_params(style="american", v_t=0.0005)
+        params = self._base_params(style="american", type="put", v_t=0.0005)
         resp = self._get(client, params, json_format=True)
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "INVALID_INPUT"

@@ -102,6 +102,7 @@ this document. In case of conflict, this file wins.
 | `IV_HIGH_VOL_WARNING_THRESHOLD` | `2.0` (200%) | Log warning above this IV; indicates likely data-quality issue | No |
 | `IV_REPRICE_RELATIVE_TOLERANCE` | `0.001` (0.1%) | Relative tolerance floor for IV reprice check on high-nominal underlyings | No |
 | `VOL_BUMP_CAP_FACTOR` | `0.5` (50%) | Cap vol bump at 50% of current vol to ensure `v − h_v > 0` always holds | No |
+| `AMERICAN_EUROPEAN_EQUIVALENCE_ABS_TOL` | `1e-8` | Absolute tolerance on `q+b` (calls) and `r` (puts) for American→European reroute | No |
 | `IV_SOLVER_DEFAULT_ACCURACY` | `1e-4` | Default Brent solver accuracy for IV root finding; tighter than QuantLib's own default to minimise reprice residual | No |
 | `IV_SOLVER_MAX_ITERATIONS` | `1000` | Maximum Brent iterations; sufficient for all practical BSM IV searches | No |
 

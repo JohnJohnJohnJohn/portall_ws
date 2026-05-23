@@ -1,0 +1,24 @@
+name: deskpricer
+displayName: DeskPricer — Options Pricing
+description: >
+  MCP server for vanilla option pricing, Greeks, implied volatility, PnL
+  attribution, and portfolio Greeks. Europeans use closed-form BSM; Americans
+  and IV use QuantLib binomial. Supports borrow cost, dividend yield, and
+  multiple calendars. Deterministic, auditable, hallucination-free.
+version: 3.4.0
+homepage: https://github.com/JohnJohnJohnJohn/portall_ws
+license: MIT
+categories:
+  - finance
+  - quantitative
+  - pricing
+tags:
+  - options
+  - greeks
+  - quantlib
+  - derivatives
+  - pnl-attribution
+  - mcp-server
+startCommand:
+  type: stdio
+  command: deskpricer-mcp

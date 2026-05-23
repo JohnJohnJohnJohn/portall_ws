@@ -28,7 +28,11 @@ Package manager: **pip** (venv) or **uv**.
 
 ```
 src/deskpricer/          # Application source
-  pricing/                # Pricing engine (European, American, IV, cross-greeks)
+  pricing/                # Pricing engine (BSM fast path, American, IV, cross-greeks)
+  worker.py               # Process-pool worker entrypoints
+  mcp_server.py           # MCP stdio server (deskpricer-mcp)
+  mcp_tools.py            # MCP tool schemas and agent-facing descriptions
+  services/               # pricing_service.py orchestration, ql_runtime.py pool
   app.py                  # FastAPI factory, routes, middleware
   schemas.py              # Pydantic request/response models
   errors.py               # Custom exceptions and FastAPI handlers
@@ -70,13 +74,16 @@ mypy src
 
 # Build standalone executable
 python scripts/build_executable.py
+
+# Run MCP server (stdio, for AI agents)
+deskpricer-mcp
 ```
 
 ## Definition of Done
 
 A task is finished when **all** of these are true:
 
-1. `pytest tests -v` passes (216 tests).
+1. `pytest tests -v` passes (261 tests).
 2. `ruff check src tests` reports zero errors.
 3. `mypy src` reports zero errors.
 4. No new runtime dependencies were added without approval.
@@ -108,7 +115,7 @@ A task is finished when **all** of these are true:
 - **Error handling**: Raise `InvalidInputError` (400) or `UnsupportedCombinationError` (422) for known bad inputs. Unexpected exceptions bubble to the catchall handler (500 / `PRICING_FAILURE`). Never leak raw tracebacks to clients.
 - **Logging**: Use the `deskpricer` logger only. Structured JSON via `JSONFormatter`. Never use `print()` in application code.
 - **Pricing layer**: All public functions in `pricing/` raise `InvalidInputError` or `UnsupportedCombinationError`; no raw QuantLib exceptions leak.
-- **QuantLib state**: `_QL_LOCK` must be held whenever `ql.Settings.instance().evaluationDate` is mutated.
+- **QuantLib state**: QuantLib pricing runs in worker processes via `ProcessPoolExecutor`. Each worker sets its own `ql.Settings.instance().evaluationDate` in `worker.execute_task()`. Do not mutate global QuantLib state on the async event-loop thread.
 - **Responses**: All endpoints return `meta` + `inputs` + `outputs`. Portfolio returns `meta` + `legs` + `aggregate`. XML is default; JSON via `Accept: application/json` or `?format=json`.
 - **Unit basis**: All pricing outputs from `/greeks`, `/impliedvol`, and `/pnl_attribution` are **per unit** (qty = 1). The pricer prices one contract at a time and does not model position sizing. Quantity scaling is the caller's responsibility. In the `/portfolio` endpoint, each leg returns unscaled unit Greeks; only the `aggregate` block reflects `qty`-weighted sums.
 
@@ -116,6 +123,7 @@ A task is finished when **all** of these are true:
 
 - API contract and examples: [`docs/api.md`](docs/api.md)
 - Excel integration guide: [`docs/excel_usage.md`](docs/excel_usage.md)
+- MCP agent setup: [`docs/mcp_quickstart.md`](docs/mcp_quickstart.md)
 - Module boundaries and data flow: [`docs/architecture.md`](docs/architecture.md)
 
 ## Commands the agent can invoke
