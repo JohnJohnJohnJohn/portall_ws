@@ -20,6 +20,8 @@
 
 **Definition of done**: Listed and installable on Smithery.ai and mcp.so with a passing health check.
 
+**Status (May 2026):** Engineering complete. PyPI publish live (`pip install deskpricer`). MCP validated in Inspector and Cursor. Registry submissions in flight (mcp.so pending; awesome-mcp-servers PR pending). Smithery deferred until MCPB packaging (Smithery’s current stdio path requires a `.mcpb` bundle — see Phase 1C notes). Phase 1D launch comms optional follow-up.
+
 ---
 
 ### Phase 1A — QuantLib Concurrency Fix (Pre-requisite)
@@ -208,9 +210,9 @@ See [docs/mcp_quickstart.md](docs/mcp_quickstart.md) for full setup and example 
 
 **Task 1C-5: Submit to registries**
 
-- **Smithery**: submit via https://smithery.ai/submit (requires GitHub OAuth + `smithery.yaml` in repo root)
-- **mcp.so**: submit via https://mcp.so/submit (fill in name, repo URL, description, category)
-- **awesome-mcp-servers**: open a PR to [https://github.com/punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) adding DeskPricer under the Finance category
+- **mcp.so**: submit via https://mcp.so/submit (Type: MCP Server, repo URL, stdio config JSON)
+- **awesome-mcp-servers**: open a PR to [https://github.com/punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) under **Finance & Fintech**
+- **Smithery**: deferred — current docs at [smithery.ai/docs/build/publish](https://smithery.ai/docs/build/publish) require either a public Streamable HTTP URL or an MCPB (`.mcpb`) bundle for stdio; `smithery.yaml` alone is not sufficient. Revisit when MCPB packaging is added.
 
 **Estimated effort**: 2–3 hours (mostly admin, not engineering)
 
@@ -246,14 +248,25 @@ Tag: `#MCP #QuantLib #Options #AlgoTrading #LLM #FinTech`
 [x] 1B-2  src/deskpricer/mcp_server.py created and tested
 [x] 1B-3  deskpricer-mcp entrypoint in pyproject.toml
 [x] 1B-4  docs/mcp_quickstart.md created
-[ ] 1C-1  smithery.yaml added to repo root
-[ ] 1C-2  pyproject.toml PyPI-publishable; package published
-[ ] 1C-3  GitHub repo topics updated
-[ ] 1C-4  README MCP section added
-[ ] 1C-5  Listed on Smithery, mcp.so, awesome-mcp-servers
-[ ] 1D-1  Launch post published on X + LinkedIn
-[ ] 1D-2  Posted to algotrading / MCP communities
+[x] 1C-1  smithery.yaml added to repo root
+[x] 1C-2  pyproject.toml PyPI-publishable; package published (pypi.org/project/deskpricer)
+[x] 1C-3  GitHub repo topics updated
+[x] 1C-4  README MCP section added
+[~] 1C-5  Registry listings (see breakdown below)
+[ ] 1D-1  Launch post published on X + LinkedIn          (optional follow-up)
+[ ] 1D-2  Posted to algotrading / MCP communities        (optional follow-up)
 ```
+
+### 1C-5 registry breakdown
+
+```
+[x] 1C-5a  mcp.so — submitted (pending approval)
+[x] 1C-5b  awesome-mcp-servers — PR opened (pending merge)
+[ ] 1C-5c  Smithery — deferred (MCPB bundle required; see 1C-5 notes above)
+```
+
+**Milestone 1 engineering gate:** PASSED (261 tests; MCP + PyPI + docs complete).  
+**Milestone 1 discovery gate:** IN PROGRESS (awaiting mcp.so / awesome-mcp-servers approval).
 
 ---
 

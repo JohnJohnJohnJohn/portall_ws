@@ -2,17 +2,23 @@
 
 ## Unreleased
 
+_Nothing pending — see 3.4.0 milestone entry below._
+
+## 3.4.0 — Milestone 1 (MCP-ready) — 2026-05-23
+
 ### Added
 - **Phase 1C — PyPI and registry metadata**
-  - `smithery.yaml` for Smithery listing (`deskpricer-mcp` stdio start command).
-  - PyPI-publishable `pyproject.toml` (author email, classifiers, project URLs).
-  - README MCP section and Cursor setup in `docs/mcp_quickstart.md`.
+  - `smithery.yaml` for future Smithery listing (`deskpricer-mcp` stdio start command).
+  - PyPI publish: https://pypi.org/project/deskpricer/ (`pip install deskpricer`).
+  - README MCP section (Cursor + Claude Desktop) and updated `docs/mcp_quickstart.md`.
+  - GitHub repo topics; default branch migrated to `main`.
+  - Submitted to mcp.so and awesome-mcp-servers (pending approval).
 - **Phase 1B — MCP transport layer**
   - MCP stdio server (`mcp_server.py`, `mcp_tools.py`) with tools: `price_option`,
     `implied_volatility`, `pnl_attribution`, `portfolio_greeks`.
   - CLI entrypoint `deskpricer-mcp`; runtime dependency `mcp>=1.0`.
   - Agent setup guide [`docs/mcp_quickstart.md`](docs/mcp_quickstart.md).
-  - `tests/test_mcp_server.py`.
+  - `tests/test_mcp_server.py` (20 MCP spec/execution tests; 261 total).
 - **Phase 1A — concurrency and BSM fast path**
   - `ProcessPoolExecutor` worker pool replaces the former `asyncio.Lock` serialization
     (`worker.py`, `services/ql_runtime.py`). Configurable via `DESKPRICER_WORKERS`
@@ -25,8 +31,8 @@
   - `DESKPRICER_INLINE=1` test mode (set in `conftest.py`) for in-process pricing.
 
 ### Changed
-- Documentation updated for process-pool architecture (`README.md`, `AGENTS.md`,
-  `docs/architecture.md`, `docs/operator_guide.md`).
+- Documentation updated for process-pool architecture and MCP (`README.md`, `AGENTS.md`,
+  `docs/architecture.md`, `docs/operator_guide.md`, `IMPLEMENTATION_PLAN.md`).
 - American call golden values aligned with European equivalents (reroute removes
   binomial discretisation error).
 

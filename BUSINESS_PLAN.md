@@ -161,7 +161,7 @@ No direct MCP-native competitor with QuantLib-backed pricing exists on any regis
 
 | Milestone | Target Date | KPI |
 |---|---|---|
-| M1: MCP-ready, Smithery listed | Month 1 | Listed on Smithery + mcp.so |
+| M1: MCP-ready, registry listed | Month 1 | PyPI live; mcp.so + awesome-mcp-servers submitted; Smithery deferred (MCPB) |
 | M2: Community traction | Month 3 | 200 GitHub stars, 50 Smithery installs |
 | M3: Hosted beta | Month 6 | 10 paying Pro users |
 | M4: Sustainable revenue | Month 12 | $500 MRR |

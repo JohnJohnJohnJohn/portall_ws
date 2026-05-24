@@ -175,3 +175,13 @@ Codes mirror the HTTP API: `INVALID_INPUT`, `UNSUPPORTED_COMBINATION`, `PRICING_
 | HTTP (`deskpricer`) | Excel `WEBSERVICE`, curl, local integrations |
 
 Both paths call the same `pricing_service` layer and return the same numeric results.
+
+## Discovery
+
+| Channel | Link |
+|---------|------|
+| PyPI | https://pypi.org/project/deskpricer/ |
+| GitHub | https://github.com/JohnJohnJohnJohn/portall_ws |
+| mcp.so | Submitted — search https://mcp.so/servers for DeskPricer |
+| awesome-mcp-servers | PR pending — [Finance & Fintech](https://github.com/punkpeye/awesome-mcp-servers#finance--fintech) |
+| Smithery | Deferred (requires MCPB bundle per current Smithery publish flow) |

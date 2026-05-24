@@ -14,6 +14,8 @@ DeskPricer is available as an MCP server. Add it to Cursor, Claude Desktop, or a
 pip install deskpricer
 ```
 
+Published on PyPI: https://pypi.org/project/deskpricer/
+
 **Cursor** — add to `~/.cursor/mcp.json`:
 
 ```json
