@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-_Nothing pending — see 3.4.2 milestone entry below._
+_Nothing pending — see 3.4.3 milestone entry below._
+
+## 3.4.3 — 2026-06-10
+
+### Changed
+- **Version bump** — Re-release after verifying 3.4.2 GAMMA_MIN_TICKS fix
+  end-to-end (HTTP server, process pool, American Binomial pricing).
 
 ## 3.4.2 — 2026-06-10
 
