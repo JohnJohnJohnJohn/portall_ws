@@ -125,6 +125,7 @@ A task is finished when **all** of these are true:
 - Excel integration guide: [`docs/excel_usage.md`](docs/excel_usage.md)
 - MCP agent setup: [`docs/mcp_quickstart.md`](docs/mcp_quickstart.md)
 - Module boundaries and data flow: [`docs/architecture.md`](docs/architecture.md)
+- Behavioral guidelines: [`.cursor/rules/karpathy-behavioral-guidelines.mdc`](.cursor/rules/karpathy-behavioral-guidelines.mdc)
 
 ## Commands the agent can invoke
 
