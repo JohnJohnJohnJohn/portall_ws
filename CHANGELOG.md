@@ -2,7 +2,19 @@
 
 ## Unreleased
 
-_Nothing pending — see 3.4.1 milestone entry below._
+_Nothing pending — see 3.4.2 milestone entry below._
+
+## 3.4.2 — 2026-06-10
+
+### Fixed
+- **GAMMA_MIN_TICKS too aggressive (3 → 1)** — The gamma sub-tick collapse fix
+  introduced in 3.4.1 used `GAMMA_MIN_TICKS=3`, which widened the gamma bump
+  whenever `h_s < 3 × crr_tick`. Collapse only occurs when `h_s < 1 × crr_tick`
+  (all three finite-difference points on the same linear segment). The
+  overly-conservative threshold caused 8 regression failures across golden
+  tests, desk fixtures, and the ATM gamma sanity check. Fixed by reducing
+  `GAMMA_MIN_TICKS` to 1 — mathematically sufficient to cross a lattice
+  boundary and prevent second-difference collapse.
 
 ## 3.4.1 — 2026-06-10
 

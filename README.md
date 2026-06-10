@@ -1,4 +1,4 @@
-# DeskPricer v3.4.1
+# DeskPricer v3.4.2
 
 Local HTTP pricing microservice for vanilla European and American equity options. Designed for Excel `WEBSERVICE` + `FILTERXML` integration — no VBA, no Bloomberg terminal calls inside the service.
 
@@ -75,7 +75,7 @@ Expected output for the curl call (XML):
 <?xml version="1.0" encoding="UTF-8"?>
 <greeks>
   <meta>
-    <service_version>3.4.1</service_version>
+    <service_version>3.4.2</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-06-10</valuation_date>
