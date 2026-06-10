@@ -16,8 +16,6 @@ from deskpricer.pricing.conventions import (
     IV_SOLVER_DEFAULT_ACCURACY,
     IV_SOLVER_MAX_ITERATIONS,
 )
-from deskpricer.pricing.cross_greeks import compute_cross_greeks as _compute_cross_greeks
-from deskpricer.pricing.implied_vol import compute_implied_vol as _compute_implied_vol
 from deskpricer.schemas import (
     GreeksOutput,
     GreeksRequest,

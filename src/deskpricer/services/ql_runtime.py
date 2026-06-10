@@ -6,8 +6,6 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import date
 from typing import Any
 
-import QuantLib as ql
-
 from deskpricer.worker import execute_task
 
 _pool: ProcessPoolExecutor | None = None
