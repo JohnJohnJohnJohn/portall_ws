@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-_Nothing pending — see 3.4.4 milestone entry below._
+_Nothing pending — see 3.4.5 milestone entry below._
+
+## 3.4.5 — 2026-06-10
+
+### Fixed
+- **PyInstaller process pool crash (take 2)** — The 3.4.4 fix added
+  `freeze_support()` to `main.py`, but the PyInstaller build uses
+  `scripts/run_deskpricer.py` as its entry point, which never called it.
+  Moved `freeze_support()` to the correct entry point and added
+  `deskpricer.worker` as an explicit hidden import so the spawned child
+  process can locate the worker module.
 
 ## 3.4.4 — 2026-06-10
 

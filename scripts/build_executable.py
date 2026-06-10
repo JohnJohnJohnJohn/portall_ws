@@ -67,6 +67,7 @@ def build(onefile: bool = True, windowed: bool = False):
         # Add src/ to PYTHONPATH so imports work inside the bundle
         "--paths", str(SRC_DIR),
         # Hidden imports that PyInstaller might miss
+        "--hidden-import", "deskpricer.worker",
         "--hidden-import", "deskpricer.app",
         "--hidden-import", "deskpricer.pricing.american",
         "--hidden-import", "deskpricer.pricing.european",
