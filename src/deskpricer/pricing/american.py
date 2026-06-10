@@ -7,7 +7,7 @@ from datetime import date
 import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
-from deskpricer.pricing.constants import MIN_T_YEARS, VOL_BUMP_CAP_FACTOR
+from deskpricer.pricing.constants import GAMMA_MIN_TICKS, MIN_T_YEARS, VOL_BUMP_CAP_FACTOR
 from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
@@ -95,6 +95,15 @@ def price_american(
     standard listed-equity convention of immediate exercise.  Callers who
     need a T+1 earliest exercise date (e.g. options on futures) should pass
     ``valuation_date + 1`` as the start parameter.
+
+    Gamma uses a separate, wider bump (``h_s_gamma``) that is guaranteed to
+    span at least ``GAMMA_MIN_TICKS`` CRR/JR lattice ticks.  This prevents
+    the three spot reprices from landing on the same locally-linear segment
+    of the binomial surface, which would cause the second difference to
+    collapse to numerical noise.  Delta continues to use the finer
+    ``bump_spot_rel`` bump for accuracy.  When ``h_s`` already exceeds the
+    tick threshold (ATM options, large explicit bumps), ``h_s_gamma == h_s``
+    and the gamma reprices reuse the delta reprices with no extra NPV calls.
     """
     if s <= 0:
         raise InvalidInputError("spot price must be positive", field="s")
@@ -118,7 +127,7 @@ def price_american(
     _common = (option_type, ql_date, expiry_date, steps, engine_type, calendar)
     price = _npv(s, k, r, q, v, *_common, b=b)
 
-    # Delta & Gamma via central differences on spot
+    # --- Delta: fine central-difference bump on spot ---
     h_s = bump_spot_rel * s
     if h_s <= 0.0 or not math.isfinite(h_s):
         raise InvalidInputError(
@@ -128,7 +137,29 @@ def price_american(
     price_up_s = _npv(s + h_s, k, r, q, v, *_common, b=b)
     price_down_s = _npv(s - h_s, k, r, q, v, *_common, b=b)
     delta = (price_up_s - price_down_s) / (2.0 * h_s)
-    gamma = (price_up_s - 2.0 * price + price_down_s) / (h_s * h_s)
+
+    # --- Gamma: wider bump guaranteed to span >= GAMMA_MIN_TICKS lattice ticks ---
+    # When h_s < one CRR tick the three prices used in the second difference can
+    # all land on the same locally-linear segment of the piecewise-linear
+    # binomial surface, collapsing gamma to noise (e.g. 3.75e-07 vs ~0.02).
+    # We compute the CRR tick size from the same (v, t, steps) used to build
+    # the tree and enforce a minimum bump of GAMMA_MIN_TICKS ticks.
+    dt = t / steps
+    crr_tick = s * (math.exp(v * math.sqrt(dt)) - 1.0)
+    h_s_gamma = max(h_s, GAMMA_MIN_TICKS * crr_tick)
+    if h_s_gamma > h_s:
+        logging.getLogger("deskpricer").debug(
+            "Gamma bump widened: h_s=%.6f -> h_s_gamma=%.6f (crr_tick=%.6f, min_ticks=%d)",
+            h_s,
+            h_s_gamma,
+            crr_tick,
+            GAMMA_MIN_TICKS,
+        )
+        price_up_g = _npv(s + h_s_gamma, k, r, q, v, *_common, b=b)
+        price_down_g = _npv(s - h_s_gamma, k, r, q, v, *_common, b=b)
+    else:
+        price_up_g, price_down_g = price_up_s, price_down_s
+    gamma = (price_up_g - 2.0 * price + price_down_g) / (h_s_gamma * h_s_gamma)
 
     # Vega via central difference on vol
     # Divide by 100 to report standard market convention (per 1%)
