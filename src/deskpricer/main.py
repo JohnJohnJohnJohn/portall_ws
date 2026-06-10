@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import multiprocessing
 import os
 import sys
 
@@ -33,7 +34,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Suppress request logs (useful when running as a background service)",
     )
-    return parser.parse_args(argv)
+    return parser.parse_known_args(argv)[0]
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -70,4 +71,5 @@ def main(argv: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     main(sys.argv[1:])

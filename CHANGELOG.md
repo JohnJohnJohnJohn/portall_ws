@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-_Nothing pending — see 3.4.3 milestone entry below._
+_Nothing pending — see 3.4.4 milestone entry below._
+
+## 3.4.4 — 2026-06-10
+
+### Fixed
+- **PyInstaller multiprocessing crash on Windows** — The process-pool worker
+  spawn would fail with `unrecognized arguments: --multiprocessing-fork`
+  because the PyInstaller-built executable's `argparse` rejected the
+  internal arguments that Python's `multiprocessing` passes to child
+  processes on Windows. Fixed by adding `multiprocessing.freeze_support()`
+  and switching `parse_args` to `parse_known_args` in `main.py`.
 
 ## 3.4.3 — 2026-06-10
 
