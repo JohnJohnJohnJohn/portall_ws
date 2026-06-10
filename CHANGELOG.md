@@ -2,7 +2,29 @@
 
 ## Unreleased
 
-_Nothing pending — see 3.4.0 milestone entry below._
+_Nothing pending — see 3.4.1 milestone entry below._
+
+## 3.4.1 — 2026-06-10
+
+### Fixed
+- **American gamma sub-tick collapse (CRR/JR lattice alignment)** — Deep-OTM American
+  options priced with `binomial_crr` and the default `bump_spot_rel=0.01` could return
+  gamma at floating-point noise level (e.g. `3.75e-07` instead of `~0.02`). The root
+  cause was that the delta and gamma finite differences shared the same bump
+  `h_s = bump_spot_rel × S`. When `h_s` is smaller than one CRR lattice tick
+  (`S × (exp(σ√Δt) − 1)`), all three repriced option prices land on the same
+  locally-linear segment of the piecewise-linear binomial surface and the second
+  difference collapses. Fixed by computing a separate `h_s_gamma = max(h_s,
+  GAMMA_MIN_TICKS × crr_tick)` that spans at least 3 lattice ticks. Delta and charm
+  continue to use the original fine bump. When `h_s` already exceeds the threshold
+  (ATM options, large explicit bumps), the gamma reprices reuse the delta reprices
+  with no extra NPV calls and no performance regression.
+- **`GAMMA_MIN_TICKS = 3`** constant added to `src/deskpricer/pricing/constants.py`
+  with full rationale docstring.
+- **Regression tests** — `tests/test_gamma_sub_tick_regression.py` added with 5 cases
+  covering the originally-failing deep-OTM input (`S=29.74, K=47`), the working
+  control case (`S=26.52, K=42`), both CRR and JR engines, and an ATM guard confirming
+  the fix does not disturb normal inputs.
 
 ## 3.4.0 — Milestone 1 (MCP-ready) — 2026-05-23
 
