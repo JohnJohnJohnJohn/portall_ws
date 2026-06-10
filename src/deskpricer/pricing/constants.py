@@ -65,3 +65,17 @@ IV_SOLVER_DEFAULT_ACCURACY: float = 1e-4
 
 IV_SOLVER_MAX_ITERATIONS: int = 1000
 """Maximum Brent iterations; sufficient for all practical BSM IV searches."""
+
+GAMMA_MIN_TICKS: int = 3
+"""Minimum number of CRR/JR lattice ticks the gamma bump must span.
+
+When h_s = bump_spot_rel * S is smaller than GAMMA_MIN_TICKS * crr_tick_size,
+the three repriced option prices used in the second-difference gamma formula
+(P_up - 2*P + P_down) / h^2 can all land on the same locally-linear segment
+of the piecewise-linear binomial surface.  The second difference then collapses
+to numerical noise rather than the true curvature.  Enforcing a minimum of 3
+ticks guarantees the bump straddles at least one node boundary where curvature
+is visible.  This only activates for small-bump / deep-OTM combinations;
+for ATM options or larger bumps the standard h_s already exceeds the threshold
+and no extra reprices are performed.
+"""
