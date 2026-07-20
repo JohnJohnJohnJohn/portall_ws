@@ -14,7 +14,7 @@ from deskpricer.pricing.conventions import (
     DEFAULT_STEPS,
     CalendarLiteral,
 )
-from deskpricer.pricing.engine import price_vanilla
+from deskpricer.pricing.engine import price_vanilla_npv
 from deskpricer.schemas import EngineLiteral
 
 
@@ -88,8 +88,12 @@ def compute_cross_greeks(
         )
     dv_points = effective_bump_vol * 100.0
 
-    def _price(spot: float, vol: float):
-        return price_vanilla(
+    def _price(spot: float, vol: float) -> float:
+        # NPV-only fast path: cross-greeks only needs the price at each bumped
+        # scenario, not the full Greeks.  For Americans this avoids ~10x extra
+        # binomial tree builds per call (was 60-72 tree builds per cross-greeks
+        # state, now 6).
+        return price_vanilla_npv(
             s=spot,
             k=k,
             t=t,
@@ -102,25 +106,22 @@ def compute_cross_greeks(
             engine=engine,
             valuation_date=valuation_date,
             steps=steps,
-            bump_spot_rel=bump_spot_rel,
-            bump_vol_abs=bump_vol_abs,
-            bump_rate_abs=bump_rate_abs,
             calendar_name=calendar_name,
         )
 
     # --- Volga: V(S,σ+Δσ) - 2V(S,σ) + V(S,σ-Δσ) over (Δσ)² ---
     # 2 extra pricing calls
-    result_v_up = _price(s, v + effective_bump_vol)
-    result_v_down = _price(s, v - effective_bump_vol)
-    volga = (result_v_up.price - 2.0 * base_price + result_v_down.price) / (dv_points**2)
+    price_v_up = _price(s, v + effective_bump_vol)
+    price_v_down = _price(s, v - effective_bump_vol)
+    volga = (price_v_up - 2.0 * base_price + price_v_down) / (dv_points**2)
 
     # --- Vanna: 4-point cross difference ---
     # 4 extra pricing calls
-    result_pp = _price(s + ds, v + effective_bump_vol)
-    result_pm = _price(s + ds, v - effective_bump_vol)
-    result_mp = _price(s - ds, v + effective_bump_vol)
-    result_mm = _price(s - ds, v - effective_bump_vol)
-    vanna = (result_pp.price - result_pm.price - result_mp.price + result_mm.price) / (
+    price_pp = _price(s + ds, v + effective_bump_vol)
+    price_pm = _price(s + ds, v - effective_bump_vol)
+    price_mp = _price(s - ds, v + effective_bump_vol)
+    price_mm = _price(s - ds, v - effective_bump_vol)
+    vanna = (price_pp - price_pm - price_mp + price_mm) / (
         4.0 * ds * dv_points
     )
 

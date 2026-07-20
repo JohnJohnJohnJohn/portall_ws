@@ -15,7 +15,9 @@ from deskpricer.pricing.conventions import (
     DEFAULT_STEPS,
     IV_SOLVER_DEFAULT_ACCURACY,
     IV_SOLVER_MAX_ITERATIONS,
+    MIN_T_YEARS,
 )
+from deskpricer.pricing.engine import resolve_effective_steps
 from deskpricer.schemas import (
     GreeksOutput,
     GreeksRequest,
@@ -33,6 +35,23 @@ def _meta(engine: str | None, valuation_date: date) -> dict[str, Any]:
         "engine": engine,
         "valuation_date": valuation_date.isoformat(),
     }
+
+
+def _maybe_effective_steps_meta(
+    style: str, t: float, v: float, requested_steps: int
+) -> dict[str, Any]:
+    """Return ``{"effective_steps": N}`` when adaptive logic changed the step count.
+
+    Only populated for American options (where steps is meaningful) and only
+    when the engine used a different value than the caller requested.  This
+    keeps the response transparent without cluttering European responses.
+    """
+    if style != "american":
+        return {}
+    effective = resolve_effective_steps("american", max(t, MIN_T_YEARS), v, requested_steps)
+    if effective == requested_steps:
+        return {}
+    return {"effective_steps": effective}
 
 
 def _add_non_default_bumps(inputs: dict[str, Any], params) -> None:
@@ -140,6 +159,7 @@ async def run_greeks(
         },
     )
     meta = _meta(params.engine, valuation_date)
+    meta.update(_maybe_effective_steps_meta(params.style, params.t, params.v, params.steps))
     inputs: dict[str, Any] = {
         "s": params.s,
         "k": params.k,
@@ -253,6 +273,10 @@ async def run_portfolio(
     for leg, result_dict in zip(payload.legs, leg_results, strict=True):
         result = GreeksOutput(**result_dict)
         row = {"id": leg.id, "engine": leg.engine, **result.model_dump()}
+        # Echo effective_steps per-leg when adaptive logic changed it.
+        row.update(
+            _maybe_effective_steps_meta(leg.style, leg.t, leg.v, leg.steps)
+        )
         legs_out.append(row)
         for greek in aggregate:
             val = getattr(result, greek)

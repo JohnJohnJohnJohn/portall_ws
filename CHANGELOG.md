@@ -2,7 +2,64 @@
 
 ## Unreleased
 
-_Nothing pending — see 3.4.5 milestone entry below._
+_Nothing pending — see 3.5.0 milestone entry below._
+
+## 3.5.0 — 2026-07-20
+
+### Performance
+
+- **BSM fast path: ~16× faster European pricing (267µs → 16µs)** by replacing
+  `scipy.stats.norm.cdf/pdf` with stdlib `math.erf`-based scalar helpers
+  (bit-identical results to ~1e-15) and caching `d1`, `d2`, discount factors,
+  and CDF/PDF values within a single request (was recomputed 5× per request).
+- **Cross-greeks NPV-only fast path** — `compute_cross_greeks` was calling the
+  full Greeks pipeline 6× per state but only reading `.price`.  New
+  `price_vanilla_npv()` helper skips the bump-and-revalue Greeks entirely,
+  cutting American cross-greeks from ~72 tree builds to 6 (10× speedup).
+- **Adaptive step count for American options** — when the caller leaves `steps`
+  at the default, the engine now picks a value based on time-to-expiry
+  (`steps ≈ 200 / t`, clamped to [100, 2000]).  Long-dated options price faster
+  (200 steps at T=1yr); short-dated options price more accurately (2000 steps
+  at T=0.1yr).  The chosen value is echoed in `meta.effective_steps`.
+- **Worker pool default raised 4 → 8** to absorb bursty Excel WEBSERVICE
+  recalc concurrency on modern 8+ core desktops.
+- **scipy moved to dev-only dependencies** — production no longer requires
+  scipy (the BSM path uses stdlib `math.erf`).  Only `tests/_bsm_ref.py`
+  (the independent reference oracle) still uses scipy, via the `dev` extra.
+
+### Accuracy
+
+- **Gamma sub-tick collapse detection** — at high vol / low step counts the
+  gamma second-difference could collapse to numerical noise (e.g. returning
+  0.0004 instead of 0.0157 at v=0.5, steps=500).  The bump is now widened to
+  span at least 3 CRR lattice ticks (up from 1), with a runtime cross-check
+  that falls back to an even wider bump if the widened gamma still looks like
+  noise.  Verified: gamma is now within ~10% of BSM across all vol/step
+  combinations tested.
+- **Richardson extrapolation for American theta/charm** — combines binomial
+  values at N and 2N steps to cancel the leading O(1/N) discretisation error.
+  At 500 steps, theta error vs the 20000-step asymptote drops from ~8e-6
+  (raw 500-step) to ~3e-6 (Richardson-extrapolated).  Cost: 3 extra NPV calls
+  per American request.
+- **IV solver honours adaptive steps** — `/impliedvol` now applies the same
+  adaptive step logic as `/greeks`, so a `/greeks → /impliedvol` round-trip
+  at default steps no longer fails `verify_reprice` on long-dated Americans.
+  The solver also enforces a 500-step minimum to avoid the saw-tooth
+  convergence that binomial exhibits at low step counts.
+
+### Reliability
+
+- **Pool timeout** — `run_pricing_task` now wraps the executor call in
+  `asyncio.wait_for(timeout=60s)` (configurable via `DESKPRICER_TASK_TIMEOUT`).
+  On timeout returns HTTP 503 `PRICING_TIMEOUT` instead of hanging indefinitely.
+- **BrokenProcessPool recovery** — when a worker dies (segfault, OOM), the
+  pool is automatically shut down and rebuilt on the next request, rather
+  than leaving the service permanently broken until manual restart.
+- **Worker count validation** — invalid `DESKPRICER_WORKERS` values now raise
+  a clean error at first request rather than silently clamping.
+- **Insufficient-steps warning** — logs a one-time warning (per process)
+  when the caller-supplied step count is likely too low for the option's
+  tenor and vol.
 
 ## 3.4.5 — 2026-06-10
 

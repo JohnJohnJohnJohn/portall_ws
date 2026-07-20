@@ -7,7 +7,13 @@ from datetime import date
 import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
-from deskpricer.pricing.constants import GAMMA_MIN_TICKS, MIN_T_YEARS, VOL_BUMP_CAP_FACTOR
+from deskpricer.pricing.constants import (
+    GAMMA_MIN_TICKS,
+    GAMMA_NOISE_FLOOR,
+    MIN_T_YEARS,
+    RICHARDSON_MAX_STEPS,
+    VOL_BUMP_CAP_FACTOR,
+)
 from deskpricer.pricing.conventions import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
@@ -138,28 +144,47 @@ def price_american(
     price_down_s = _npv(s - h_s, k, r, q, v, *_common, b=b)
     delta = (price_up_s - price_down_s) / (2.0 * h_s)
 
-    # --- Gamma: wider bump guaranteed to span >= GAMMA_MIN_TICKS lattice ticks ---
-    # When h_s < one CRR tick the three prices used in the second difference can
-    # all land on the same locally-linear segment of the piecewise-linear
-    # binomial surface, collapsing gamma to noise (e.g. 3.75e-07 vs ~0.02).
-    # We compute the CRR tick size from the same (v, t, steps) used to build
-    # the tree and enforce a minimum bump of GAMMA_MIN_TICKS ticks.
+    # --- Gamma: sub-tick widening with collapse detection ---
+    # When h_s is smaller than a few CRR lattice ticks, the three spot reprices
+    # used in the second-difference gamma formula can either (a) all land on the
+    # same locally-linear segment (collapsing gamma to numerical noise, e.g.
+    # 3.75e-07 vs ~0.02), or (b) straddle a kink and overestimate gamma.  In
+    # either case the fine-bump gamma is unreliable, so we widen the bump to
+    # span at least GAMMA_MIN_TICKS ticks whenever h_s falls below that threshold.
+    #
+    # As a further guard against collapse that survives the widening (seen at
+    # high vol / low step counts), we cross-check against an even wider bump
+    # and fall back to it if the wide gamma still looks like noise.
     dt = t / steps
     crr_tick = s * (math.exp(v * math.sqrt(dt)) - 1.0)
     h_s_gamma = max(h_s, GAMMA_MIN_TICKS * crr_tick)
     if h_s_gamma > h_s:
         logging.getLogger("deskpricer").debug(
             "Gamma bump widened: h_s=%.6f -> h_s_gamma=%.6f (crr_tick=%.6f, min_ticks=%d)",
-            h_s,
-            h_s_gamma,
-            crr_tick,
-            GAMMA_MIN_TICKS,
+            h_s, h_s_gamma, crr_tick, GAMMA_MIN_TICKS,
         )
         price_up_g = _npv(s + h_s_gamma, k, r, q, v, *_common, b=b)
         price_down_g = _npv(s - h_s_gamma, k, r, q, v, *_common, b=b)
+        gamma = (price_up_g - 2.0 * price + price_down_g) / (h_s_gamma * h_s_gamma)
+        # Cross-check: if the widened gamma still looks like numerical noise,
+        # try an even wider bump.  This catches the high-vol/low-steps collapse
+        # mode where even GAMMA_MIN_TICKS ticks isn't enough span.
+        if abs(gamma) < GAMMA_NOISE_FLOOR:
+            h_s_extra = max(h_s_gamma, 2 * GAMMA_MIN_TICKS * crr_tick)
+            if h_s_extra > h_s_gamma:
+                price_up_x = _npv(s + h_s_extra, k, r, q, v, *_common, b=b)
+                price_down_x = _npv(s - h_s_extra, k, r, q, v, *_common, b=b)
+                gamma_extra = (price_up_x - 2.0 * price + price_down_x) / (h_s_extra * h_s_extra)
+                if abs(gamma_extra) > abs(gamma):
+                    logging.getLogger("deskpricer").debug(
+                        "Gamma collapse detected after widening: gamma=%.2e -> gamma_extra=%.2e "
+                        "(h_s_gamma=%.6f, h_s_extra=%.6f, crr_tick=%.6f, s=%.2f, v=%.4f, steps=%d)",
+                        gamma, gamma_extra, h_s_gamma, h_s_extra, crr_tick, s, v, steps,
+                    )
+                    gamma = gamma_extra
     else:
-        price_up_g, price_down_g = price_up_s, price_down_s
-    gamma = (price_up_g - 2.0 * price + price_down_g) / (h_s_gamma * h_s_gamma)
+        # h_s already spans >= GAMMA_MIN_TICKS ticks; the delta reprices are usable.
+        gamma = (price_up_s - 2.0 * price + price_down_s) / (h_s * h_s)
 
     # Vega via central difference on vol
     # Divide by 100 to report standard market convention (per 1%)
@@ -189,10 +214,14 @@ def price_american(
     rho = (price_up_r - price_down_r) / (2.0 * h_r) / 100.0
 
     # Theta: P&L impact of one calendar day passing (forward-looking, negative for a long option).
-    # Revalue with expiry shortened by 1/365 years and subtract today's price.
+    # Revalue with expiry shortened by 1 calendar day and subtract today's price.
     # When the option has <= 1 calendar day left, fallback to intrinsic value.
+    # Richardson extrapolation (2*N steps combined with N steps to cancel the
+    # leading O(1/N) binomial discretisation error) is applied to theta/charm
+    # when N is small enough that doubling is still affordable.
     if t <= MIN_T_YEARS:
         price_t1 = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
+        theta = price_t1 - price
         charm = 0.0
     else:
         expiry_t1 = expiry_date - 1
@@ -201,8 +230,31 @@ def price_american(
         price_up_s_t1 = _npv(s + h_s, k, r, q, v, *_common_t1, b=b)
         price_down_s_t1 = _npv(s - h_s, k, r, q, v, *_common_t1, b=b)
         delta_t1 = (price_up_s_t1 - price_down_s_t1) / (2.0 * h_s)
-        charm = delta_t1 - delta
-    theta = price_t1 - price
+        # Richardson extrapolation on theta/charm: theta = P(T-1) - P(T), and
+        # both P(T-1) and P(T) carry O(1/N) binomial error.  We extrapolate
+        # theta directly (not the individual prices): theta_rich = 2*theta_2N -
+        # theta_N cancels the leading error.  Requires the at-today price and
+        # delta at 2N steps too.  Skipped when 2N would exceed the step cap.
+        if 2 * steps <= RICHARDSON_MAX_STEPS:
+            _common_2n = (option_type, ql_date, expiry_date, 2 * steps, engine_type, calendar)
+            _common_t1_2n = (option_type, ql_date, expiry_t1, 2 * steps, engine_type, calendar)
+            price_2n = _npv(s, k, r, q, v, *_common_2n, b=b)
+            price_t1_2n = _npv(s, k, r, q, v, *_common_t1_2n, b=b)
+            price_up_s_2n = _npv(s + h_s, k, r, q, v, *_common_2n, b=b)
+            price_down_s_2n = _npv(s - h_s, k, r, q, v, *_common_2n, b=b)
+            price_up_s_t1_2n = _npv(s + h_s, k, r, q, v, *_common_t1_2n, b=b)
+            price_down_s_t1_2n = _npv(s - h_s, k, r, q, v, *_common_t1_2n, b=b)
+            delta_2n = (price_up_s_2n - price_down_s_2n) / (2.0 * h_s)
+            delta_t1_2n = (price_up_s_t1_2n - price_down_s_t1_2n) / (2.0 * h_s)
+            theta_n = price_t1 - price
+            theta_2n = price_t1_2n - price_2n
+            theta = 2.0 * theta_2n - theta_n
+            charm_n = delta_t1 - delta
+            charm_2n = delta_t1_2n - delta_2n
+            charm = 2.0 * charm_2n - charm_n
+        else:
+            theta = price_t1 - price
+            charm = delta_t1 - delta
 
     return GreeksOutput(
         price=price,

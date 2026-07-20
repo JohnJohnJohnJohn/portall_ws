@@ -10,7 +10,34 @@ MAX_EXPIRY_T_DISCREPANCY: float = 0.20
 """CONVENTIONS.md §4: 20% round-trip discrepancy warning threshold in expiry_from_t."""
 
 DEFAULT_STEPS: int = 500
-"""CONVENTIONS.md §4: Default binomial tree steps; balances accuracy vs. speed."""
+"""CONVENTIONS.md §4: Default binomial tree steps; balances accuracy vs. speed.
+
+Also the sentinel value used to detect "caller did not override steps" in
+engine.py:price_vanilla — when the request arrives with steps == DEFAULT_STEPS,
+the adaptive step logic is allowed to pick a more appropriate value based on
+time-to-expiry.  Callers who explicitly want 500 steps can set any other value
+(the adaptive path only triggers on the exact sentinel).
+"""
+
+ADAPTIVE_STEPS_TARGET: int = 200
+"""Target binomial steps per year of maturity, used by the adaptive step picker.
+
+Long-dated options need fewer steps to converge; short-dated options need
+more to resolve the payoff kink near expiry.  engine.py multiplies this by
+1/t (clamped to [ADAPTIVE_STEPS_MIN, ADAPTIVE_STEPS_MAX]) to pick a default
+step count that's both faster and more accurate than a fixed 500.
+"""
+
+ADAPTIVE_STEPS_MIN: int = 100
+"""Lower bound for adaptive step count."""
+
+ADAPTIVE_STEPS_MAX: int = 2000
+"""Upper bound for adaptive step count; also the threshold below which
+Richardson extrapolation (2N steps) stays within the 5000 schema cap."""
+
+INSUFFICIENT_STEPS_WARNING_THRESHOLD: float = 50.0
+"""Minimum recommended steps per year of maturity; below this a warning is
+logged because gamma/theta accuracy degrades noticeably."""
 
 DEFAULT_BUMP_SPOT_REL: float = 0.01
 """CONVENTIONS.md §4: 1% relative spot bump; large enough to avoid noise, small enough for accurate FD."""
@@ -66,19 +93,34 @@ IV_SOLVER_DEFAULT_ACCURACY: float = 1e-4
 IV_SOLVER_MAX_ITERATIONS: int = 1000
 """Maximum Brent iterations; sufficient for all practical BSM IV searches."""
 
-GAMMA_MIN_TICKS: int = 1
-"""Minimum number of CRR/JR lattice ticks the gamma bump must span.
+GAMMA_MIN_TICKS: int = 3
+"""Number of CRR/JR lattice ticks the *fallback* gamma bump spans.
 
-When h_s = bump_spot_rel * S is smaller than one CRR tick, the three
-repriced option prices used in the second-difference gamma formula
-(P_up - 2*P + P_down) / h^2 all land on the same locally-linear segment
-of the piecewise-linear binomial surface.  The second difference then
-collapses to numerical noise rather than the true curvature.
+When the fine delta-style bump h_s = bump_spot_rel * S is smaller than a
+small multiple of the CRR lattice tick size, the three spot reprices used
+in the second-difference gamma formula can all land on the same locally-
+linear segment of the piecewise-linear binomial surface, collapsing
+gamma to numerical noise.  american.py computes both a fine gamma and a
+wider gamma (h_s_wide = max(h_s, GAMMA_MIN_TICKS * crr_tick)); if the fine
+gamma has collapsed (below GAMMA_NOISE_FLOOR and discrepant from the wide
+gamma), the wide gamma is reported instead.  See american.py for details.
+"""
 
-A single tick is sufficient to guarantee the bump straddles a node
-boundary where curvature is visible: if h_s >= crr_tick then the span
-2*h_s >= 2*crr_tick must cross at least one boundary.  This only
-activates when h_s falls below one tick (small-bump / deep-OTM
-combinations); for ATM options or larger bumps h_s already exceeds
-one tick and no extra reprices are performed.
+GAMMA_NOISE_FLOOR: float = 1e-4
+"""Gamma values below this threshold are treated as numerical noise.
+
+Used by the runtime collapse detector in american.py to decide whether to
+fall back to the wider-bump gamma estimate.  Tuned to be well below any
+realistic equity-option gamma (typical ATM gamma is 0.01-0.10) but above
+the noise floor of the binomial second difference (~1e-7).
+"""
+
+RICHARDSON_MAX_STEPS: int = 5000
+"""Upper bound on the 2N-step Richardson extrapolation for theta/charm.
+
+american.py applies Richardson extrapolation to cancel the leading O(1/N)
+binomial error in theta and charm, doubling the step count from N to 2N.
+This cap (matching the schema's overall steps cap of 5000) prevents the
+doubling from silently exceeding sane limits.  When N > RICHARDSON_MAX_STEPS/2
+the extrapolation is skipped and raw N-step values are used.
 """

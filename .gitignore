@@ -136,5 +136,8 @@ Thumbs.db
 # Project specific
 *.egg-info/
 
+# Agent workspaces (local-only metadata, not for the repo)
+.zcode/
+
 # Excel lock files
 ~$*.xlsx

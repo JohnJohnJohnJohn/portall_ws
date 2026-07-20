@@ -36,7 +36,7 @@ Version metadata.
 **Response (XML):**
 ```xml
 <version>
-  <service>3.4.5</service>
+  <service>3.5.0</service>
   <quantlib>1.42.1</quantlib>
   <python>3.12.7</python>
 </version>
@@ -97,13 +97,17 @@ Price a single vanilla option and return Greeks.
 > **Rho scope**: `rho` measures sensitivity to the **risk-free rate** (`r`) only. DeskPricer does not return a dividend-yield rho (`rho_q`) or a borrow-cost rho (`rho_b`).
 >
 > **Unit-basis note**: All values in `<outputs>` are **per unit** (qty = 1).  The pricer prices one contract at a time and does not model position sizing.  Quantity scaling is the caller's responsibility.
+>
+> **Adaptive steps**: When `steps` is left at the default (500) for an American option, the engine picks a value based on time-to-expiry (long-dated → fewer steps, short-dated → more steps).  The chosen value appears in `meta.effective_steps`.  Supplying any `steps` value other than 500 is treated as an explicit override and adaptive logic is skipped (callers who explicitly need exactly 500 steps can use any sentinel-aware workaround, e.g. specifying 501 has no material effect).  See `CONVENTIONS.md §4.1` for the formula.
+>
+> **American theta/charm accuracy**: Theta and charm for American options use Richardson extrapolation (combining values at N and 2N binomial steps) to cancel the leading discretisation error.  See `CONVENTIONS.md §4.1`.
 
 #### Response (XML)
 
 ```xml
 <greeks>
   <meta>
-    <service_version>3.4.5</service_version>
+    <service_version>3.5.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -166,7 +170,7 @@ Bulk endpoint for book-level aggregation.
 ```json
 {
   "meta": {
-    "service_version": "3.4.5",
+    "service_version": "3.5.0",
     "quantlib_version": "1.42.1"
   },
   "legs": [
@@ -203,7 +207,7 @@ Aggregate = Σ qty × per-leg Greek (including price).
 ```xml
 <portfolio>
   <meta>
-    <service_version>3.4.5</service_version>
+    <service_version>3.5.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <valuation_date>2026-04-22</valuation_date>
   </meta>
@@ -263,7 +267,7 @@ Solve for implied volatility given an observed market price.
 ```xml
 <impliedvol>
   <meta>
-    <service_version>3.4.5</service_version>
+    <service_version>3.5.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -349,7 +353,7 @@ When `cross_greeks=true`, the PnL attribution adds two second-order terms that c
 ```xml
 <pnl_attribution>
   <meta>
-    <service_version>3.4.5</service_version>
+    <service_version>3.5.0</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <valuation_date_t_minus_1>2026-04-19</valuation_date_t_minus_1>
     <valuation_date_t>2026-04-20</valuation_date_t>

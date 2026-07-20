@@ -20,7 +20,7 @@ curl "http://127.0.0.1:8765/v1/greeks?s=100&k=105&t=0.25&r=0.05&q=0.02&b=0.0&v=0
 # <?xml version="1.0" encoding="UTF-8"?>
 # <greeks>
 #   <meta>
-#     <service_version>3.4.5</service_version>
+#     <service_version>3.5.0</service_version>
 #     ...
 #   </meta>
 #   <inputs>...</inputs>
@@ -94,6 +94,7 @@ or append `?format=json` to the URL.
 |-----------|------|------|---------|
 | `InvalidInputError` | 400 | `INVALID_INPUT` | Business-rule validation failed (e.g., price out of arbitrage bounds, date out of range). |
 | `UnsupportedCombinationError` | 422 | `UNSUPPORTED_COMBINATION` | Engine/style mismatch or other unsupported parameter pairing. |
+| `PricingTimeoutError` | 503 | `PRICING_TIMEOUT` | Pricing task exceeded the configured timeout (default 60 s; override via `DESKPRICER_TASK_TIMEOUT`). The worker process continues running the task — under sustained timeouts the pool may be exhausted. |
 | (catchall) | 500 | `PRICING_FAILURE` | Unexpected internal error. Never leaks raw tracebacks. |
 
 ## Limitations
@@ -102,7 +103,7 @@ DeskPricer is intentionally scoped as a **local-only desk tool**. The following 
 
 - **No finite-difference (FD) engine** — closed-form BSM (`bsm_fast`) for Europeans and equivalent Americans; binomial CRR/JR for other Americans.
 - **European requires analytic** — the `engine` parameter must be `analytic` for European style; pricing uses the pure-Python BSM path (validated against QuantLib to 6 dp).
-- **Concurrent pricing via process pool** — QuantLib work runs in a `ProcessPoolExecutor` (default `min(4, cpu_count())` workers, configurable via `DESKPRICER_WORKERS`). Each worker has an isolated `Settings.instance()`.
+- **Concurrent pricing via process pool** — QuantLib work runs in a `ProcessPoolExecutor` (default `min(8, cpu_count())` workers, configurable via `DESKPRICER_WORKERS`). Each worker has an isolated `Settings.instance()`. Per-task timeout defaults to 60 s, configurable via `DESKPRICER_TASK_TIMEOUT` (returns HTTP 503 `PRICING_TIMEOUT` on expiry).
 - **Max 500 legs per portfolio** — hard limit to prevent accidental denial-of-self.
 - **Bounded bump ranges** — `bump_spot_rel` ∈ (0, 0.1], `bump_vol_abs` ∈ (0, 0.01], `bump_rate_abs` ∈ (0, 0.01].
 - **No database or persistence** — all state is in-memory and per-request.

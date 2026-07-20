@@ -29,6 +29,13 @@ this document. In case of conflict, this file wins.
 - **Unit**: per price unit, ∂²V/∂S².
 - **P&L attribution**: `gamma_pnl = 0.5 × gamma × (ΔS)²`.
 - **No scaling applied.**
+- **Sub-tick widening (American binomial only)**: when the default spot bump
+  `h_s = bump_spot_rel × S` is smaller than 3 CRR lattice ticks, the three
+  reprices used in the second-difference formula can collapse to noise.  The
+  engine widens the gamma bump to `max(h_s, GAMMA_MIN_TICKS × crr_tick)` and,
+  if the result still looks like noise, falls back to an even wider bump.
+  This catches the high-vol / low-step-count collapse that previously returned
+  gamma values off by 36×.
 
 ### 2.3 Vega
 - **Raw QuantLib output**: ∂V/∂σ, where σ is expressed as a decimal (e.g. 0.20 for 20% vol). The raw value therefore represents the price change per 1.00 unit of decimal vol, i.e. per 100 vol-points.
@@ -105,6 +112,53 @@ this document. In case of conflict, this file wins.
 | `AMERICAN_EUROPEAN_EQUIVALENCE_ABS_TOL` | `1e-8` | Absolute tolerance on `q+b` (calls) and `r` (puts) for American→European reroute | No |
 | `IV_SOLVER_DEFAULT_ACCURACY` | `1e-4` | Default Brent solver accuracy for IV root finding; tighter than QuantLib's own default to minimise reprice residual | No |
 | `IV_SOLVER_MAX_ITERATIONS` | `1000` | Maximum Brent iterations; sufficient for all practical BSM IV searches | No |
+| `GAMMA_MIN_TICKS` | `3` | Number of CRR/JR lattice ticks the gamma bump spans when widened. See §4.1 for details | No |
+| `GAMMA_NOISE_FLOOR` | `1e-4` | Gamma values below this threshold are treated as numerical noise by the runtime collapse detector | No |
+| `RICHARDSON_MAX_STEPS` | `5000` | Upper bound on the 2N-step Richardson extrapolation for theta/charm. See §4.1 | No |
+| `ADAPTIVE_STEPS_TARGET` | `200` | Target binomial steps per year of maturity, used by the adaptive step picker. See §4.1 | No |
+| `ADAPTIVE_STEPS_MIN` | `100` | Lower bound for adaptive step count | No |
+| `ADAPTIVE_STEPS_MAX` | `2000` | Upper bound for adaptive step count | No |
+| `INSUFFICIENT_STEPS_WARNING_THRESHOLD` | `50.0` | Min recommended steps per year; below this a warning is logged | No |
+
+## 4.1 Numerical Methods
+
+### Adaptive step count (American options)
+
+When the caller leaves `steps` at the schema default (`DEFAULT_STEPS = 500`),
+the engine picks a more appropriate value based on time-to-expiry:
+
+```
+effective_steps = clamp(ADAPTIVE_STEPS_TARGET / max(t, 0.05), ADAPTIVE_STEPS_MIN, ADAPTIVE_STEPS_MAX)
+```
+
+Long-dated options converge with fewer steps; short-dated options need more to
+resolve the payoff kink near expiry.  At T=1yr the engine uses 200 steps
+(faster); at T=0.1yr it uses 2000 steps (more accurate).  When the caller
+supplies an explicit `steps` value, it is respected as-is.  The chosen value is
+echoed in `meta.effective_steps` when it differs from the requested value.
+
+### Gamma sub-tick widening
+
+At high volatilities or low step counts, the default spot bump `h_s = 0.01 × S`
+can be smaller than one CRR lattice tick, causing the second-difference gamma to
+collapse to noise.  The engine computes gamma at the wider bump
+`h_s_gamma = max(h_s, GAMMA_MIN_TICKS × crr_tick)` and, if the result is still
+below `GAMMA_NOISE_FLOOR`, falls back to an even wider bump.  This is fully
+automatic and only adds NPV cost when the fine bump is in the suspect zone.
+
+### Richardson extrapolation (American theta/charm)
+
+American theta and charm are computed by shortening time-to-expiry by 1 calendar
+day and revaluing.  To cancel the leading O(1/N) binomial discretisation error,
+the engine computes both at steps N and 2N and applies Richardson extrapolation:
+
+```
+theta_richardson = 2 × theta(2N) - theta(N)
+charm_richardson = 2 × charm(2N) - charm(N)
+```
+
+This is automatically applied when 2N stays within `RICHARDSON_MAX_STEPS` (5000).
+At 500 steps the effective accuracy is comparable to a raw 2000-step tree.
 
 ***
 

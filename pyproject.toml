@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deskpricer"
-version = "3.4.5"
+version = "3.5.0"
 description = "Local options pricing for Excel and AI agents — HTTP API and MCP server for Greeks, IV, and PnL attribution"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -35,7 +35,6 @@ dependencies = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.23",
     "QuantLib>=1.33",
-    "scipy>=1.10",
     "pydantic>=2.0",
     "xmltodict>=0.13",
     "mcp>=1.0",
@@ -52,6 +51,9 @@ dev = [
     "hypothesis>=6.82",
     "httpx>=0.24",
     "mypy>=1.5",
+    # Used only by tests/_bsm_ref.py as an independent reference oracle;
+    # production code uses stdlib math.erf for the normal CDF/PDF.
+    "scipy>=1.10",
 ]
 excel = [
     # Only needed to regenerate sample/DeskPricer_Bitcoin_Demo.xlsx via

@@ -30,7 +30,7 @@ from deskpricer.pricing.conventions import (
     get_calendar,
     ql_date_from_iso,
 )
-from deskpricer.pricing.engine import ENGINE_MAP
+from deskpricer.pricing.engine import ENGINE_MAP, resolve_effective_steps
 from deskpricer.schemas import EngineLiteral, ImpliedVolOutput
 
 assert IV_SOLVER_VOL_LO < IV_SOLVER_VOL_HI, "IV solver primary bounds must form a bracket"
@@ -114,7 +114,16 @@ def compute_implied_vol(
     if engine_cls is not None:
         option.setPricingEngine(engine_cls(process))
     else:
-        option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, steps))
+        # For the IV solver, use at least 500 binomial steps regardless of the
+        # adaptive default.  The IV solver needs sufficient lattice resolution
+        # to converge cleanly (binomial price is non-smooth in vol at low step
+        # counts — saw-tooth — which causes Brent to land on local solutions
+        # that don't satisfy the verify tolerance).  When the caller explicitly
+        # requests fewer than 500 steps, honour it but expect noisier IV.
+        effective_steps = max(steps, 500) if steps != DEFAULT_STEPS else max(
+            resolve_effective_steps("american", effective_t, IV_SEED_VOL, steps), 500
+        )
+        option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, effective_steps))
 
     # Pre-check no-arbitrage bounds before invoking the solver.
     # The European lower bound (intrinsic discounted) is also a valid (looser)
@@ -184,7 +193,13 @@ def compute_implied_vol(
             # Let unexpected QuantLib failures propagate as 500s
             raise
 
-    # Re-price at solved vol to provide a sanity-check NPV
+    # Re-price at solved vol to provide a sanity-check NPV and verify the
+    # solver actually converged.  Always computed (the response includes
+    # npv_at_iv) but the tolerance check below is gated on verify_reprice.
+    # For European analytic the reprice is cheap; for American binomial it
+    # doubles the tree-build cost, but QuantLib's binomial IV has known
+    # saw-tooth convergence that makes the verify essential for catching
+    # non-converged solutions.
     try:
         vol_ts_iv = ql.BlackVolTermStructureHandle(
             ql.BlackConstantVol(ql_date, calendar, implied_vol, day_count)
@@ -195,7 +210,9 @@ def compute_implied_vol(
         if engine_cls is not None:
             option_iv.setPricingEngine(engine_cls(process_iv))
         else:
-            option_iv.setPricingEngine(ql.BinomialVanillaEngine(process_iv, ql_engine, steps))
+            option_iv.setPricingEngine(
+                ql.BinomialVanillaEngine(process_iv, ql_engine, effective_steps)
+            )
 
         npv_at_iv = float(option_iv.NPV())
     except RuntimeError as exc:

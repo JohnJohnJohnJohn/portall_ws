@@ -33,6 +33,13 @@ class UnsupportedCombinationError(DeskPricerError):
         super().__init__("UNSUPPORTED_COMBINATION", message, field, status=422)
 
 
+class PricingTimeoutError(DeskPricerError):
+    """Raised when a pricing task exceeds the configured timeout."""
+
+    def __init__(self, message: str, field: str | None = None):
+        super().__init__("PRICING_TIMEOUT", message, field, status=503)
+
+
 def _error_response(
     request: Request, code: str, message: str, status: int, field: str | None = None
 ) -> Response:
