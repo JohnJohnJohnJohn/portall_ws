@@ -77,29 +77,29 @@ async def execute_mcp_tool(name: str, arguments: dict[str, Any] | None) -> CallT
     args = arguments or {}
     try:
         if name == "price_option":
-            params = GreeksRequest.model_validate(args)
-            meta, inputs, outputs = await pricing_service.run_greeks(params)
+            greeks_req = GreeksRequest.model_validate(args)
+            meta, inputs, outputs = await pricing_service.run_greeks(greeks_req)
             return _success_result(
                 serialize_greeks(meta, inputs, outputs, json_format=True)
             )
 
         if name == "implied_volatility":
-            params = ImpliedVolRequest.model_validate(args)
-            meta, inputs, outputs = await pricing_service.run_impliedvol(params)
+            iv_req = ImpliedVolRequest.model_validate(args)
+            meta, inputs, outputs = await pricing_service.run_impliedvol(iv_req)
             return _success_result(
                 serialize_impliedvol(meta, inputs, outputs, json_format=True)
             )
 
         if name == "pnl_attribution":
-            params = PnLAttributionGETRequest.model_validate(args)
-            meta, inputs, outputs = await pricing_service.run_pnl_attribution(params)
+            pnl_req = PnLAttributionGETRequest.model_validate(args)
+            meta, inputs, outputs = await pricing_service.run_pnl_attribution(pnl_req)
             return _success_result(
                 serialize_pnl_attribution(meta, inputs, outputs, json_format=True)
             )
 
         if name == "portfolio_greeks":
-            payload = PortfolioRequest.model_validate(args)
-            meta, legs_out, aggregate = await pricing_service.run_portfolio(payload)
+            portfolio_req = PortfolioRequest.model_validate(args)
+            meta, legs_out, aggregate = await pricing_service.run_portfolio(portfolio_req)
             return _success_result(
                 serialize_portfolio(meta, legs_out, aggregate, json_format=True)
             )

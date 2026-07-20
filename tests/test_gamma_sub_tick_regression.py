@@ -18,25 +18,13 @@ and the goal is simply to confirm the result has not collapsed to numerical
 noise rather than matching BSM to high precision.
 """
 
-import math
 from datetime import date
 
 import pytest
 
 from deskpricer.pricing.american import price_american
 
-
-# ── BSM analytic gamma reference ────────────────────────────────────────────
-
-def _phi(x: float) -> float:
-    """Standard normal PDF."""
-    return math.exp(-0.5 * x * x) / math.sqrt(2 * math.pi)
-
-
-def _bsm_gamma(s: float, k: float, t: float, r: float, q: float, v: float) -> float:
-    """Black-Scholes-Merton gamma (European = American for this call OTM case)."""
-    d1 = (math.log(s / k) + (r - q + 0.5 * v * v) * t) / (v * math.sqrt(t))
-    return math.exp(-q * t) * _phi(d1) / (s * v * math.sqrt(t))
+from _bsm_ref import bs_gamma as _bsm_gamma
 
 
 # ── Test cases ───────────────────────────────────────────────────────────────
@@ -59,54 +47,30 @@ GAMMA_NOISE_FLOOR = 1e-4  # gamma below this is considered numerical noise
 
 
 @pytest.mark.parametrize("case,label", [
-    (BAD_CASE, "bad_deep_otm_crr"),
-    (CONTROL_CASE, "control_crr"),
+    (BAD_CASE, "bad_deep_otm"),
+    (CONTROL_CASE, "control"),
 ])
-def test_american_gamma_not_noise_crr(case, label):
-    """CRR engine must return a gamma above the noise floor and within 50% of BSM."""
+@pytest.mark.parametrize("engine_type", ["crr", "jr"])
+def test_american_gamma_not_noise(case, label, engine_type):
+    """CRR and JR engines must both return a gamma above the noise floor and
+    within tolerance of BSM (collapse to numerical noise is the failure mode)."""
     result = price_american(
         **case,
         valuation_date=VALUATION_DATE,
         steps=500,
-        engine_type="crr",
+        engine_type=engine_type,
     )
     bsm_ref = _bsm_gamma(
         case["s"], case["k"], case["t"], case["r"], case["q"], case["v"]
     )
     assert result.gamma > GAMMA_NOISE_FLOOR, (
-        f"[{label}] gamma={result.gamma:.2e} is below noise floor {GAMMA_NOISE_FLOOR}; "
-        f"BSM reference={bsm_ref:.6f}"
+        f"[{label}/{engine_type}] gamma={result.gamma:.2e} is below noise floor "
+        f"{GAMMA_NOISE_FLOOR}; BSM reference={bsm_ref:.6f}"
     )
     rel_err = abs(result.gamma - bsm_ref) / bsm_ref
     assert rel_err < GAMMA_REL_TOL, (
-        f"[{label}] gamma={result.gamma:.6f} deviates {rel_err*100:.1f}% from "
-        f"BSM reference={bsm_ref:.6f} (tolerance={GAMMA_REL_TOL*100:.0f}%)"
-    )
-
-
-@pytest.mark.parametrize("case,label", [
-    (BAD_CASE, "bad_deep_otm_jr"),
-    (CONTROL_CASE, "control_jr"),
-])
-def test_american_gamma_not_noise_jr(case, label):
-    """JR engine must also return a gamma above the noise floor and within 50% of BSM."""
-    result = price_american(
-        **case,
-        valuation_date=VALUATION_DATE,
-        steps=500,
-        engine_type="jr",
-    )
-    bsm_ref = _bsm_gamma(
-        case["s"], case["k"], case["t"], case["r"], case["q"], case["v"]
-    )
-    assert result.gamma > GAMMA_NOISE_FLOOR, (
-        f"[{label}] gamma={result.gamma:.2e} is below noise floor {GAMMA_NOISE_FLOOR}; "
-        f"BSM reference={bsm_ref:.6f}"
-    )
-    rel_err = abs(result.gamma - bsm_ref) / bsm_ref
-    assert rel_err < GAMMA_REL_TOL, (
-        f"[{label}] gamma={result.gamma:.6f} deviates {rel_err*100:.1f}% from "
-        f"BSM reference={bsm_ref:.6f} (tolerance={GAMMA_REL_TOL*100:.0f}%)"
+        f"[{label}/{engine_type}] gamma={result.gamma:.6f} deviates {rel_err*100:.1f}% "
+        f"from BSM reference={bsm_ref:.6f} (tolerance={GAMMA_REL_TOL*100:.0f}%)"
     )
 
 

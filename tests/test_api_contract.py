@@ -1,11 +1,8 @@
 """API contract tests: XML/JSON toggling, error codes, schema validation."""
 
-import datetime
-import math
 import xml.etree.ElementTree as ET
 
 import pytest
-import QuantLib as ql
 from fastapi.testclient import TestClient
 
 from deskpricer import __version__ as SERVICE_VERSION
@@ -145,32 +142,12 @@ class TestGreeks:
         assert data["gamma"] > 0
         assert data["theta"] < 0
 
-    def test_greeks_put_call_parity(self, client: TestClient):
-        """European call/put with same params should satisfy parity."""
-        base = {"s": 100, "k": 100, "t": 0.5, "r": 0.05, "q": 0.02, "v": 0.20, "style": "european"}
-        resp_call = client.get(
-            "/v1/greeks", params={**base, "type": "call"}, headers={"Accept": "application/json"}
-        )
-        resp_put = client.get(
-            "/v1/greeks", params={**base, "type": "put"}, headers={"Accept": "application/json"}
-        )
-        assert resp_call.status_code == 200
-        assert resp_put.status_code == 200
-        c = resp_call.json()["greeks"]["outputs"]["price"]
-        p = resp_put.json()["greeks"]["outputs"]["price"]
-        # C - P = S*exp(-qT) - K*exp(-rT) using actual T from trading-day expiry
-        lhs = c - p
-        today = datetime.date.today()
-        ql_today = ql.Date(today.day, today.month, today.year)
-        from deskpricer.pricing.conventions import default_day_count, expiry_from_t, get_calendar
-
-        expiry = expiry_from_t(ql_today, 0.5, get_calendar())
-        t_actual = default_day_count().yearFraction(ql_today, expiry)
-        rhs = 100 * math.exp(-0.02 * t_actual) - 100 * math.exp(-0.05 * t_actual)
-        assert abs(lhs - rhs) < 1e-6
-
     def test_greeks_theta_negative_for_long_option(self, client: TestClient):
-        """Theta is negative for a typical long option under calendar-day convention."""
+        """Theta is negative for a typical long option under calendar-day convention.
+
+        (Put-call parity and broader theta-negativity are covered by the
+        hypothesis-parametrized tests in test_properties.py.)
+        """
         base = {
             "s": 100,
             "k": 100,
@@ -251,6 +228,34 @@ class TestImpliedVol:
         root = ET.fromstring(resp.text)
         assert root.find("meta/service_version").text == SERVICE_VERSION
         assert float(root.find("outputs/implied_vol").text) > 0
+
+    def test_impliedvol_american_upper_bound_undiscounted(self, client: TestClient):
+        """American put upper no-arb bound is K (not K*df_r).
+
+        With r>0 the European upper bound is K*df_r < K; an American put
+        trading between those two values (deep ITM) is valid but was
+        spuriously rejected before this fix because the European bound was
+        applied to American options too.
+        """
+        # S=80, K=100, T=1, r=0.05 → df_r=0.951, K*df_r=95.12.
+        # European upper = 95.12; American upper = 100.
+        # target_price=96 sits in the American-only-allowed region.
+        params = {
+            "s": 80,
+            "k": 100,
+            "t": 1.0,
+            "r": 0.05,
+            "q": 0.0,
+            "price": 96.0,
+            "type": "put",
+            "style": "american",
+            "engine": "binomial_crr",
+            "verify_reprice": "false",
+        }
+        resp = client.get("/v1/impliedvol", params=params, headers={"Accept": "application/json"})
+        assert resp.status_code == 200
+        iv = resp.json()["impliedvol"]["outputs"]["implied_vol"]
+        assert iv > 0
 
     def test_impliedvol_price_out_of_bounds(self, client: TestClient):
         resp = client.get(

@@ -61,10 +61,10 @@ from deskpricer.pricing.constants import (  # noqa: F401
     DEFAULT_STEPS,
     IV_SOLVER_DEFAULT_ACCURACY,
     IV_SOLVER_MAX_ITERATIONS,
-    MAX_EXPIRY_T_DISCREPANCY,
     MIN_T_YEARS,
     SPOT_DIVERGENCE_THRESHOLD,
 )
+from deskpricer.pricing.constants import MAX_EXPIRY_T_DISCREPANCY  # internal use only
 
 DAY_COUNT = "ACT/365F"
 

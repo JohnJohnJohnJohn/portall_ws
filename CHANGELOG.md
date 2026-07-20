@@ -64,9 +64,22 @@ _Nothing pending — see 3.4.5 milestone entry below._
   control case (`S=26.52, K=42`), both CRR and JR engines, and an ATM guard confirming
   the fix does not disturb normal inputs.
 
-## 3.4.0 — Milestone 1 (MCP-ready) — 2026-05-23
+## 3.4.0 — 2026-05-23 (Milestone 1, MCP-ready)
 
 ### Added
+- **Stock borrow cost parameter `b`** — all pricing endpoints (`/greeks`,
+  `/portfolio/greeks`, `/impliedvol`, `/pnl_attribution`) now accept an optional
+  `b` parameter (annualized continuously compounded borrow cost, decimal, default
+  `0.0`). The effective cost-of-carry is `r − q − b`, implemented via QuantLib
+  dividend yield `q + b`. Callers omitting `b` receive identical results to prior
+  versions (fully backward compatible).
+- `DEFAULT_BORROW_COST = 0.0` constant in `pricing/constants.py`.
+- No-arbitrage bounds in the IV solver updated to use `exp(−(q + b) × T)` for the
+  discount factor on the spot leg, correctly shifting call/put bounds for
+  hard-to-borrow names.
+- 9 borrow-cost tests: zero-default regression, call/put price directionality,
+  portfolio legs, PnL attribution passthrough, IV roundtrip, and boundary
+  validation (`b = 5.1` → HTTP 422).
 - **Phase 1C — PyPI and registry metadata**
   - `smithery.yaml` for future Smithery listing (`deskpricer-mcp` stdio start command).
   - PyPI publish: https://pypi.org/project/deskpricer/ (`pip install deskpricer`).
@@ -78,7 +91,7 @@ _Nothing pending — see 3.4.5 milestone entry below._
     `implied_volatility`, `pnl_attribution`, `portfolio_greeks`.
   - CLI entrypoint `deskpricer-mcp`; runtime dependency `mcp>=1.0`.
   - Agent setup guide [`docs/mcp_quickstart.md`](docs/mcp_quickstart.md).
-  - `tests/test_mcp_server.py` (20 MCP spec/execution tests; 261 total).
+  - `tests/test_mcp_server.py` (20 MCP spec/execution tests).
 - **Phase 1A — concurrency and BSM fast path**
   - `ProcessPoolExecutor` worker pool replaces the former `asyncio.Lock` serialization
     (`worker.py`, `services/ql_runtime.py`). Configurable via `DESKPRICER_WORKERS`
@@ -96,27 +109,10 @@ _Nothing pending — see 3.4.5 milestone entry below._
 - American call golden values aligned with European equivalents (reroute removes
   binomial discretisation error).
 
-## 3.4.0 — 2026-05-19
-
-### Added
-- **Stock borrow cost parameter `b`** — all pricing endpoints (`/greeks`,
-  `/portfolio/greeks`, `/impliedvol`, `/pnl_attribution`) now accept an optional
-  `b` parameter (annualized continuously compounded borrow cost, decimal, default
-  `0.0`). The effective cost-of-carry is `r − q − b`, implemented via QuantLib
-  dividend yield `q + b`. Callers omitting `b` receive identical results to prior
-  versions (fully backward compatible).
-- `DEFAULT_BORROW_COST = 0.0` constant in `pricing/constants.py`.
-- No-arbitrage bounds in the IV solver updated to use `exp(−(q + b) × T)` for the
-  discount factor on the spot leg, correctly shifting call/put bounds for
-  hard-to-borrow names.
-- 9 new tests: zero-default regression, call/put price directionality, portfolio
-  legs, PnL attribution passthrough, IV roundtrip, and boundary validation
-  (`b = 5.1` → HTTP 422).
-
 ### Fixed
 - **Documentation sync for 3.4.0** — release executable name (`DeskPricer_v3.exe`),
   borrow-cost `b` in operator/excel guides, repaired PnL attribution parameter table
-  in `docs/api.md`, and AGENTS.md test count (216).
+  in `docs/api.md`.
 
 ## 3.3.1 — 2026-04-24
 
@@ -145,7 +141,7 @@ _Nothing pending — see 3.4.5 milestone entry below._
 
 ### Added
 - `CONVENTIONS.md` — Single source of truth for financial units, sign conventions, scaling factors, named constants, and P&L attribution formulas.
-- `tests/test_financial_regression.py` — 14 financial regression tests with independent pure-Python BSM reference implementation (Tests 1-14 per FIX_INSTRUCTIONS.md).
+- `tests/test_financial_regression.py` — 14 financial regression tests with independent pure-Python BSM reference implementation.
 - `tests/test_conventions_doc_exists.py` — Structural guard asserting `CONVENTIONS.md` exists.
 - `MAX_NEXT_BD_SEARCH_DAYS`, `IV_SOLVER_DEFAULT_ACCURACY`, `IV_SOLVER_MAX_ITERATIONS` named constants in `src/deskpricer/pricing/constants.py`.
 

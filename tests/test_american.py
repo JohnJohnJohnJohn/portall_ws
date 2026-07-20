@@ -80,58 +80,6 @@ class TestAmericanPut:
         # QuantLib CRR DEFAULT_STEPS-step converges to ~4.283 for these params
         assert abs(price - 4.3049) < 0.01
 
-    def test_american_put_ge_european_put(self, client: TestClient):
-        """American put price should be >= European put price with same params."""
-        params = {
-            "s": 100,
-            "k": 100,
-            "t": 0.5,
-            "r": 0.05,
-            "q": 0.02,
-            "v": 0.25,
-            "type": "put",
-        }
-        resp_am = client.get(
-            "/v1/greeks",
-            params={**params, "style": "american", "steps": DEFAULT_STEPS},
-            headers={"Accept": "application/json"},
-        )
-        resp_eu = client.get(
-            "/v1/greeks",
-            params={**params, "style": "european"},
-            headers={"Accept": "application/json"},
-        )
-        assert resp_am.status_code == 200
-        assert resp_eu.status_code == 200
-        p_am = resp_am.json()["greeks"]["outputs"]["price"]
-        p_eu = resp_eu.json()["greeks"]["outputs"]["price"]
-        assert p_am >= p_eu
-
-    def test_american_call_no_div_ge_european(self, client: TestClient):
-        """American call without dividends should equal European call."""
-        params = {
-            "s": 100,
-            "k": 100,
-            "t": 0.5,
-            "r": 0.05,
-            "q": 0,
-            "v": 0.25,
-            "type": "call",
-        }
-        resp_am = client.get(
-            "/v1/greeks",
-            params={**params, "style": "american", "steps": DEFAULT_STEPS},
-            headers={"Accept": "application/json"},
-        )
-        resp_eu = client.get(
-            "/v1/greeks",
-            params={**params, "style": "european"},
-            headers={"Accept": "application/json"},
-        )
-        p_am = resp_am.json()["greeks"]["outputs"]["price"]
-        p_eu = resp_eu.json()["greeks"]["outputs"]["price"]
-        assert abs(p_am - p_eu) < 0.01
-
     def test_american_min_steps(self, client: TestClient):
         """American option with minimum steps (10) should price successfully."""
         resp = client.get(

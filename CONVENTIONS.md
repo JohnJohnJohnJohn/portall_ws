@@ -56,11 +56,11 @@ this document. In case of conflict, this file wins.
 - Charm is **not currently used in P&L attribution** in `pricing_service.py`. It is an output-only Greek. This is correct; charm enters PnL at third order and is excluded by design.
 
 ### 2.7 Vanna
-- **Unit**: ∂²V / (∂S × ∂σ), expressed per 1% relative spot move per 1 vol-point.
-- **Computation**: 4-point central cross-difference. `ds = S × bump_spot_rel` (relative). `dv_points = effective_bump_vol × 100`. The cross-difference formula is:
+- **Unit**: ∂²V / (∂S × ∂σ), expressed per $1 absolute spot move per 1 vol-point.
+- **Computation**: 4-point central cross-difference. `ds = S × bump_spot_rel` (a dollar amount). `dv_points = effective_bump_vol × 100`. The cross-difference formula is:
   `vanna = [V(S+ds, σ+dv) − V(S+ds, σ−dv) − V(S−ds, σ+dv) + V(S−ds, σ−dv)] / (4 × ds × dv_points)`
 - **Sign**: For a call option, vanna = ∂delta/∂σ > 0 when the option is OTM (higher vol increases delta of an OTM call). For an ITM call, vanna < 0.
-- **P&L attribution**: `vanna_pnl = vanna × ΔS_pct × Δσ_points`, where `ΔS_pct = (S_t − S_{t−1}) / S_{t−1} × 100` and `Δσ_points = (σ_t − σ_{t−1}) × 100`. Note the unit consistency: vanna is per 1% relative spot move per 1 vol-point.
+- **P&L attribution**: `vanna_pnl = vanna × ΔS × Δσ_points`, where `ΔS = S_t − S_{t−1}` (dollars) and `Δσ_points = (σ_t − σ_{t−1}) × 100`. Note the unit consistency: vanna is per $1 spot per 1 vol-point.
 
 ### 2.8 Volga (Vomma)
 - **Unit**: ∂²V/∂σ², per (1 vol-point)².
@@ -119,7 +119,7 @@ The full first- and second-order Taylor expansion used in `run_pnl_attribution`:
   + vega         × Δσ_points                    [first-order vol; vega already per vol-point]
   + theta        × calendar_days_elapsed        [time decay; calendar days as described in §2.4]
   + rho          × Δr_points                    [first-order rate; rho already per rate-point]
-  + vanna        × ΔS_pct × Δσ_points              [cross spot-vol; ΔS_pct = ΔS / S₀ × 100]
+  + vanna        × ΔS × Δσ_points                [cross spot-vol; ΔS = S_t − S_{t−1} in dollars]
   + 0.5 × volga  × (Δσ_points)²                [second-order vol]
 
 ΔV_actual  = V(S_t, σ_t, t_t, r_t, q_t, b_t) − V(S_{t−1}, σ_{t−1}, t_{t−1}, r_{t−1}, q_{t−1}, b_{t−1})

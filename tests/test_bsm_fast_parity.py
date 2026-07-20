@@ -3,11 +3,11 @@
 from datetime import date
 
 import pytest
-import QuantLib as ql
 
 from deskpricer.pricing.bsm_fast import price_european_bsm
-from deskpricer.pricing.conventions import ql_date_from_iso
 from deskpricer.pricing.european import price_european
+
+from _bsm_ref import sync_eval_date as _sync_eval_date_ctx
 
 PARITY_TOL = 1e-6
 
@@ -132,12 +132,8 @@ VALUATION_DATE = date(2024, 1, 2)
 
 @pytest.fixture(autouse=True)
 def sync_eval_date():
-    old_eval = ql.Settings.instance().evaluationDate
-    ql.Settings.instance().evaluationDate = ql_date_from_iso(VALUATION_DATE)
-    try:
+    with _sync_eval_date_ctx(VALUATION_DATE):
         yield VALUATION_DATE
-    finally:
-        ql.Settings.instance().evaluationDate = old_eval
 
 
 @pytest.mark.parametrize("params", _CASES)

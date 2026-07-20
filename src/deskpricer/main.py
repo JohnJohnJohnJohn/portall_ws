@@ -38,6 +38,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
+    # Called unconditionally (not just under ``if __name__ == "__main__"``) so
+    # that the installed ``deskpricer`` console-script entry point — which
+    # calls ``main()`` directly per pyproject.toml — also benefits.  Without
+    # this, Windows ``spawn`` workers re-import the main module and crash with
+    # "attempt to start a new process before the current process has finished
+    # its bootstrapping phase" on the first pricing request.
+    multiprocessing.freeze_support()
+
     args = _parse_args(argv)
 
     raw = args.port if args.port is not None else os.environ.get("DESKPRICER_PORT", "8765")
@@ -71,5 +79,4 @@ def main(argv: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()
     main(sys.argv[1:])

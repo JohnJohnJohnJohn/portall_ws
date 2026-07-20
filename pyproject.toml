@@ -35,7 +35,6 @@ dependencies = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.23",
     "QuantLib>=1.33",
-    "numpy>=1.24",
     "scipy>=1.10",
     "pydantic>=2.0",
     "xmltodict>=0.13",
@@ -53,6 +52,11 @@ dev = [
     "hypothesis>=6.82",
     "httpx>=0.24",
     "mypy>=1.5",
+]
+excel = [
+    # Only needed to regenerate sample/DeskPricer_Bitcoin_Demo.xlsx via
+    # scripts/create_demo_excel.py; not required at runtime.
+    "openpyxl>=3.1",
 ]
 
 [tool.ruff]

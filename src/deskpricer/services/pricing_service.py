@@ -3,7 +3,7 @@
 import math
 from dataclasses import asdict, dataclass
 from datetime import date
-from typing import Any, Callable
+from typing import Any
 
 from deskpricer import __version__ as service_version
 from deskpricer.errors import InvalidInputError
@@ -102,12 +102,9 @@ def _price_vanilla_payload(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _price_vanilla_result(
-    price_vanilla_fn: Callable[..., GreeksOutput] | None,
     valuation_date: date,
     kwargs: dict[str, Any],
 ) -> GreeksOutput:
-    if price_vanilla_fn is not None:
-        return price_vanilla_fn(**kwargs)
     result_dict = await run_pricing_task(
         "price_vanilla",
         valuation_date,
@@ -118,12 +115,10 @@ async def _price_vanilla_result(
 
 async def run_greeks(
     params: GreeksRequest,
-    price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     valuation_date = params.valuation_date or date.today()
     assert params.engine is not None
     result = await _price_vanilla_result(
-        price_vanilla_fn,
         valuation_date,
         {
             "s": params.s,
@@ -166,7 +161,6 @@ async def run_greeks(
 
 async def run_impliedvol(
     params: ImpliedVolRequest,
-    compute_implied_vol_fn: Callable[..., Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     valuation_date = params.valuation_date or date.today()
     assert params.engine is not None
@@ -188,13 +182,8 @@ async def run_impliedvol(
         "calendar_name": params.calendar,
         "verify_reprice": params.verify_reprice,
     }
-    if compute_implied_vol_fn is not None:
-        result = compute_implied_vol_fn(**iv_kwargs)
-        result_dict = result.model_dump()
-    else:
-        payload = dict(iv_kwargs)
-        payload.pop("valuation_date", None)
-        result_dict = await run_pricing_task("compute_implied_vol", valuation_date, payload)
+    payload = _price_vanilla_payload(iv_kwargs)
+    result_dict = await run_pricing_task("compute_implied_vol", valuation_date, payload)
     meta = _meta(params.engine, valuation_date)
     inputs: dict[str, Any] = {
         "s": params.s,
@@ -222,7 +211,6 @@ async def run_impliedvol(
 
 async def run_portfolio(
     payload: PortfolioRequest,
-    price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, float]]:
     valuation_date = payload.valuation_date or date.today()
     legs_out: list[dict[str, Any]] = []
@@ -235,77 +223,45 @@ async def run_portfolio(
         "rho": 0.0,
         "charm": 0.0,
     }
-    if price_vanilla_fn is not None:
-        for leg in payload.legs:
-            assert leg.engine is not None
-            result = price_vanilla_fn(
-                s=leg.s,
-                k=leg.k,
-                t=leg.t,
-                r=leg.r,
-                q=leg.q,
-                b=leg.b,
-                v=leg.v,
-                option_type=leg.type,
-                style=leg.style,
-                engine=leg.engine,
-                valuation_date=valuation_date,
-                steps=leg.steps,
-                bump_spot_rel=leg.bump_spot_rel,
-                bump_vol_abs=leg.bump_vol_abs,
-                bump_rate_abs=leg.bump_rate_abs,
-                calendar_name=leg.calendar,
-            )
-            row = {"id": leg.id, "engine": leg.engine, **result.model_dump()}
-            legs_out.append(row)
-            for greek in aggregate:
-                val = getattr(result, greek)
-                if not math.isfinite(val):
-                    raise InvalidInputError(
-                        f"Pricing produced non-finite {greek} for leg {leg.id}",
-                        field=greek,
-                    )
-                aggregate[greek] += leg.qty * val
-    else:
-        leg_payloads = []
-        for leg in payload.legs:
-            assert leg.engine is not None
-            leg_payloads.append(
-                {
-                    "s": leg.s,
-                    "k": leg.k,
-                    "t": leg.t,
-                    "r": leg.r,
-                    "q": leg.q,
-                    "b": leg.b,
-                    "v": leg.v,
-                    "option_type": leg.type,
-                    "style": leg.style,
-                    "engine": leg.engine,
-                    "steps": leg.steps,
-                    "bump_spot_rel": leg.bump_spot_rel,
-                    "bump_vol_abs": leg.bump_vol_abs,
-                    "bump_rate_abs": leg.bump_rate_abs,
-                    "calendar_name": leg.calendar,
-                }
-            )
-        leg_results = await run_pricing_task(
-            "portfolio_legs",
-            valuation_date,
-            {"legs": leg_payloads},
+    leg_payloads = []
+    for leg in payload.legs:
+        assert leg.engine is not None
+        leg_payloads.append(
+            {
+                "s": leg.s,
+                "k": leg.k,
+                "t": leg.t,
+                "r": leg.r,
+                "q": leg.q,
+                "b": leg.b,
+                "v": leg.v,
+                "option_type": leg.type,
+                "style": leg.style,
+                "engine": leg.engine,
+                "steps": leg.steps,
+                "bump_spot_rel": leg.bump_spot_rel,
+                "bump_vol_abs": leg.bump_vol_abs,
+                "bump_rate_abs": leg.bump_rate_abs,
+                "calendar_name": leg.calendar,
+            }
         )
-        for leg, result_dict in zip(payload.legs, leg_results, strict=True):
-            result = GreeksOutput(**result_dict)
-            row = {"id": leg.id, "engine": leg.engine, **result.model_dump()}
-            legs_out.append(row)
-            for greek in aggregate:
-                val = getattr(result, greek)
-                if not math.isfinite(val):
-                    raise InvalidInputError(
-                        f"Pricing produced non-finite {greek} for leg {leg.id}",
-                        field=greek,
-                    )
-                aggregate[greek] += leg.qty * val
+    leg_results = await run_pricing_task(
+        "portfolio_legs",
+        valuation_date,
+        {"legs": leg_payloads},
+    )
+    for leg, result_dict in zip(payload.legs, leg_results, strict=True):
+        result = GreeksOutput(**result_dict)
+        row = {"id": leg.id, "engine": leg.engine, **result.model_dump()}
+        legs_out.append(row)
+        for greek in aggregate:
+            val = getattr(result, greek)
+            if not math.isfinite(val):
+                raise InvalidInputError(
+                    f"Pricing produced non-finite {greek} for leg {leg.id}",
+                    field=greek,
+                )
+            aggregate[greek] += leg.qty * val
     meta = {
         "service_version": service_version,
         "quantlib_version": QUANTLIB_VERSION,
@@ -316,8 +272,6 @@ async def run_portfolio(
 
 async def run_pnl_attribution(
     params: PnLAttributionGETRequest,
-    price_vanilla_fn: Callable[..., GreeksOutput] | None = None,
-    compute_cross_greeks_fn: Callable[..., tuple[float, float]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     valuation_date_t_minus_1 = params.valuation_date_t_minus_1
     valuation_date_t = params.valuation_date_t
@@ -337,7 +291,6 @@ async def run_pnl_attribution(
     state_t_m1 = _market_state(params, "_t_minus_1")
     state_t = _market_state(params, "_t")
     greeks_t_minus_1 = await _price_vanilla_result(
-        price_vanilla_fn,
         valuation_date_t_minus_1,
         _pnl_pv_kwargs(state_t_m1, params, valuation_date_t_minus_1),
     )
@@ -345,35 +298,27 @@ async def run_pnl_attribution(
         cg_kwargs = _pnl_cg_kwargs(
             state_t_m1, params, valuation_date_t_minus_1, greeks_t_minus_1.price
         )
-        if compute_cross_greeks_fn is not None:
-            vanna_t_m1, volga_t_m1 = compute_cross_greeks_fn(**cg_kwargs)
-        else:
-            payload = _price_vanilla_payload(cg_kwargs)
-            vanna_t_m1, volga_t_m1 = await run_pricing_task(
-                "compute_cross_greeks",
-                valuation_date_t_minus_1,
-                payload,
-            )
+        payload = _price_vanilla_payload(cg_kwargs)
+        vanna_t_m1, volga_t_m1 = await run_pricing_task(
+            "compute_cross_greeks",
+            valuation_date_t_minus_1,
+            payload,
+        )
     greeks_t = await _price_vanilla_result(
-        price_vanilla_fn,
         valuation_date_t,
         _pnl_pv_kwargs(state_t, params, valuation_date_t),
     )
     if params.cross_greeks and method == "average":
         cg_kwargs = _pnl_cg_kwargs(state_t, params, valuation_date_t, greeks_t.price)
-        if compute_cross_greeks_fn is not None:
-            vanna_t, volga_t = compute_cross_greeks_fn(**cg_kwargs)
-        else:
-            payload = _price_vanilla_payload(cg_kwargs)
-            vanna_t, volga_t = await run_pricing_task(
-                "compute_cross_greeks",
-                valuation_date_t,
-                payload,
-            )
+        payload = _price_vanilla_payload(cg_kwargs)
+        vanna_t, volga_t = await run_pricing_task(
+            "compute_cross_greeks",
+            valuation_date_t,
+            payload,
+        )
     delta_s = params.s_t - params.s_t_minus_1
     delta_v_points = (params.v_t - params.v_t_minus_1) * 100.0
     delta_r_points = (params.r_t - params.r_t_minus_1) * 100.0
-    delta_s_pct = delta_s / params.s_t_minus_1 * 100.0
     delta_pnl = greeks_t_minus_1.delta * delta_s
     gamma_pnl = 0.5 * greeks_t_minus_1.gamma * (delta_s**2)
     if method == "average":
@@ -391,7 +336,9 @@ async def run_pnl_attribution(
             volga = (volga_t_m1 + volga_t) / 2.0
         else:
             vanna, volga = vanna_t_m1, volga_t_m1
-        vanna_pnl_per_unit = vanna * delta_s_pct * delta_v_points
+        # vanna is per-$1-spot per 1 vol-point (see cross_greeks.py docstring),
+        # so the PnL term uses the dollar spot move, not a percentage.
+        vanna_pnl_per_unit = vanna * delta_s * delta_v_points
         volga_pnl_per_unit = 0.5 * volga * (delta_v_points**2)
     actual_pnl = greeks_t.price - greeks_t_minus_1.price
     explained_pnl = (
@@ -453,5 +400,9 @@ async def run_pnl_attribution(
     _add_non_default_bumps(inputs, params)
     if params.cross_greeks:
         inputs["cross_greeks"] = True
+    # qty is accepted for API symmetry with /portfolio but never scales outputs
+    # (per-unit basis); echo it only when the caller supplied a non-default value.
+    if params.qty != 1.0:
+        inputs["qty"] = params.qty
 
     return meta, inputs, outputs

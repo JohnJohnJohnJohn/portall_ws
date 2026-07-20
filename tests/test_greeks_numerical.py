@@ -1,5 +1,6 @@
 """Bump-and-revalue consistency tests for Greeks."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from deskpricer.pricing.conventions import DEFAULT_STEPS
@@ -12,10 +13,11 @@ def fetch_greeks(client, **kwargs):
 
 
 class TestEuropeanGreeks:
-    def test_theta_long_atm_call_negative(self, client: TestClient):
-        """Long ATM call with 30 DTE must have negative theta (time decay)."""
+    @pytest.mark.parametrize("t", [30 / 365, 0.5], ids=["30dte", "180dte"])
+    def test_theta_long_atm_call_negative(self, client: TestClient, t):
+        """Long ATM call must have negative theta (time decay) at any maturity."""
         g = fetch_greeks(
-            client, s=100, k=100, t=30 / 365, r=0.05, q=0, v=0.20, type="call", style="european"
+            client, s=100, k=100, t=t, r=0.05, q=0, v=0.20, type="call", style="european"
         )
         assert g["theta"] < 0
 
@@ -43,12 +45,6 @@ class TestEuropeanGreeks:
         )
         assert g["vega"] > 0
 
-    def test_theta_call_negative(self, client: TestClient):
-        g = fetch_greeks(
-            client, s=100, k=100, t=0.5, r=0.05, q=0, v=0.20, type="call", style="european"
-        )
-        assert g["theta"] < 0
-
     def test_rho_call_positive(self, client: TestClient):
         g = fetch_greeks(
             client, s=100, k=100, t=0.5, r=0.05, q=0, v=0.20, type="call", style="european"
@@ -60,13 +56,6 @@ class TestEuropeanGreeks:
             client, s=100, k=100, t=0.5, r=0.05, q=0, v=0.20, type="call", style="european"
         )
         assert abs(g["charm"]) < 0.01
-
-    def test_theta_always_negative_for_long_option(self, client: TestClient):
-        """Theta is negative for a typical long option; decay convention removed."""
-        g = fetch_greeks(
-            client, s=100, k=100, t=0.5, r=0.05, q=0, v=0.20, type="call", style="european"
-        )
-        assert g["theta"] < 0
 
 
 class TestAmericanBumpConsistency:

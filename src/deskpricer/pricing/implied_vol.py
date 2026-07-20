@@ -116,15 +116,22 @@ def compute_implied_vol(
     else:
         option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, steps))
 
-    # Pre-check no-arbitrage bounds before invoking solver
+    # Pre-check no-arbitrage bounds before invoking the solver.
+    # The European lower bound (intrinsic discounted) is also a valid (looser)
+    # lower bound for American options, since American >= European.  The upper
+    # bounds differ: for Europeans the upper bound is the discounted asset /
+    # strike (s*df_qb for calls, k*df_r for puts); for Americans it is the
+    # undiscounted asset / strike (s for calls, k for puts), because the
+    # holder can exercise immediately and receive the asset / strike now.
     df_r = math.exp(-r * effective_t)
     df_qb = math.exp(-(q + b) * effective_t)
+    is_american = style == "american"
     if option_type == "call":
         lower_bound = max(0.0, s * df_qb - k * df_r)
-        upper_bound = s * df_qb
+        upper_bound = s if is_american else s * df_qb
     else:
         lower_bound = max(0.0, k * df_r - s * df_qb)
-        upper_bound = k * df_r
+        upper_bound = k if is_american else k * df_r
 
     if target_price < lower_bound:
         raise InvalidInputError(
@@ -169,8 +176,8 @@ def compute_implied_vol(
                 )
             except RuntimeError as exc2:
                 raise InvalidInputError(
-                    f"Target price implies volatility outside solver bounds [{IV_SOLVER_VOL_LO}, {IV_SOLVER_VOL_HI}] "
-                    "or is outside arbitrage bounds",
+                    f"Target price implies volatility outside solver bounds "
+                    f"[{IV_SOLVER_VOL_LO}, {IV_SOLVER_VOL_HI}]",
                     field="price",
                 ) from exc2
         else:

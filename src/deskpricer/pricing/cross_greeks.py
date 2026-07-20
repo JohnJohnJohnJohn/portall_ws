@@ -41,11 +41,11 @@ def compute_cross_greeks(
 
     Unit conventions
     ----------------
-    Vanna is returned as ∂²V / ∂S ∂σ  per **1% relative move in spot** per
+    Vanna is returned as ∂²V / ∂S ∂σ  per **$1 absolute move in spot** per
     **1 vol-point** (1% absolute).  Numerically this is computed via a 4-point
-    central cross difference.  The spot bump ``ds`` is a relative bump
-    (``s * bump_spot_rel``), so the resulting vanna corresponds to a 1%
-    relative spot move, not a $1 absolute move.
+    central cross difference.  The spot bump ``ds`` is ``s * bump_spot_rel``
+    (a dollar amount); the bump magnitude cancels in the finite-difference
+    limit, leaving vanna in per-dollar-spot units.
 
     Volga is returned as ∂²V / ∂σ²  per **(1 vol-point)²**.  Numerically this
     is a standard central second difference on vol space, again with the bump
@@ -53,7 +53,7 @@ def compute_cross_greeks(
 
     Both denominators use the same vol-point unit system, so the two Greeks
     are dimensionally consistent when combined in a vanna-volga PnL expansion:
-        vanna_pnl = vanna * (ΔS / S * 100) * Δσ_points
+        vanna_pnl = vanna * ΔS_dollars * Δσ_points
         volga_pnl = 0.5 * volga * (Δσ_points)²
     """
 

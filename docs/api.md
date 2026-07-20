@@ -36,7 +36,7 @@ Version metadata.
 **Response (XML):**
 ```xml
 <version>
-  <service>3.4.0</service>
+  <service>3.4.5</service>
   <quantlib>1.42.1</quantlib>
   <python>3.12.7</python>
 </version>
@@ -103,7 +103,7 @@ Price a single vanilla option and return Greeks.
 ```xml
 <greeks>
   <meta>
-    <service_version>3.4.0</service_version>
+    <service_version>3.4.5</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -166,7 +166,7 @@ Bulk endpoint for book-level aggregation.
 ```json
 {
   "meta": {
-    "service_version": "3.4.0",
+    "service_version": "3.4.5",
     "quantlib_version": "1.42.1"
   },
   "legs": [
@@ -203,7 +203,7 @@ Aggregate = Σ qty × per-leg Greek (including price).
 ```xml
 <portfolio>
   <meta>
-    <service_version>3.4.0</service_version>
+    <service_version>3.4.5</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <valuation_date>2026-04-22</valuation_date>
   </meta>
@@ -263,7 +263,7 @@ Solve for implied volatility given an observed market price.
 ```xml
 <impliedvol>
   <meta>
-    <service_version>3.4.0</service_version>
+    <service_version>3.4.5</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <engine>analytic</engine>
     <valuation_date>2026-04-22</valuation_date>
@@ -339,7 +339,7 @@ When `cross_greeks=true`, the PnL attribution adds two second-order terms that c
 
 | Bucket | Definition | When it matters |
 |--------|-----------|-----------------|
-| `vanna_pnl` | Vanna × ΔS_pct × Δvol_points, where `ΔS_pct = (ΔS / S₀) × 100` | Large simultaneous spot and vol moves (e.g. a rally with vol crush) |
+| `vanna_pnl` | Vanna × ΔS × Δvol_points, where `ΔS = S_t − S_{t−1}` in dollars | Large simultaneous spot and vol moves (e.g. a rally with vol crush) |
 | `volga_pnl` | ½ × Volga × (Δvol_points)² | Large vol-of-vol moves |
 
 **Computation**: Vanna (∂²V/∂S∂σ) and volga (∂²V/∂σ²) are computed via uniform finite differences using the same bump conventions as the main Greeks (`bump_spot_rel=0.01`, `bump_vol_abs=0.001`).  `method=average` averages the cross-Greeks at t−1 and t; `method=backward` uses t−1 only.
@@ -349,7 +349,7 @@ When `cross_greeks=true`, the PnL attribution adds two second-order terms that c
 ```xml
 <pnl_attribution>
   <meta>
-    <service_version>3.4.0</service_version>
+    <service_version>3.4.5</service_version>
     <quantlib_version>1.42.1</quantlib_version>
     <valuation_date_t_minus_1>2026-04-19</valuation_date_t_minus_1>
     <valuation_date_t>2026-04-20</valuation_date_t>

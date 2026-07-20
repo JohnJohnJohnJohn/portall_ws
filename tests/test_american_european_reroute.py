@@ -3,12 +3,12 @@
 from datetime import date
 
 import pytest
-import QuantLib as ql
 
 from deskpricer.pricing.bsm_fast import price_european_bsm
-from deskpricer.pricing.conventions import ql_date_from_iso
 from deskpricer.pricing.engine import price_vanilla
 from deskpricer.pricing.equivalence import american_is_european_equivalent
+
+from _bsm_ref import sync_eval_date
 
 VALUATION_DATE = date(2024, 1, 2)
 PARITY_TOL = 1e-6
@@ -16,12 +16,8 @@ PARITY_TOL = 1e-6
 
 @pytest.fixture(autouse=True)
 def _sync_eval_date():
-    old_eval = ql.Settings.instance().evaluationDate
-    ql.Settings.instance().evaluationDate = ql_date_from_iso(VALUATION_DATE)
-    try:
+    with sync_eval_date(VALUATION_DATE):
         yield
-    finally:
-        ql.Settings.instance().evaluationDate = old_eval
 
 
 class TestEquivalenceDetection:

@@ -5,7 +5,7 @@ description: >
   attribution, and portfolio Greeks. Europeans use closed-form BSM; Americans
   and IV use QuantLib binomial. Supports borrow cost, dividend yield, and
   multiple calendars. Deterministic, auditable, hallucination-free.
-version: 3.4.0
+version: 3.4.5
 homepage: https://github.com/JohnJohnJohnJohn/portall_ws
 license: MIT
 categories:
