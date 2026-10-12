@@ -139,7 +139,9 @@ Price a single vanilla option and return Greeks.
 
 Bulk endpoint for book-level aggregation.
 
-> **Same-underlying requirement**: All legs must reference the same underlying spot price.  A portfolio with legs whose spot prices differ by more than `1e-6` relative tolerance will be rejected with `422 UNSUPPORTED_COMBINATION`.
+> **Divergent spots**: legs sharing an explicit `underlying_id` whose spot prices diverge by more than 5% produce a **server-side warning** (the request still succeeds); the `aggregate` block is then only a first-order linear approximation across independent positions.
+
+> **Timeout**: all legs are priced in a single worker task subject to `DESKPRICER_TASK_TIMEOUT` (60s default).  Books of hundreds of American legs — especially with explicit `steps` in the thousands — can exceed it and return `503 PRICING_TIMEOUT`; raise the env var or lower `steps` for such books.
 
 #### Request Body (JSON)
 

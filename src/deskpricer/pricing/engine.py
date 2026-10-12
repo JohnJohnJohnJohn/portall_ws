@@ -15,6 +15,9 @@ from deskpricer.pricing.conventions import (
     DEFAULT_STEPS,
     MIN_T_YEARS,
     CalendarLiteral,
+    expiry_from_t,
+    get_calendar,
+    ql_date_from_iso,
 )
 from deskpricer.pricing.constants import (
     ADAPTIVE_STEPS_MAX,
@@ -265,11 +268,6 @@ def price_vanilla_npv(
         effective_steps = resolve_effective_steps("american", effective_t, v, steps)
         # Use a lean single-NPV call path; we don't need bump-and-revalue here.
         from deskpricer.pricing.american import _npv as american_npv
-        from deskpricer.pricing.conventions import (
-            expiry_from_t,
-            get_calendar,
-            ql_date_from_iso,
-        )
 
         ql_date = ql_date_from_iso(valuation_date)
         calendar = get_calendar(calendar_name)

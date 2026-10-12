@@ -163,8 +163,8 @@ class TestPnLAttribution:
         assert root.find("outputs/price_t_minus_1") is not None
 
     def test_omit_both_dates_same_t(self, client: TestClient):
-        """Omitting both dates with same t: same eval date, but count_business_days
-        returns 1 minimum so theta_pnl reflects one trading day of decay."""
+        """Omitting both dates with same t: same eval date, and calendar_days
+        floors to 1 so theta_pnl reflects one calendar day of decay."""
         params = self._base_params()
         del params["valuation_date_t_minus_1"]
         del params["valuation_date_t"]

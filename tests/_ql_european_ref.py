@@ -1,13 +1,13 @@
-"""European option pricing via QuantLib's AnalyticEuropeanEngine.
+"""QuantLib-backed European option oracle for cross-validation in tests.
 
 Reference oracle
 ----------------
-This module is the QuantLib-backed reference implementation.  The production
-European pricing path runs through ``pricing/bsm_fast.py`` (pure-Python BSM
-via stdlib ``math.erf``), which is invoked from ``pricing.engine.price_vanilla``.
-This module is exercised in tests as an independent cross-validation oracle
-against ``bsm_fast`` to catch regressions in either path.  It is not on the
-request hot-path.
+This module is the QuantLib reference implementation of European pricing.  The
+production European pricing path runs through ``pricing/bsm_fast.py`` (pure-
+Python BSM via stdlib ``math.erf``), which is invoked from
+``pricing.engine.price_vanilla``.  This module lives in tests/ because it is
+not on the request hot-path: it exists solely as an independent cross-
+validation oracle against ``bsm_fast`` to catch regressions in either path.
 """
 
 from datetime import date

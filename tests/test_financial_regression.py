@@ -3,9 +3,9 @@
 import math
 from datetime import date
 
-from deskpricer.pricing.conventions import annual_business_days
+from _conventions_ref import annual_business_days
 from deskpricer.pricing.cross_greeks import compute_cross_greeks
-from deskpricer.pricing.european import price_european
+from _ql_european_ref import price_european
 from deskpricer.pricing.engine import price_vanilla
 from deskpricer.pricing.implied_vol import compute_implied_vol
 

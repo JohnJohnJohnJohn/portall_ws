@@ -1,5 +1,6 @@
 """API contract tests: XML/JSON toggling, error codes, schema validation."""
 
+import logging
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -814,6 +815,73 @@ class TestCatchallHandler:
         data = resp.json()
         assert data["error"]["code"] == "PRICING_FAILURE"
         assert "internal error" in data["error"]["message"].lower()
+
+    def test_catchall_logs_exc_info(self, monkeypatch, caplog):
+        """500s must carry the stack trace in the log record for diagnosis."""
+        import deskpricer.services.pricing_service as svc
+        from deskpricer.app import create_app
+
+        def _boom(*args, **kwargs):
+            raise ZeroDivisionError("float division by zero")
+
+        monkeypatch.setattr(svc, "_price_vanilla_result", _boom)
+
+        app = create_app()
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with caplog.at_level(logging.WARNING, logger="deskpricer"):
+            resp = client.get(
+                "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=0.20&type=call&style=european",
+                headers={"Accept": "application/json"},
+            )
+        assert resp.status_code == 500
+        records = [r for r in caplog.records if r.name == "deskpricer"]
+        assert records, "expected a deskpricer log record for the 500"
+        assert any(r.exc_info is not None for r in records)
+
+
+class TestEmptyOptionalParams:
+    """Excel WEBSERVICE renders empty cells as ``field=``; optional fields must
+    not 422 on them (regression: b=, valuation_date=, steps=, calendar=)."""
+
+    def test_empty_optional_query_params_use_defaults(self, client: TestClient):
+        url = (
+            "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0&v=0.2"
+            "&type=call&style=european&valuation_date=&b=&calendar="
+        )
+        resp = client.get(url, headers={"Accept": "application/json"})
+        assert resp.status_code == 200, resp.text
+        outputs = resp.json()["greeks"]["outputs"]
+        assert outputs["price"] > 0
+
+    def test_empty_steps_american_uses_default(self, client: TestClient):
+        url = (
+            "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=0.01&v=0.2"
+            "&type=put&style=american&valuation_date=2026-10-12&steps="
+        )
+        resp = client.get(url, headers={"Accept": "application/json"})
+        assert resp.status_code == 200, resp.text
+
+    def test_empty_required_field_still_fails(self, client: TestClient):
+        url = (
+            "/v1/greeks?s=100&k=100&t=0.25&r=0.05&q=&v=0.2"
+            "&type=call&style=european&valuation_date=2026-10-12"
+        )
+        resp = client.get(url, headers={"Accept": "application/json"})
+        assert resp.status_code == 422
+        assert resp.json()["error"]["field"] == "q"
+
+    def test_portfolio_empty_valuation_date(self, client: TestClient):
+        payload = {
+            "valuation_date": "",
+            "legs": [
+                {"id": "L1", "qty": 1, "s": 100, "k": 100, "t": 0.25,
+                 "r": 0.05, "q": 0, "v": 0.2, "type": "call", "style": "european"}
+            ],
+        }
+        resp = client.post("/v1/portfolio/greeks", json=payload,
+                           headers={"Accept": "application/json"})
+        assert resp.status_code == 200, resp.text
 
 
 class TestPortfolioQtyZero:

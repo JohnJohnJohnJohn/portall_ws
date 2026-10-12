@@ -25,7 +25,9 @@ Assume columns:
 - `T` = time to expiry `t`
 - `R` = rate `r`
 - `Q` = dividend yield `q`
-- `B` = borrow cost `b` (optional; default `0.0`)
+- `B` = borrow cost `b` (optional; default `0.0` — leaving the cell blank yields
+  an empty `&b=` parameter, which is accepted; the same holds for other
+  optional fields such as `valuation_date`, `steps`, and `calendar`)
 - `V` = volatility `v`
 - `TYPE` = `call` or `put`
 - `STYLE` = `european` or `american`

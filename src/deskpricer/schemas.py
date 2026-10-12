@@ -11,8 +11,9 @@ applied only to the ``aggregate`` response block; each element of the
 """
 
 import logging
+from collections.abc import Mapping
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -34,14 +35,32 @@ from deskpricer.pricing.conventions import (
 EngineLiteral = Literal["analytic", "binomial_crr", "binomial_jr"]
 
 
+def _drop_empty_optional_fields(cls: type[BaseModel], data: Any) -> Any:
+    """Treat empty strings as absent for optional fields.
+
+    Excel's WEBSERVICE renders empty cells as ``field=`` in the query string;
+    without this, leaving any optional cell blank (b, valuation_date, steps,
+    calendar, ...) 422s.  Required fields keep failing with a parse error,
+    which is the correct outcome.  Accepts any Mapping because starlette's
+    QueryParams is not a dict subclass.
+    """
+    if isinstance(data, Mapping):
+        fields = cls.model_fields
+        data = {
+            k: v
+            for k, v in data.items()
+            if not (
+                isinstance(v, str) and v == "" and k in fields and not fields[k].is_required()
+            )
+        }
+    return data
+
+
 class _EngineDefaultsMixin(BaseModel):
     @model_validator(mode="before")
     @classmethod
-    def empty_str_to_none(cls, data):
-        if isinstance(data, dict) and data.get("engine") == "":
-            data = dict(data)
-            data["engine"] = None
-        return data
+    def _drop_empty_optionals(cls, data: Any) -> Any:
+        return _drop_empty_optional_fields(cls, data)
 
     @model_validator(mode="after")
     def set_default_engine(self):
@@ -158,6 +177,11 @@ class PortfolioRequest(BaseModel):
         description="Individual legs.  Each leg may reference a different "
         "underlying spot price; aggregate Greeks are a linear sum.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_empty_optionals(cls, data: Any) -> Any:
+        return _drop_empty_optional_fields(cls, data)
 
     @model_validator(mode="after")
     def check_unique_ids(self):

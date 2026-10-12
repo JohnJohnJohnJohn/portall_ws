@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 
 from deskpricer.pricing.bsm_fast import price_european_bsm
-from deskpricer.pricing.european import price_european
+from _ql_european_ref import price_european
 
 from _bsm_ref import sync_eval_date as _sync_eval_date_ctx
 

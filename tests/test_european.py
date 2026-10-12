@@ -4,7 +4,7 @@ from datetime import date
 
 import QuantLib as ql
 
-from deskpricer.pricing.european import price_european
+from _ql_european_ref import price_european
 
 
 class TestEuropeanCharmThreadSafety:
@@ -56,7 +56,7 @@ class TestEuropeanCharmThreadSafety:
         """If _reprice_with_expiry raises, InvalidInputError is propagated."""
         import pytest
 
-        import deskpricer.pricing.european as eu
+        import _ql_european_ref as eu
 
         def _boom(*args, **kwargs):
             raise RuntimeError("simulated pricing failure")
@@ -85,7 +85,7 @@ class TestBorrowCostEngine:
         """Higher borrow cost lowers forward → lower European call price."""
         from datetime import date
 
-        from deskpricer.pricing.european import price_european
+        from _ql_european_ref import price_european
 
         base = {
             "s": 100.0,
@@ -105,7 +105,7 @@ class TestBorrowCostEngine:
         """Higher borrow cost lowers forward → higher European put price."""
         from datetime import date
 
-        from deskpricer.pricing.european import price_european
+        from _ql_european_ref import price_european
 
         base = {
             "s": 100.0,

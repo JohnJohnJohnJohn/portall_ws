@@ -83,7 +83,9 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 async def catchall_exception_handler(request: Request, exc: Exception) -> Response:
     # Log concisely — full tracebacks from Excel/WEBSERVICE malformed requests
-    # clog the log.  We keep the request context and exception type/message only.
+    # clog the log.  We keep the request context and exception type/message in
+    # the summary line, plus the stack trace via exc_info (rendered only in the
+    # file log's "exception" field) so 500s are diagnosable after the fact.
     try:
         _logger.warning(
             "Invalid request: %s %s — %s: %s",
@@ -91,6 +93,7 @@ async def catchall_exception_handler(request: Request, exc: Exception) -> Respon
             request.url.path,
             type(exc).__name__,
             exc,
+            exc_info=exc,
             extra={
                 "path": request.url.path,
                 "method": request.method,

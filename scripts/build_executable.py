@@ -70,7 +70,6 @@ def build(onefile: bool = True, windowed: bool = False):
         "--hidden-import", "deskpricer.worker",
         "--hidden-import", "deskpricer.app",
         "--hidden-import", "deskpricer.pricing.american",
-        "--hidden-import", "deskpricer.pricing.european",
         "--hidden-import", "deskpricer.pricing.engine",
         "--hidden-import", "deskpricer.pricing.cross_greeks",
         "--hidden-import", "deskpricer.pricing.implied_vol",

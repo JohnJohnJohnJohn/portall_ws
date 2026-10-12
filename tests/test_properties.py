@@ -238,7 +238,7 @@ class TestPnLExplain:
         assert resp.status_code == 200
         data = resp.json()["pnl_attribution"]["outputs"]
         assert data["actual_pnl"] == pytest.approx(0.0, abs=1e-10)
-        # Same dates → count_business_days still returns 1, so residual = -theta_pnl
+        # Same dates → calendar_days floors to 1, so theta_pnl reflects one day of decay
         assert data["residual_pnl"] == pytest.approx(-data["theta_pnl"], abs=1e-10)
 
 
@@ -246,7 +246,7 @@ class TestCrossGreeksBSMConsistency:
     def test_vanna_and_volga_match_bsm_closed_form(self):
         """Numerical cross-greeks must agree with BSM closed-form within 2%."""
         from deskpricer.pricing.cross_greeks import compute_cross_greeks
-        from deskpricer.pricing.european import price_european
+        from _ql_european_ref import price_european
 
         from _bsm_ref import (
             bs_vanna_per_dollar_per_point,
@@ -326,11 +326,8 @@ class TestPortfolioAggregation:
 class TestCountBusinessDays:
     def test_same_day_returns_zero(self):
         """count_business_days must return 0 when start == end."""
-        from deskpricer.pricing.conventions import (
-            count_business_days,
-            get_calendar,
-            ql_date_from_iso,
-        )
+        from _conventions_ref import count_business_days
+        from deskpricer.pricing.conventions import get_calendar, ql_date_from_iso
 
         d = ql_date_from_iso(__import__("datetime").date(2026, 4, 20))
         cal = get_calendar("hong_kong")

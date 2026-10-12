@@ -55,6 +55,12 @@ def _effective_t(
     if t <= MIN_T_YEARS:
         return effective, None
     expiry_t1 = expiry_date - 1
+    if expiry_t1 <= ql_date:
+        # Expiry is at valuation_date + 1: cannot shorten by a day without
+        # crossing into the past, so theta/charm use the same intrinsic
+        # fallback as the <= 1-day branch (a T=0 BSM evaluation would divide
+        # by v*sqrt(0) and crash).
+        return effective, None
     effective_t1 = day_count.yearFraction(ql_date, expiry_t1)
     return effective, effective_t1
 
@@ -153,7 +159,7 @@ def price_european_bsm(
     vega = _vega_cached(s, cache)
     rho = _rho_cached(cache, option_type)
 
-    if t <= MIN_T_YEARS:
+    if t <= MIN_T_YEARS or effective_t1 is None:
         intrinsic = max(s - k, 0.0) if option_type == "call" else max(k - s, 0.0)
         theta = intrinsic - price
         charm = 0.0

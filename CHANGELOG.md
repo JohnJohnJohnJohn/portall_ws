@@ -2,7 +2,41 @@
 
 ## Unreleased
 
-_Nothing pending — see 3.5.0 milestone entry below._
+### Fixed
+
+- **HTTP 500 on 1–1.5-day options** — `bsm_fast._effective_t` produced a
+  `effective_t1` of 0 when the expiry lands at `valuation_date + 1` (most
+  weekdays on business calendars; always on the `null` calendar), dividing by
+  `v·sqrt(0)` in the theta/charm revalue. Such requests now use the same
+  intrinsic-theta fallback as the ≤ 1-day branch. Regression sweep in
+  `tests/test_zero_day_boundary.py`.
+- **American→European reroute signs** — calls now reroute whenever
+  `q + b ≤ 0` (full Merton condition; previously only `q + b ≈ 0`), and puts
+  with `r ≈ 0` no longer reroute when `q + b < 0` (accreting underlying makes
+  early exercise optimal; previously underpriced ~1.4% in that regime).
+- **Empty optional query params 422'd** — Excel `WEBSERVICE` renders empty
+  cells as `field=`; `b=`, `valuation_date=`, `steps=`, `calendar=` etc. now
+  fall back to their defaults instead of failing validation. Root cause:
+  starlette `QueryParams` is not a `dict` subclass, so the pre-existing
+  `engine=""` coercion never fired on GET requests either — it now does.
+- **500s were undebuggable from logs** — the catchall handler now logs
+  `exc_info`, so the stack trace lands in the JSON file log's `exception`
+  field (client responses unchanged).
+
+### Removed
+
+- `pricing/european.py` (test-only QuantLib oracle) moved to
+  `tests/_ql_european_ref.py`; unused `annual_business_days` /
+  `count_business_days` helpers moved to `tests/_conventions_ref.py`.
+  Net −155 lines of application code.
+
+### Docs
+
+- Corrected stale claims: divergent portfolio spots warn (never 422);
+  `bsm_fast` uses stdlib `math.erf`, not scipy; reroute conditions;
+  expiry-discrepancy threshold is 20%.
+- Documented the portfolio task timeout (`DESKPRICER_TASK_TIMEOUT`, 60s
+  default) for large American books.
 
 ## 3.5.0 — 2026-07-20
 

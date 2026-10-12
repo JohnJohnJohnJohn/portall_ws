@@ -35,8 +35,8 @@ app.py              schemas.py          pricing/engine.py     responses.py      
 | `logging_config.py` | `_SafeRotatingFileHandler` (Windows-safe rollover), `JSONFormatter` (surrogate-safe, absolute fallback). |
 | `main.py` | Uvicorn entrypoint, CLI arg parsing (`--port`, `--host`, `--quiet`), startup banner. |
 | `pricing/engine.py` | Dispatcher. Validates inputs, floors `t` to 1 day, routes Europeans and equivalent Americans to `bsm_fast`, otherwise routes Americans to `price_american`. |
-| `pricing/bsm_fast.py` | Production European pricer: pure scipy BSM with calendar-day theta/charm and borrow-cost carry (`q + b`). Thread-safe; no QuantLib global state. |
-| `pricing/european.py` | QuantLib reference European pricer (`AnalyticEuropeanEngine`). Retained for parity/regression tests against `bsm_fast`. |
+| `pricing/bsm_fast.py` | Production European pricer: pure-Python BSM (stdlib `math.erf`, no scipy) with calendar-day theta/charm and borrow-cost carry (`q + b`). Thread-safe; no QuantLib global state. |
+| `tests/_ql_european_ref.py` | QuantLib reference European pricer (`AnalyticEuropeanEngine`), a test-only oracle for parity/regression tests against `bsm_fast` (not shipped in the package). |
 | `pricing/equivalence.py` | Detects when an American option is economically identical to its European counterpart and can skip the binomial tree. |
 | `pricing/american.py` | Binomial CRR/JR via `BinomialVanillaEngine`. Greeks via bump-and-revalue (central differences on spot, vol, rate). Theta/charm via 1-calendar-day expiry shortening and reprice, with fallback to intrinsic value at zero DTE. |
 | `pricing/implied_vol.py` | Brent solver (`impliedVolatility`) with bounds `[1e-6, 5.0]`. Re-prices at solved vol as sanity check. Always uses QuantLib. |
@@ -60,7 +60,7 @@ app.py              schemas.py          pricing/engine.py     responses.py      
 
 1. **QuantLib work runs in worker processes**, each with its own `Settings.instance()`. The async event loop never mutates global QuantLib state directly.
 2. **Engine/style mapping is rigid**: European → `analytic` only. American → `binomial_crr` or `binomial_jr` only. Any other combination raises `UnsupportedCombinationError` (422).
-3. **American→European reroute** when early-exercise premium is zero: calls when `|q + b| ≤ 1e-8`, puts when `|r| ≤ 1e-8`. Rerouted legs use the same `bsm_fast` path as Europeans.
+3. **American→European reroute** when early-exercise premium is zero: calls when `q + b ≤ 1e-8` (Merton's condition), puts when `|r| ≤ 1e-8` and `q + b ≥ -1e-8`. Rerouted legs use the same `bsm_fast` path as Europeans.
 4. **`t < 1/365` is floored to 1 day** in `expiry_from_t`. The expiry is computed as `valuation_date + round(t * 365)` calendar days, then rolled to the next business day via the chosen calendar. This prevents QuantLib from collapsing on zero-day options.
 5. **Vega and rho are per 1% point**; **theta and charm are per calendar day**.
 6. **All numeric outputs are finite** before serialization. `_clean_value` converts non-finite floats to `None` as a last-ditch guard.

@@ -21,7 +21,7 @@ _ENGINE_SUPPORT = (
     "Engines: european requires engine=analytic (default). "
     "american uses binomial_crr (default) or binomial_jr. "
     "Americans economically equal to Europeans are auto-priced via closed-form BSM "
-    "(calls when |q+b|≤1e-8; puts when |r|≤1e-8)."
+    "(calls when q+b<=0; puts when |r|<=1e-8 and q+b>=0)."
 )
 
 _CALENDARS = (

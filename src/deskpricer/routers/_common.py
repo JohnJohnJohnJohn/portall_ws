@@ -11,7 +11,7 @@ from deskpricer.responses import use_json_from_request
 async def handle_get_endpoint(request: Request, schema_cls, run_fn, serialize_fn) -> Response:
     use_json = use_json_from_request(request)
     try:
-        params = schema_cls.model_validate(request.query_params)
+        params = schema_cls.model_validate(dict(request.query_params))
     except ValidationError as exc:
         raise RequestValidationError(exc.errors(), body=None) from exc
 
