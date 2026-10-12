@@ -5,7 +5,7 @@ import math
 
 from fastapi.testclient import TestClient
 
-from deskpricer.pricing.conventions import DEFAULT_STEPS
+from deskpricer.pricing.constants import DEFAULT_STEPS
 
 
 class TestAmericanPut:

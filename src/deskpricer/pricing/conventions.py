@@ -52,18 +52,7 @@ import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
 
-from deskpricer.pricing.constants import (  # noqa: F401
-    DEFAULT_BORROW_COST,
-    DEFAULT_BUMP_RATE_ABS,
-    DEFAULT_BUMP_SPOT_REL,
-    DEFAULT_BUMP_VOL_ABS,
-    DEFAULT_STEPS,
-    IV_SOLVER_DEFAULT_ACCURACY,
-    IV_SOLVER_MAX_ITERATIONS,
-    MIN_T_YEARS,
-    SPOT_DIVERGENCE_THRESHOLD,
-)
-from deskpricer.pricing.constants import MAX_EXPIRY_T_DISCREPANCY  # internal use only
+from deskpricer.pricing.constants import MAX_EXPIRY_T_DISCREPANCY
 
 DAY_COUNT = "ACT/365F"
 

@@ -8,6 +8,9 @@ import QuantLib as ql
 
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.constants import (
+    DEFAULT_BUMP_RATE_ABS,
+    DEFAULT_BUMP_SPOT_REL,
+    DEFAULT_BUMP_VOL_ABS,
     GAMMA_MIN_TICKS,
     GAMMA_NOISE_FLOOR,
     MIN_T_YEARS,
@@ -15,9 +18,6 @@ from deskpricer.pricing.constants import (
     VOL_BUMP_CAP_FACTOR,
 )
 from deskpricer.pricing.conventions import (
-    DEFAULT_BUMP_RATE_ABS,
-    DEFAULT_BUMP_SPOT_REL,
-    DEFAULT_BUMP_VOL_ABS,
     DEFAULT_CALENDAR,
     CalendarLiteral,
     default_day_count,

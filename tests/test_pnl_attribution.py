@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 
-from deskpricer.pricing.conventions import MIN_T_YEARS
+from deskpricer.pricing.constants import MIN_T_YEARS
 
 
 class TestPnLAttribution:

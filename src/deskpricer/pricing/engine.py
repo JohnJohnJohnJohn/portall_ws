@@ -5,25 +5,25 @@ import math
 from datetime import date
 
 from deskpricer.errors import UnsupportedCombinationError
-from deskpricer.pricing.american import price_american
+from deskpricer.pricing.american import _npv as american_npv, price_american
 from deskpricer.pricing.bsm_fast import price_european_bsm
-from deskpricer.pricing.conventions import (
-    DEFAULT_BUMP_RATE_ABS,
-    DEFAULT_BUMP_SPOT_REL,
-    DEFAULT_BUMP_VOL_ABS,
-    DEFAULT_CALENDAR,
-    DEFAULT_STEPS,
-    MIN_T_YEARS,
-    CalendarLiteral,
-    expiry_from_t,
-    get_calendar,
-    ql_date_from_iso,
-)
 from deskpricer.pricing.constants import (
     ADAPTIVE_STEPS_MAX,
     ADAPTIVE_STEPS_MIN,
     ADAPTIVE_STEPS_TARGET,
+    DEFAULT_BUMP_RATE_ABS,
+    DEFAULT_BUMP_SPOT_REL,
+    DEFAULT_BUMP_VOL_ABS,
+    DEFAULT_STEPS,
     INSUFFICIENT_STEPS_WARNING_THRESHOLD,
+    MIN_T_YEARS,
+)
+from deskpricer.pricing.conventions import (
+    DEFAULT_CALENDAR,
+    CalendarLiteral,
+    expiry_from_t,
+    get_calendar,
+    ql_date_from_iso,
 )
 from deskpricer.pricing.equivalence import american_is_european_equivalent
 from deskpricer.schemas import EngineLiteral, GreeksOutput
@@ -266,9 +266,7 @@ def price_vanilla_npv(
                 field="engine",
             )
         effective_steps = resolve_effective_steps("american", effective_t, v, steps)
-        # Use a lean single-NPV call path; we don't need bump-and-revalue here.
-        from deskpricer.pricing.american import _npv as american_npv
-
+        # Lean single-NPV call path; no bump-and-revalue needed here.
         ql_date = ql_date_from_iso(valuation_date)
         calendar = get_calendar(calendar_name)
         expiry_date = expiry_from_t(ql_date, effective_t, calendar)

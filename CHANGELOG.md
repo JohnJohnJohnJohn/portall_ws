@@ -23,6 +23,12 @@
   `exc_info`, so the stack trace lands in the JSON file log's `exception`
   field (client responses unchanged).
 
+### Changed
+
+- Import hygiene: modules now import numeric constants directly from
+  `pricing/constants.py` instead of through the `conventions.py` re-export,
+  which has been removed.
+
 ### Removed
 
 - `pricing/european.py` (test-only QuantLib oracle) moved to

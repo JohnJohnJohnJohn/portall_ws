@@ -20,10 +20,9 @@ from deskpricer.pricing.constants import (
     IV_TOLERANCE_MULTIPLIER_ANALYTIC,
     IV_TOLERANCE_MULTIPLIER_TREE,
 )
+from deskpricer.pricing.constants import DEFAULT_STEPS, MIN_T_YEARS
 from deskpricer.pricing.conventions import (
     DEFAULT_CALENDAR,
-    DEFAULT_STEPS,
-    MIN_T_YEARS,
     CalendarLiteral,
     default_day_count,
     expiry_from_t,

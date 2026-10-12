@@ -17,19 +17,21 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from deskpricer.pricing.conventions import (
-    CalendarLiteral,
-    DAY_COUNT,
+from deskpricer.pricing.constants import (
     DEFAULT_BORROW_COST,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
-    DEFAULT_CALENDAR,
     DEFAULT_STEPS,
     IV_SOLVER_DEFAULT_ACCURACY,
     IV_SOLVER_MAX_ITERATIONS,
     MIN_T_YEARS,
     SPOT_DIVERGENCE_THRESHOLD,
+)
+from deskpricer.pricing.conventions import (
+    DEFAULT_CALENDAR,
+    DAY_COUNT,
+    CalendarLiteral,
 )
 
 EngineLiteral = Literal["analytic", "binomial_crr", "binomial_jr"]

@@ -768,7 +768,8 @@ class TestDateBoundaries:
         """expiry_from_t must correctly advance from Dec 31 into the next year."""
         import QuantLib as ql
 
-        from deskpricer.pricing.conventions import MIN_T_YEARS, expiry_from_t
+        from deskpricer.pricing.constants import MIN_T_YEARS
+        from deskpricer.pricing.conventions import expiry_from_t
 
         dec_31 = ql.Date(31, 12, 2026)
         expiry = expiry_from_t(dec_31, MIN_T_YEARS, ql.NullCalendar())

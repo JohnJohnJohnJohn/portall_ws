@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from deskpricer.pricing.conventions import DEFAULT_STEPS
+from deskpricer.pricing.constants import DEFAULT_STEPS
 
 
 def fetch_greeks(client, **kwargs):

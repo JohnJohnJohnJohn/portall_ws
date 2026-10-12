@@ -5,13 +5,15 @@ import math
 from datetime import date
 
 from deskpricer.errors import InvalidInputError
-from deskpricer.pricing.constants import VOL_BUMP_CAP_FACTOR
-from deskpricer.pricing.conventions import (
+from deskpricer.pricing.constants import (
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
-    DEFAULT_CALENDAR,
     DEFAULT_STEPS,
+    VOL_BUMP_CAP_FACTOR,
+)
+from deskpricer.pricing.conventions import (
+    DEFAULT_CALENDAR,
     CalendarLiteral,
 )
 from deskpricer.pricing.engine import price_vanilla_npv

@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from deskpricer.pricing.constants import DEFAULT_STEPS
 from deskpricer.pricing.conventions import (
-    DEFAULT_STEPS,
     default_day_count,
     expiry_from_t,
     get_calendar,
