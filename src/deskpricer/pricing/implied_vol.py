@@ -9,6 +9,7 @@ import QuantLib as ql
 from deskpricer.errors import InvalidInputError, UnsupportedCombinationError
 from deskpricer.pricing.constants import (
     IV_HIGH_VOL_WARNING_THRESHOLD,
+    IV_LOW_VEGA_WARNING_THRESHOLD,
     IV_REPRICE_RELATIVE_TOLERANCE,
     IV_SEED_VOL,
     IV_SOLVER_DEFAULT_ACCURACY,
@@ -31,6 +32,8 @@ from deskpricer.pricing.conventions import (
 )
 from deskpricer.pricing.engine import ENGINE_MAP, resolve_effective_steps
 from deskpricer.schemas import EngineLiteral, ImpliedVolOutput
+
+_INV_SQRT_2PI = 1.0 / math.sqrt(2.0 * math.pi)
 
 assert IV_SOLVER_VOL_LO < IV_SOLVER_VOL_HI, "IV solver primary bounds must form a bracket"
 assert IV_SOLVER_VOL_LO_RETRY < IV_SOLVER_VOL_HI_RETRY, "IV solver retry bounds must form a bracket"
@@ -124,21 +127,23 @@ def compute_implied_vol(
         )
         option.setPricingEngine(ql.BinomialVanillaEngine(process, ql_engine, effective_steps))
 
-    # Pre-check no-arbitrage bounds before invoking the solver.
-    # The European lower bound (intrinsic discounted) is also a valid (looser)
-    # lower bound for American options, since American >= European.  The upper
-    # bounds differ: for Europeans the upper bound is the discounted asset /
-    # strike (s*df_qb for calls, k*df_r for puts); for Americans it is the
-    # undiscounted asset / strike (s for calls, k for puts), because the
-    # holder can exercise immediately and receive the asset / strike now.
-    df_r = math.exp(-r * effective_t)
-    df_qb = math.exp(-(q + b) * effective_t)
+    # Pre-check no-arbitrage bounds before invoking the solver.  Europeans:
+    # discounted asset/strike bounds.  Americans: the holder can exercise
+    # immediately, so the lower bound is the undiscounted intrinsic and the
+    # upper bound the undiscounted asset/strike.  Discount factors use the
+    # same whole-day-grid T the solver prices at — using the raw input t
+    # instead lets deep-ITM targets pass here and fail later in the solver
+    # with the generic bounds message (half a day of discounting can exceed
+    # such an option's entire time value).
+    eff_t_grid = day_count.yearFraction(ql_date, expiry_date)
+    df_r = math.exp(-r * eff_t_grid)
+    df_qb = math.exp(-(q + b) * eff_t_grid)
     is_american = style == "american"
     if option_type == "call":
-        lower_bound = max(0.0, s * df_qb - k * df_r)
+        lower_bound = max(0.0, s - k) if is_american else max(0.0, s * df_qb - k * df_r)
         upper_bound = s if is_american else s * df_qb
     else:
-        lower_bound = max(0.0, k * df_r - s * df_qb)
+        lower_bound = max(0.0, k - s) if is_american else max(0.0, k * df_r - s * df_qb)
         upper_bound = k if is_american else k * df_r
 
     if target_price < lower_bound:
@@ -233,6 +238,36 @@ def compute_implied_vol(
             s,
             k,
             t,
+        )
+
+    # Conditioning flag: the inversion error scales as 1/vega, so a tiny vega
+    # at the solved vol means small price noise maps to huge IV errors
+    # (measured: 1 cent of price error > 1 vol-point once vega/1% < 0.01).
+    # Exact for Europeans, approximate (but adequate for a flag) for trees.
+    d1_iv = (math.log(s / k) + (r - (q + b) + 0.5 * implied_vol * implied_vol) * eff_t_grid) / (
+        implied_vol * math.sqrt(eff_t_grid)
+    )
+    vega_est = (
+        s
+        * math.exp(-(q + b) * eff_t_grid)
+        * _INV_SQRT_2PI
+        * math.exp(-0.5 * d1_iv * d1_iv)
+        * math.sqrt(eff_t_grid)
+        / 100.0
+    )
+    if vega_est < IV_LOW_VEGA_WARNING_THRESHOLD:
+        logging.getLogger("deskpricer").warning(
+            "Solved IV is ill-conditioned: estimated vega %.5f per 1 vol-point is below "
+            "%.2f, so ~0.01 of price noise maps to >1 vol-point of IV error. "
+            "Target price=%.4f, s=%.2f, k=%.2f, t=%.6f, iv=%.4f. "
+            "Deep-ITM/OTM IVs carry no vol information; exclude from calibration.",
+            vega_est,
+            IV_LOW_VEGA_WARNING_THRESHOLD,
+            target_price,
+            s,
+            k,
+            t,
+            implied_vol,
         )
 
     is_tree_engine = engine_cls is None

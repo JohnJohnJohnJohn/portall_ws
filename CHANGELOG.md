@@ -4,6 +4,31 @@
 
 ### Fixed
 
+- **IV no-arbitrage pre-check now matches the solver's day-grid T** — the
+  pre-check previously discounted at the raw input `t` while the solver
+  priced at the whole-day effective T; deep-ITM targets in that half-day gap
+  passed the pre-check and failed with the generic "outside solver bounds"
+  message. They now fail with the informative lower-bound message.
+- **American IV lower bound is now the undiscounted intrinsic (K−S / S−K)**
+  — targets below immediate-exercise value (e.g. stale settlement prints)
+  are rejected up front with "below the no-arbitrage lower bound <intrinsic>"
+  instead of the generic solver-bounds error.
+
+### Added
+
+- **Ill-conditioned IV warning** — when vega at the solved IV falls below
+  0.01 per 1 vol-point, a structured warning is logged (deep-ITM/OTM IVs
+  carry no vol information; ~0.01 of price noise maps to >1 vol-point).
+- **American cross-greeks low-steps warning** — below 2000 steps, volga is
+  lattice-noise dominated; callers are warned to treat it as indicative.
+
+### Docs
+
+- `docs/numerical_analysis.md` — full numerical record (accuracy, edge-case
+  register); §4.3 corrected after re-measurement (deep-ITM "cancellation"
+  was a probe T-grid artifact; double-precision CDF saturation is exact).
+- `docs/api.md` — IV conditioning caveat and time-granularity notes.
+
 - **HTTP 500 on 1–1.5-day options** — `bsm_fast._effective_t` produced a
   `effective_t1` of 0 when the expiry lands at `valuation_date + 1` (most
   weekdays on business calendars; always on the `null` calendar), dividing by

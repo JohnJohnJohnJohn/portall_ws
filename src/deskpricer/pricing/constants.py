@@ -78,6 +78,16 @@ IV_TOLERANCE_MULTIPLIER_TREE: int = 50
 IV_HIGH_VOL_WARNING_THRESHOLD: float = 2.0
 """CONVENTIONS.md §4: 200% IV warning threshold for data quality."""
 
+IV_LOW_VEGA_WARNING_THRESHOLD: float = 0.01
+"""Vega (per 1 vol-point) at the solved IV below which the inversion is flagged
+as ill-conditioned: dIV/dPrice = 1/vega, so below this threshold ~0.01 of
+price noise maps to more than 1 vol-point of IV error (deep-ITM/OTM regime)."""
+
+AMERICAN_CROSS_GREEKS_MIN_STEPS: int = 2000
+"""Minimum binomial steps for trustworthy American cross-greeks.  Below this,
+the second vol difference (volga) is dominated by lattice noise rather than
+the option's actual vol convexity; a warning is logged."""
+
 IV_REPRICE_RELATIVE_TOLERANCE: float = 0.001
 """CONVENTIONS.md §4: Relative tolerance (0.1% of target price) for IV reprice verification."""
 

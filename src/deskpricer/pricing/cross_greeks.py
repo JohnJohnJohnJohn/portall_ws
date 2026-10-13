@@ -6,17 +6,19 @@ from datetime import date
 
 from deskpricer.errors import InvalidInputError
 from deskpricer.pricing.constants import (
+    AMERICAN_CROSS_GREEKS_MIN_STEPS,
     DEFAULT_BUMP_RATE_ABS,
     DEFAULT_BUMP_SPOT_REL,
     DEFAULT_BUMP_VOL_ABS,
     DEFAULT_STEPS,
+    MIN_T_YEARS,
     VOL_BUMP_CAP_FACTOR,
 )
 from deskpricer.pricing.conventions import (
     DEFAULT_CALENDAR,
     CalendarLiteral,
 )
-from deskpricer.pricing.engine import price_vanilla_npv
+from deskpricer.pricing.engine import price_vanilla_npv, resolve_effective_steps
 from deskpricer.schemas import EngineLiteral
 
 
@@ -81,6 +83,17 @@ def compute_cross_greeks(
             "Vol bump underflowed to zero for cross-greeks; use larger vol or bump_vol_abs",
             field="bump_vol_abs",
         )
+
+    if style == "american" and engine != "analytic":
+        eff_steps = resolve_effective_steps("american", max(t, MIN_T_YEARS), v, steps)
+        if eff_steps < AMERICAN_CROSS_GREEKS_MIN_STEPS:
+            logging.getLogger("deskpricer").warning(
+                "American cross-greeks with steps=%d (< %d): volga is lattice-noise "
+                "dominated and may be off by orders of magnitude; use the result as "
+                "indicative only or raise steps.",
+                eff_steps,
+                AMERICAN_CROSS_GREEKS_MIN_STEPS,
+            )
 
     ds = s * bump_spot_rel
     if ds <= 0.0 or not math.isfinite(ds):

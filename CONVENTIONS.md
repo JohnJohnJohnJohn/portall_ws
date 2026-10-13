@@ -107,6 +107,8 @@ this document. In case of conflict, this file wins.
 | `IV_TOLERANCE_MULTIPLIER_ANALYTIC` | `10` | Multiplier on `accuracy` for reprice tolerance; tight because closed-form has no discretisation noise | No |
 | `IV_TOLERANCE_MULTIPLIER_TREE` | `50` | Multiplier for tree engine; relaxed to absorb binomial discretisation error | No |
 | `IV_HIGH_VOL_WARNING_THRESHOLD` | `2.0` (200%) | Log warning above this IV; indicates likely data-quality issue | No |
+| `IV_LOW_VEGA_WARNING_THRESHOLD` | `0.01` (per 1 vol-point) | Log warning when vega at the solved IV is below this; the inversion is ill-conditioned (≈0.01 of price noise ⇒ >1 vol-point of IV error) | No |
+| `AMERICAN_CROSS_GREEKS_MIN_STEPS` | `2000` | Below this step count, American cross-greeks (esp. volga) are lattice-noise dominated; a warning is logged | No |
 | `IV_REPRICE_RELATIVE_TOLERANCE` | `0.001` (0.1%) | Relative tolerance floor for IV reprice check on high-nominal underlyings | No |
 | `VOL_BUMP_CAP_FACTOR` | `0.5` (50%) | Cap vol bump at 50% of current vol to ensure `v − h_v > 0` always holds | No |
 | `AMERICAN_EUROPEAN_EQUIVALENCE_ABS_TOL` | `1e-8` | Absolute tolerance for the American→European reroute: calls reroute when `q+b ≤ tol`; puts reroute when `|r| ≤ tol` and `q+b ≥ -tol` | No |

@@ -244,6 +244,20 @@ Aggregate = Σ qty × per-leg Greek (including price).
 
 Solve for implied volatility given an observed market price.
 
+> **Conditioning caveat**: IV error scales as 1/vega. Deep-ITM/OTM targets
+> (vega < ~0.01 per 1 vol-point) invert ill-conditionedly — a one-cent price
+> discrepancy can move the solved IV by more than a full vol-point while still
+> repricing exactly. Such IVs carry no volatility information and should not
+> feed calibration. The service logs a structured `ill-conditioned` warning
+> when vega at the solved IV is below 0.01; the solve still succeeds. See
+> `docs/numerical_analysis.md` §4.4 for the measured conditioning table.
+
+> **Time granularity**: `t` is quantized to whole calendar days (nearest day,
+> floor of 1) and the expiry is rolled to the next business day if it lands on
+> a holiday/weekend. Prices are therefore a step function of `t` at the
+> one-day level, and a Friday `t=1/365` prices with three calendar days of
+> time value. Intraday `t` precision below half a day is not representable.
+
 #### Query Parameters
 
 | Name | Type | Required | Description |
